@@ -1,0 +1,128 @@
+# ============================================================
+# Full YAML Template for write-test output
+# Read this file when generating the final YAML in Step 6.
+# ============================================================
+#
+# This is the canonical structure. Every field shown here is
+# required unless marked (optional). Do not invent fields.
+# ============================================================
+
+suite: "{suite title derived from suite name and scope}"
+game: "{game}"
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 60000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+# Suite-level setup: runs once before all tests
+setup:
+  - action: navigate
+    params:
+      url_script: "get_game_url"
+  - action: wait_for_state
+    params: { state: "ready", timeout_ms: 15000 }
+  - action: click
+    params: { selector: "#start-button" }
+  - action: wait_for_state
+    params: { state: "idle", timeout_ms: 15000 }
+  - action: capture
+    description: "Initial game state"
+
+# Suite-level teardown: runs once after all tests
+teardown:
+  - action: bridge_action
+    params: { name: "resetDevMode" }
+
+tests:
+  - id: "{test-id}"
+    title: "{test title}"
+    description: "{what this test verifies}"
+
+    # Per-test setup: establishes isolated state for THIS test only
+    setup:
+      - action: bridge_action
+        params: { name: "{inject method}", "{param_key}": "{param_value}" }
+
+    steps:
+      # Step pattern: action -> wait -> assert
+      - id: step-01
+        description: "{action description}"
+        action: "{action_type}"
+        params: { "{param_key}": "{param_value}" }
+
+      - id: step-02
+        description: "{wait for state to settle}"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 10000 }
+        capture: true
+
+      # Bridge-only assertion (no AI)
+      - id: step-03
+        description: "{bridge assertion description}"
+        assert:
+          bridge:
+            method: "{bridge_method}"
+            expected: "{value}"
+
+      # AI-only assertion (no bridge)
+      - id: step-04
+        description: "{AI assertion description}"
+        assert:
+          ai:
+            mode: image                    # or: video
+            ref_screenshot: step-02        # for mode: image
+            # video_trim:                  # for mode: video (uncomment)
+            #   from_step: step-01
+            #   to_step: step-03
+            ref_assets: ["{asset_key}"]
+            prompt: "{specific closed-ended question}"
+            output_schema:
+              "{field}": { type: "{type}" }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected:
+              "{field}": "{value}"
+              confidence: high
+
+      # Dual assertion (bridge + AI)
+      - id: step-05
+        description: "{dual assertion description}"
+        assert:
+          bridge:
+            method: "{bridge_method}"
+            expected: "{value}"
+          ai:
+            mode: image
+            ref_screenshot: step-02
+            ref_assets: ["{asset_key}"]
+            prompt: "{specific closed-ended question}"
+            output_schema:
+              "{field}": { type: "{type}" }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected:
+              "{field}": "{value}"
+              confidence: high
+
+    # Per-test teardown: resets state for next test
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }
+
+# ============================================================
+# YAML Authoring Rules (enforced by write-test skill):
+#
+# 1. Only include approved tests (skipped tests excluded)
+# 2. Use exact bridge method names from bridge-api.md
+# 3. Use exact symbol/UI keys from symbols.yml
+# 4. Every test has its own setup and teardown blocks
+# 5. Steps use sequential IDs: step-01, step-02, step-03, ...
+# 6. Assertions: bridge-only, ai-only, or dual (both blocks)
+# 7. confidence: high always required in AI expected blocks
+# 8. output_schema must contain every field in expected
+# ============================================================

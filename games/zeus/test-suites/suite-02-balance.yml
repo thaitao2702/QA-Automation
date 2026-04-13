@@ -1,0 +1,150 @@
+suite: "Balance Mechanics"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 60000
+  suite_timeout_ms: 300000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - action: navigate
+    params: { url_script: "get_game_url" }
+  - action: wait_for_state
+    params: { state: "ready", timeout_ms: 15000 }
+  - action: click
+    params: { selector: "#start-button" }
+  - action: wait_for_state
+    params: { state: "idle", timeout_ms: 15000 }
+
+teardown: []
+
+tests:
+
+  # ---------------------------------------------------------------------------
+  # ZZ-05 — Bet is deducted from balance on spin
+  # ---------------------------------------------------------------------------
+  - id: ZZ-05
+    title: "Balance deducted by bet amount on spin"
+    description: "Verify that triggering a spin deducts exactly one bet amount from the player balance. Uses a losing DevMode result to isolate deduction from any payout."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      # Inject a known losing result so payout=0 and balance change = -bet only
+      - action: bridge_action
+        params:
+          name: "setDevModeResult"
+          grid: [[1, 3, 4], [3, 4, 1], [4, 1, 3]]
+    steps:
+      - id: step-01
+        description: "Record balance before spin"
+        action: bridge_action
+        params: { name: "getBalance" }
+
+      - id: step-02
+        description: "Record bet amount before spin"
+        action: bridge_action
+        params: { name: "getBetAmount" }
+
+      - id: step-03
+        description: "Trigger spin"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-04
+        description: "Wait for spin to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-05
+        description: "Assert balance decreased by exactly one bet amount (payout=0)"
+        assert:
+          bridge:
+            method: getBalance
+            # balance_after must equal balance_before - betAmount
+            expected_relative:
+              operator: "="
+              formula: "step-01 - step-02"
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-06 — Win payout is added to balance after a winning spin
+  # ---------------------------------------------------------------------------
+  - id: ZZ-06
+    title: "Win payout added to balance after winning spin"
+    description: "Verify that the balance after a winning spin equals balance_before - bet + payout. Uses a deterministic win via DevMode (3x King on payline 1 = known payout rate)."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      # 3x King (ID=4) across the middle row — payline 1 (horizontal centre line)
+      # This produces a non-zero payout to confirm credit addition
+      - action: bridge_action
+        params:
+          name: "setDevModeResult"
+          grid: [[1, 3, 1], [4, 4, 4], [3, 1, 3]]
+    steps:
+      - id: step-01
+        description: "Record balance before spin"
+        action: bridge_action
+        params: { name: "getBalance" }
+
+      - id: step-02
+        description: "Record bet amount"
+        action: bridge_action
+        params: { name: "getBetAmount" }
+
+      - id: step-03
+        description: "Trigger spin"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-04
+        description: "Wait for spin to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-05
+        description: "Record payout from last spin"
+        action: bridge_action
+        params: { name: "getLastPayout" }
+
+      - id: step-06
+        description: "Assert payout is greater than 0 (win occurred)"
+        assert:
+          bridge:
+            method: getLastPayout
+            expected_relative: { operator: ">", value: 0 }
+
+      - id: step-07
+        description: "Capture win label"
+        action: capture
+        capture: true
+
+      - id: step-08
+        description: "Assert balance = balance_before - bet + payout, and win label is visible"
+        assert:
+          bridge:
+            method: getBalance
+            expected_relative:
+              operator: "="
+              formula: "step-01 - step-02 + step-05"
+          ai:
+            mode: image
+            ref_screenshot: step-07
+            ref_assets: [win_label, balance_label]
+            prompt: "Is a win amount displayed on the screen? Is there a non-zero value in the win area? Return JSON."
+            output_schema:
+              win_displayed: { type: boolean }
+              win_nonzero: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { win_displayed: true, win_nonzero: true, confidence: high }
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }

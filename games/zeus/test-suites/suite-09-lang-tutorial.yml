@@ -1,0 +1,132 @@
+suite: "Language & Tutorial"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 60000
+  suite_timeout_ms: 300000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - action: navigate
+    params: { url_script: "get_game_url" }
+  - action: wait_for_state
+    params: { state: "ready", timeout_ms: 15000 }
+  - action: click
+    params: { selector: "#start-button" }
+  - action: wait_for_state
+    params: { state: "idle", timeout_ms: 15000 }
+
+teardown: []
+
+tests:
+
+  # ---------------------------------------------------------------------------
+  # ZZ-51 — Paytable displays localised text for the active language
+  # Requires IMAGE AI: text rendering on canvas is not DOM-readable;
+  # Gemini image analysis is the only way to read label content.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-51
+    title: "Paytable popup displays localised text matching the active language"
+    description: "Verify that the paytable popup shows text content appropriate to the game's configured language (not raw key strings like 'key_paytable_title')."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Open paytable / info popup"
+        action: bridge_action
+        params: { name: "openInfo" }
+
+      - id: step-02
+        description: "Capture paytable popup"
+        action: capture
+        capture: true
+
+      - id: step-03
+        description: "Assert paytable contains readable localised text (not raw i18n key strings)"
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: step-02
+            ref_assets: [paytable_popup]
+            prompt: |
+              Look at this paytable / information popup from a slot game.
+              1. Is text displayed (not just images)?
+              2. Does the text appear to be a real language (words/sentences) rather than placeholder keys like "key_xxx" or "string_xxx"?
+              3. Are symbol names or pay rate numbers visible?
+              Return JSON.
+            output_schema:
+              text_visible: { type: boolean }
+              text_is_real_language: { type: boolean }
+              has_pay_info: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { text_visible: true, text_is_real_language: true, confidence: high }
+    teardown:
+      - action: press_key
+        params: { key: "Escape" }
+      - action: wait_for_state
+        params: { state: "idle", timeout_ms: 5000 }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-52 — Balance and bet labels use correct number format for the locale
+  # Requires IMAGE AI: number formatting (thousands separator, decimal separator)
+  # is rendered on canvas and must be read via Gemini vision.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-52
+    title: "Balance and bet labels use correct number format for the locale"
+    description: "Verify that the balance and bet amount displayed on screen use a consistent number format (e.g., '1,000.00' for en-US style) and match the numeric values returned by the bridge."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Read balance from bridge"
+        action: bridge_action
+        params: { name: "getBalance" }
+
+      - id: step-02
+        description: "Read bet amount from bridge"
+        action: bridge_action
+        params: { name: "getBetAmount" }
+
+      - id: step-03
+        description: "Read display balance string from bridge"
+        action: bridge_action
+        params: { name: "getDisplayBalance" }
+
+      - id: step-04
+        description: "Read display bet string from bridge"
+        action: bridge_action
+        params: { name: "getDisplayBet" }
+
+      - id: step-05
+        description: "Capture the main game screen showing balance and bet"
+        action: capture
+        capture: true
+
+      - id: step-06
+        description: "Assert balance display is a properly formatted number (has decimal separator)"
+        assert:
+          bridge:
+            method: getDisplayBalance
+            # Display string must contain a period (decimal point) — e.g. "1,000.00" not "1000"
+            expected_pattern: "^[\\d,]+\\.\\d{2}$"
+          ai:
+            mode: image
+            ref_screenshot: step-05
+            ref_assets: [balance_label, bet_label]
+            prompt: |
+              Look at the balance display and bet amount display on this slot game screen.
+              1. Is the balance shown as a formatted number with decimal places (e.g., "1,000.00" or "500.00")?
+              2. Is the bet amount shown as a formatted number with decimal places (e.g., "1.00" or "2.50")?
+              3. Do both numbers look like they use the same number formatting style?
+              Return JSON.
+            output_schema:
+              balance_formatted: { type: boolean }
+              bet_formatted: { type: boolean }
+              consistent_format: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { balance_formatted: true, bet_formatted: true, consistent_format: true, confidence: high }
+    teardown: []

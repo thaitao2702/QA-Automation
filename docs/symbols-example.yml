@@ -1,0 +1,93 @@
+# symbols.yml — Asset manifest template for a game.
+# Copy this file to games/<game>/docs/assets/symbols.yml and fill in real values.
+#
+# This manifest is the single source of truth for all reference images used
+# during test assertions. When a test step specifies ref_assets: [scatter, wild],
+# the framework loads the images listed here and passes them to Gemini as context.
+
+symbols:
+
+  # ---------------------------------------------------------------------------
+  # Each key is the ref_asset identifier used in test YAML (e.g. ref_assets: [scatter]).
+  # Keys must be lowercase, alphanumeric, and may use underscores.
+  # ---------------------------------------------------------------------------
+
+  scatter:
+    # file: Path to the reference image, relative to this manifest's directory.
+    # Must exist before tests can reference this asset.
+    file: symbols/scatter.png
+
+    # name: Human-readable symbol name shown in AI prompts and reports.
+    name: "Scatter (Lightning Bolt)"
+
+    # type: Symbol category.
+    # Accepted values: scatter | wild | high | mid | low | bonus | ui
+    type: scatter
+
+    # description: Plain-language description given to the AI as context.
+    # Be specific: color, shape, animation state (idle), distinguishing features.
+    description: "Golden lightning bolt on a dark background. Triggers free spins when 3 or more land anywhere on the grid."
+
+  wild:
+    file: symbols/wild.png
+    name: "Wild (Golden Eagle)"
+    type: wild
+    description: "Golden eagle with spread wings. Substitutes for all symbols except scatter."
+
+  zeus:
+    file: symbols/zeus.png
+    name: "Zeus"
+    type: high
+    description: "Portrait of Zeus with white beard and golden crown. Highest-paying regular symbol."
+
+  athena:
+    file: symbols/athena.png
+    name: "Athena"
+    type: high
+    description: "Portrait of Athena wearing a golden helmet. Second highest-paying regular symbol."
+
+  coin:
+    file: symbols/coin.png
+    name: "Coin"
+    type: bonus
+    description: "Bronze-gold coin with a lightning bolt emblem. 3 or more trigger Hold and Spin bonus."
+
+  # Low-value card symbols
+  ace:
+    file: symbols/A.png
+    name: "Ace (A)"
+    type: low
+    description: "Stylised letter A in gold. Lowest-tier card symbol."
+
+  king:
+    file: symbols/K.png
+    name: "King (K)"
+    type: low
+    description: "Stylised letter K in gold."
+
+  queen:
+    file: symbols/Q.png
+    name: "Queen (Q)"
+    type: low
+    description: "Stylised letter Q in gold."
+
+# ---------------------------------------------------------------------------
+# ui_elements — UI components referenced in assertions about game state.
+# Same structure as symbols but grouped separately for clarity.
+# ---------------------------------------------------------------------------
+
+ui_elements:
+
+  spin_button:
+    # file: Path relative to this manifest's directory.
+    file: ui/spin-button.png
+    name: "Spin Button"
+    # type for UI elements is always: ui
+    type: ui
+    description: "Large green circular button at the bottom centre of the screen. Initiates a spin."
+
+  free_spin_popup:
+    file: ui/free-spin-popup.png
+    name: "Free Spin Popup"
+    type: ui
+    description: "Full-screen overlay with a blue/gold banner announcing the number of free spins awarded."

@@ -1,0 +1,79 @@
+# =============================================================================
+# Zeus — test suite
+# Generated: 2026-04-12
+# Source: test-case.xlsx (QA raw test cases)
+# Tests: ZZ-01 through ZZ-14 (approved batch 1)
+# Deferred: ZZ-07, ZZ-08 (env config needed), ZZ-10 (out of scope)
+# =============================================================================
+
+suite: "Comprehensive QA Test Cases"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 60000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: global-setup-01
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: global-setup-02
+    action: wait_for_state
+    params: { state: "ready", timeout_ms: 30000 }
+  - id: global-setup-03
+    action: bridge_action
+    params: { name: "startGame" }
+
+tests:
+
+  # =========================================================================
+  # ZZ-01 — Check UI Game
+  # =========================================================================
+  - id: ZZ-01
+    title: "Check UI Game"
+    description: "Verify game loads with all UI elements visible and correct layout"
+    setup: []
+    steps:
+      - id: step-01
+        description: "Capture game screen"
+        action: capture
+      - id: step-02
+        description: "Verify game is idle"
+        action: bridge_assert
+        params:
+          method: getAppState
+          expected: "idle"
+      - id: step-03
+        description: "Verify spin button is enabled"
+        action: bridge_assert
+        params:
+          method: isSpinEnabled
+          expected: true
+      - id: step-04
+        description: "Verify all UI elements are visible"
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: step-01
+            ref_assets: [spin_button, balance_label, bet_label, win_label, auto_button, buy_bonus_button]
+            prompt: "Is the game fully loaded with all UI elements visible: spin button, balance label, bet label, win label, auto button, buy bonus button, turbo toggle, sound toggle, info button, history button, and a 3x3 reel grid?"
+            output_schema:
+              all_ui_visible:
+                type: boolean
+              grid_visible:
+                type: boolean
+              confidence:
+                type: string
+                enum: [high, medium, low]
+            expected:
+              all_ui_visible: true
+              grid_visible: true
+              confidence: high
+    teardown: []

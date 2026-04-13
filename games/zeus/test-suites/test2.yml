@@ -1,0 +1,127 @@
+# =============================================================================
+# Zeus — test suite
+# Generated: 2026-04-12
+# Source: test-case.xlsx (QA raw test cases)
+# Tests: ZZ-01 through ZZ-14 (approved batch 1)
+# Deferred: ZZ-07, ZZ-08 (env config needed), ZZ-10 (out of scope)
+# =============================================================================
+
+suite: "Comprehensive QA Test Cases"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 180000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: global-setup-01
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: global-setup-02
+    action: wait_for_state
+    params: { state: "ready", timeout_ms: 30000 }
+  - id: global-setup-03
+    action: bridge_action
+    params: { name: "startGame" }
+
+tests:
+
+
+  # =========================================================================
+  # ZZ-15 — Stop at Any Win
+  # =========================================================================
+  - id: ZZ-15
+    title: "Stop at Any Win"
+    description: "Verify auto-spin stops when a win occurs with stopByWin enabled"
+    setup:
+      - id: setup-01
+        description: "Enable turbo"
+        action: bridge_action
+        params: { name: setTurbo, enabled: true }
+      - id: setup-02
+        description: "Inject no-win for initial spins"
+        action: bridge_action
+        params: { name: setDevModeResult, grid: [[1,2,3],[3,2,2],[1,2,1]] }
+    # NOTE: With stopByWin=true, auto-spin stops as soon as any spin wins.
+    # The no-win devMode grid is consumed after 1 spin, so spin 2+ use server
+    # results. Auto may stop very quickly if the server returns a win. We can't
+    # guarantee auto is "still running" after any wait — just verify it stopped
+    # early (remaining > 0) because of a win (payout > 0).
+    steps:
+      - id: step-01
+        description: "Open auto popup"
+        action: bridge_action
+        params: { name: openAutoPopup }
+      - id: step-02
+        description: "Start auto with stopByWin=true"
+        action: bridge_action
+        params: { name: startAutoSpin, count: 10, stopByWin: true }
+      - id: step-03
+        description: "Wait for auto to stop (win triggers stop, or all 10 finish)"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 90000 }
+      - id: step-04
+        description: "Verify auto stopped"
+        action: bridge_assert
+        params:
+          method: isStopAutoVisible
+          expected: false
+      - id: step-05
+        description: "Capture payout from last spin"
+        action: bridge_action
+        params: { name: getLastPayout }
+      - id: step-06
+        description: "Capture remaining auto spins"
+        action: bridge_action
+        params: { name: getAutoSpinsRemaining }
+      - id: step-07
+        description: "Verify auto completed (win stopped early OR all 10 finished)"
+        action: script
+        params:
+          cmd: >
+            const payout = steps['step-05'].result;
+            const remaining = steps['step-06'].result;
+            if (payout > 0 && remaining > 0) {
+              // stopByWin triggered — win detected, stopped early
+            } else if (remaining === 0) {
+              // All 10 spins completed — no win occurred, stopByWin had nothing to stop on
+            } else {
+              assert(false, 'Unexpected state: payout=' + payout + ' remaining=' + remaining);
+            }
+      - id: step-08
+        description: "Verify spin re-enabled"
+        action: bridge_assert
+        params:
+          method: isSpinEnabled
+          expected: true
+      - id: step-09
+        description: "Screenshot after auto stopped by win"
+        action: capture
+      - id: step-10
+        description: "AI: verify idle with win displayed"
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: step-09
+            ref_assets: [spin_button, win_label]
+            prompt: "Is the game in normal idle state? Is a win amount displayed on the win label? Is the regular spin button visible?"
+            output_schema:
+              idle_state: { type: boolean }
+              win_displayed: { type: boolean }
+              normal_spin_button: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { idle_state: true, win_displayed: true, normal_spin_button: true, confidence: high }
+    teardown:
+      - id: teardown-01
+        action: bridge_action
+        params: { name: resetDevMode }
+      - id: teardown-02
+        action: bridge_action
+        params: { name: setTurbo, enabled: false }

@@ -1,0 +1,290 @@
+suite: "Spin Mechanics"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 60000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - action: navigate
+    params: { url_script: "get_game_url" }
+  - action: wait_for_state
+    params: { state: "ready", timeout_ms: 15000 }
+  - action: click
+    params: { selector: "#start-button" }
+  - action: wait_for_state
+    params: { state: "idle", timeout_ms: 15000 }
+
+teardown: []
+
+tests:
+
+  # ---------------------------------------------------------------------------
+  # ZZ-46 — Normal spin produces a result grid
+  # Requires VIDEO AI: confirm reels visually animate and stop at result.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-46
+    title: "Normal spin produces a 3x3 result grid"
+    description: "Verify that a spin resolves with getReelResult() returning a non-empty 3x3 grid of valid symbol IDs."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+    steps:
+      - id: step-01
+        description: "Trigger spin"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-02
+        description: "Wait for spin to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-03
+        description: "Assert reel result is a non-empty 3x3 grid"
+        assert:
+          bridge:
+            method: getReelResult
+            expected_type: array
+          ai:
+            mode: video
+            video_trim:
+              from_step: step-01
+              to_step: step-02
+            ref_assets: [wild, zeus, athena, coin, ace, king, queen]
+            prompt: |
+              Watch this slot machine spin sequence.
+              1. Did the reels visibly spin (animate)?
+              2. Did all 3 reels stop showing distinct symbols?
+              3. Can you identify any symbols in the 3x3 grid at the final frame?
+              Return JSON.
+            output_schema:
+              reels_animated: { type: boolean }
+              reels_stopped: { type: boolean }
+              grid_visible: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { reels_animated: true, reels_stopped: true, grid_visible: true, confidence: high }
+    teardown: []
+
+  # ---------------------------------------------------------------------------
+  # ZZ-47 — stopSpin skips reel animation during result state
+  # Requires VIDEO AI: the skip behaviour is visible only in the video timeline.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-47
+    title: "stopSpin skips reel animation during result state"
+    description: "Verify that calling stopSpin during result state causes the reels to immediately show the final result instead of completing the full animation."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      - action: bridge_action
+        params: { name: "setTurbo", enabled: false }
+    steps:
+      - id: step-01
+        description: "Trigger spin (non-turbo so animation is long enough to interrupt)"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-02
+        description: "Immediately call stopSpin to skip animation"
+        action: bridge_action
+        params: { name: "stopSpin" }
+
+      - id: step-03
+        description: "Wait for spin to complete after stop"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-04
+        description: "Assert spin completed and game is idle"
+        assert:
+          bridge:
+            method: getAppState
+            expected: "idle"
+          ai:
+            mode: video
+            video_trim:
+              from_step: step-01
+              to_step: step-03
+            ref_assets: [stop_button, spin_button]
+            prompt: |
+              Watch this slot machine spin. The stop button was pressed mid-spin to skip the animation.
+              1. Did the reels start spinning?
+              2. Did the reels stop abruptly/quickly (skipping the full animation)?
+              3. Was the stop earlier than a normal full spin animation would take?
+              Return JSON.
+            output_schema:
+              reels_started: { type: boolean }
+              early_stop_occurred: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { reels_started: true, early_stop_occurred: true, confidence: high }
+    teardown:
+      - action: bridge_action
+        params: { name: "setTurbo", enabled: false }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-48 — Win lines highlight on winning spin
+  # Requires VIDEO AI: win line visual effect only observable in screenshot/video.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-48
+    title: "Win lines highlight on a winning spin"
+    description: "Verify that a winning spin produces paylines data and triggers visual win line highlights on the grid."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      # 3x King across middle row = guaranteed win on payline 1
+      - action: bridge_action
+        params:
+          name: "setDevModeResult"
+          grid: [[1, 3, 4], [4, 4, 4], [3, 1, 3]]
+    steps:
+      - id: step-01
+        description: "Trigger winning spin"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-02
+        description: "Wait for spin to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-03
+        description: "Capture win state"
+        action: capture
+        capture: true
+
+      - id: step-04
+        description: "Assert paylines data is non-empty (at least one winning line)"
+        assert:
+          bridge:
+            method: getPaylines
+            expected_min_count: 1
+          ai:
+            mode: image
+            ref_screenshot: step-03
+            ref_assets: [king, win_label]
+            prompt: "Is there a win highlighted on the slot grid? Are any symbols glowing or highlighted to indicate a winning payline? Is there a non-zero win amount displayed? Return JSON."
+            output_schema:
+              win_highlighted: { type: boolean }
+              win_amount_visible: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { win_highlighted: true, win_amount_visible: true, confidence: high }
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-49 — Wild symbol substitutes in a winning line
+  # Requires VIDEO AI: confirm wild visual on grid.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-49
+    title: "Wild (Eagle) symbol substitutes in a winning payline"
+    description: "Verify that a Wild symbol on the grid contributes to a winning payline (substitutes for non-Coin symbols)."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      # Wild (ID=9) in middle row positions 0 and 1, King (ID=4) in position 2 — Wild substitutes for King
+      - action: bridge_action
+        params:
+          name: "setDevModeResult"
+          grid: [[1, 3, 1], [9, 9, 4], [3, 1, 3]]
+    steps:
+      - id: step-01
+        description: "Trigger spin with Wild+King on payline 1"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-02
+        description: "Wait for spin to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+      - id: step-03
+        description: "Capture grid showing wild"
+        action: capture
+        capture: true
+
+      - id: step-04
+        description: "Assert payout is greater than 0 (wild-substituted win)"
+        assert:
+          bridge:
+            method: getLastPayout
+            expected_relative: { operator: ">", value: 0 }
+          ai:
+            mode: image
+            ref_screenshot: step-03
+            ref_assets: [wild, king, win_label]
+            prompt: "Are there Wild (golden eagle) symbols visible on the grid? Is there a win amount displayed? Return JSON."
+            output_schema:
+              wild_visible: { type: boolean }
+              win_amount_visible: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { wild_visible: true, win_amount_visible: true, confidence: high }
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-50 — Big Win popup appears for 10x+ win
+  # Requires VIDEO AI: Big Win popup is a visual celebration sequence.
+  # ---------------------------------------------------------------------------
+  - id: ZZ-50
+    title: "Big Win popup appears for a win of 10x or more the bet"
+    description: "Verify that a payout >= 10x bet triggers the Big Win celebration popup and the win type is BIG_WIN or higher."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+      # 3x Zeus (ID=7) across middle row — highest-paying regular symbol, should produce BIG_WIN+ at min bet
+      - action: bridge_action
+        params:
+          name: "setDevModeResult"
+          grid: [[1, 3, 1], [7, 7, 7], [3, 1, 3]]
+    steps:
+      - id: step-01
+        description: "Trigger spin with 3x Zeus (high-value symbol)"
+        action: bridge_action
+        params: { name: "spin" }
+
+      - id: step-02
+        description: "Wait for spin including big win celebration to complete"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 60000 }
+
+      - id: step-03
+        description: "Capture post-win state"
+        action: capture
+        capture: true
+
+      - id: step-04
+        description: "Assert last win type is BIG_WIN or higher"
+        assert:
+          bridge:
+            method: getLastWinType
+            expected_one_of: ["BIG_WIN", "MEGA_WIN", "ULTRA_WIN"]
+          ai:
+            mode: video
+            video_trim:
+              from_step: step-01
+              to_step: step-02
+            ref_assets: [big_win_popup, zeus, win_label]
+            prompt: |
+              Watch this slot game spin result. A big win was expected.
+              1. Did a BIG WIN, MEGA WIN, or ULTRA WIN celebration popup appear on screen?
+              2. Did an animated counter count up to the win amount?
+              3. Did the celebration end and return to the game screen?
+              Return JSON.
+            output_schema:
+              big_win_popup_appeared: { type: boolean }
+              counter_animated: { type: boolean }
+              returned_to_game: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { big_win_popup_appeared: true, returned_to_game: true, confidence: high }
+    teardown:
+      - action: bridge_action
+        params: { name: "resetDevMode" }

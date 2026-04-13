@@ -1,0 +1,1 @@
+# QA Platform framework package

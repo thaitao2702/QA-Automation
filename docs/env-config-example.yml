@@ -1,0 +1,59 @@
+# env.config.yml — Environment configuration template for a game.
+# Copy this file to games/<game>/env.config.yml and fill in real values.
+#
+# The URL resolver script (scripts/get_url.py) reads this file to produce
+# the fully-qualified game URL for a given environment before launching
+# the browser.
+
+environments:
+
+  # -------------------------------------------------------------------------
+  # dev — local or development server
+  # -------------------------------------------------------------------------
+  dev:
+    # url_script: A shell command whose stdout is the game URL.
+    # The framework runs this command and reads its output.
+    # Can perform token fetch, sign requests, read secrets files — anything.
+    # Must exit 0 on success; non-zero exit = URL resolution failure.
+    url_script: "python scripts/get_url.py --env=dev"
+
+    # browser_params: Query-string parameters appended to the resolved URL
+    # when launching Playwright. bridge=1 activates the test bridge API.
+    # debug=1 enables verbose game logging (useful in dev only).
+    browser_params: "?bridge=1&debug=1"
+
+  # -------------------------------------------------------------------------
+  # staging — pre-production environment
+  # -------------------------------------------------------------------------
+  staging:
+    url_script: "python scripts/get_url.py --env=staging"
+    browser_params: "?bridge=1"
+
+  # -------------------------------------------------------------------------
+  # prod — production environment
+  # For read-only smoke tests only; destructive bridge actions are disabled.
+  # -------------------------------------------------------------------------
+  prod:
+    # url: A static URL string. Use this instead of url_script when the URL
+    # does not require dynamic generation (no token, no signed query string).
+    url: "https://games.example.com/zeus/index.html"
+
+    # Empty browser_params means no extra query string appended.
+    browser_params: ""
+
+# ---------------------------------------------------------------------------
+# detection — symbol detection configuration (shared across all environments)
+# ---------------------------------------------------------------------------
+detection:
+  # method: phash | gemini | both
+  #   phash  — perceptual hashing only (fast, free, best for clean renders)
+  #   gemini — Gemini vision only (slower, has API cost)
+  #   both   — run phash first; escalate to Gemini if confidence is low
+  method: both
+
+  # phash_threshold: Maximum Hamming distance to consider a pHash match.
+  # Lower = stricter. Typical range 5–15. Default 10.
+  phash_threshold: 10
+
+  # fallback: Detection method to use when pHash confidence is below threshold.
+  fallback: gemini

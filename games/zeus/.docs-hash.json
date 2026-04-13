@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-04-12T00:00:00Z",
+  "game": "zeus",
+  "algorithm": "sha256",
+  "files": {
+    "docs/raw/Doc Zappin zeus.md": "4f31e580f4451cf80a07713c0980f4d77c5e7961f209a186fdae8d1f44dfb515",
+    "docs/assets/symbols.yml": "96512f4371b3d576902fb722e332b093e7869505aa0a4b40afcabc5ea3ff1519",
+    "bridge-api.md": "d1e609c895a91d6f938236604f93b4ab92043e31bfa62fc01015d673f733be53"
+  }
+}

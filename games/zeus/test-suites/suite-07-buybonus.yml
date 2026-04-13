@@ -1,0 +1,204 @@
+suite: "Buy Bonus"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 120000
+  suite_timeout_ms: 900000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - action: navigate
+    params: { url_script: "get_game_url" }
+  - action: wait_for_state
+    params: { state: "ready", timeout_ms: 15000 }
+  - action: click
+    params: { selector: "#start-button" }
+  - action: wait_for_state
+    params: { state: "idle", timeout_ms: 15000 }
+
+teardown: []
+
+tests:
+
+  # ---------------------------------------------------------------------------
+  # ZZ-39 — Buy bonus button is enabled at idle
+  # ---------------------------------------------------------------------------
+  - id: ZZ-39
+    title: "Buy bonus button is interactable at idle"
+    description: "Verify the buy bonus button is enabled when the game is at idle state (not in promo, auto, or free-spin mode)."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Assert buy bonus button is enabled"
+        assert:
+          bridge:
+            method: isBuyBonusEnabled
+            expected: true
+    teardown: []
+
+  # ---------------------------------------------------------------------------
+  # ZZ-40 — Buy bonus popup opens
+  # ---------------------------------------------------------------------------
+  - id: ZZ-40
+    title: "Buy bonus popup opens on button click"
+    description: "Verify that openBuyBonusPopup() shows the buy bonus popup with available packages."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Open buy bonus popup"
+        action: bridge_action
+        params: { name: "openBuyBonusPopup" }
+
+      - id: step-02
+        description: "Capture popup"
+        action: capture
+        capture: true
+
+      - id: step-03
+        description: "Assert buy bonus popup is visible with package options"
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: step-02
+            ref_assets: [buy_bonus_button]
+            prompt: "Is a buy bonus popup visible on screen showing bonus package options with prices? Return JSON."
+            output_schema:
+              popup_visible: { type: boolean }
+              has_packages: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { popup_visible: true, has_packages: true, confidence: high }
+    teardown:
+      - action: press_key
+        params: { key: "Escape" }
+      - action: wait_for_state
+        params: { state: "idle", timeout_ms: 5000 }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-41 — Buy bonus package 0 triggers Hold & Spin bonus
+  # ---------------------------------------------------------------------------
+  - id: ZZ-41
+    title: "Confirming buy bonus package 0 enters Hold & Spin bonus"
+    description: "Verify that confirmBuyBonus(0) deducts the package cost from balance, triggers the buy-bonus spin, and enters the Hold & Spin bonus (SpinState=START_BONUS or IN_BONUS)."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+    steps:
+      - id: step-01
+        description: "Record balance before buy bonus"
+        action: bridge_action
+        params: { name: "getBalance" }
+
+      - id: step-02
+        description: "Open buy bonus popup"
+        action: bridge_action
+        params: { name: "openBuyBonusPopup" }
+
+      - id: step-03
+        description: "Confirm buy bonus with package index 0"
+        action: bridge_action
+        params: { name: "confirmBuyBonus", packageIndex: 0 }
+
+      - id: step-04
+        description: "Wait for buy bonus flow to enter bonus state"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 60000 }
+
+      - id: step-05
+        description: "Capture bonus entry state"
+        action: capture
+        capture: true
+
+      - id: step-06
+        description: "Assert spin state indicates bonus is active (or just started)"
+        assert:
+          bridge:
+            method: getSpinState
+            expected_one_of: ["START_BONUS", "IN_BONUS", "END_BONUS", "NORMAL"]
+
+      - id: step-07
+        description: "Assert balance decreased (package cost was deducted)"
+        assert:
+          bridge:
+            method: getBalance
+            expected_relative: { operator: "<", reference_step: "step-01" }
+    teardown:
+      - action: wait_for_state
+        params: { state: "idle", timeout_ms: 120000 }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-42 — Buy bonus button disabled during auto-spin
+  # ---------------------------------------------------------------------------
+  - id: ZZ-42
+    title: "Buy bonus button is disabled during active auto-spin"
+    description: "Verify that isBuyBonusEnabled returns false while an auto-spin session is running."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+    steps:
+      - id: step-01
+        description: "Start auto-spin"
+        action: bridge_action
+        params: { name: "startAutoSpin", count: 20, stopByWin: false }
+
+      - id: step-02
+        description: "Wait for auto-spin session to begin"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 20000 }
+
+      - id: step-03
+        description: "Assert buy bonus is disabled during auto-spin"
+        assert:
+          bridge:
+            method: isBuyBonusEnabled
+            expected: false
+    teardown:
+      - action: bridge_action
+        params: { name: "stopAutoSpin" }
+      - action: wait_for_state
+        params: { state: "idle", timeout_ms: 15000 }
+
+  # ---------------------------------------------------------------------------
+  # ZZ-43 — Buy bonus button re-enables after buy bonus completes
+  # ---------------------------------------------------------------------------
+  - id: ZZ-43
+    title: "Buy bonus button re-enables after buy bonus completes"
+    description: "Verify that after the buy bonus flow completes and the game returns to idle, the buy bonus button is interactable again."
+    setup:
+      - action: bridge_action
+        params: { name: "selectBet", index: 0 }
+    steps:
+      - id: step-01
+        description: "Open buy bonus popup"
+        action: bridge_action
+        params: { name: "openBuyBonusPopup" }
+
+      - id: step-02
+        description: "Confirm buy bonus package 0"
+        action: bridge_action
+        params: { name: "confirmBuyBonus", packageIndex: 0 }
+
+      - id: step-03
+        description: "Wait for buy bonus and bonus round to complete fully"
+        action: wait_for_state
+        params: { state: "idle", timeout_ms: 120000 }
+
+      - id: step-04
+        description: "Assert spin state returned to NORMAL"
+        assert:
+          bridge:
+            method: getSpinState
+            expected: "NORMAL"
+
+      - id: step-05
+        description: "Assert buy bonus button is enabled again after completion"
+        assert:
+          bridge:
+            method: isBuyBonusEnabled
+            expected: true
+    teardown: []

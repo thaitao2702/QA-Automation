@@ -1,0 +1,925 @@
+# Zeus Slot Game — Test Bridge API Reference
+
+> **Purpose:** Comprehensive reference for `ZeusTestBridge` — the E2E test automation bridge.
+> All methods emulate real user interactions through the actual UI code path.
+
+---
+
+## 1. Design Philosophy
+
+The bridge exposes two categories:
+
+| Category | Purpose | Mutates State? |
+|----------|---------|----------------|
+| **Actions** | Emulate what a real user does (click spin, open popup, select bet) | Yes — through the same code path as a real click |
+| **Queries** | Read-only state inspection (get balance, get reel state, check buttons) | No |
+
+### Why UI-Path-Only Actions Matter
+
+**Anti-pattern — direct internal calls:**
+```
+GameLogic.nextBet()  ← WRONG: skips UI label update, denomination popup sync
+```
+
+**Correct — UI path:**
+```
+GameplayScene.onNextBet() → GameController.onNextBet() → GameLogic.nextBet()
+                          → updateBetLabel() → denominationPopup.scrollDenomination()
+```
+
+Direct internal calls skip validation logic, UI side-effects (sound, animations, button states), and can create game states that real users can never reach — leading to **false test assumptions**.
+
+**Rule:** If a real user can't do it by clicking/touching the game, the bridge shouldn't do it either.
+
+---
+
+## 2. Actions (User Interaction Emulation)
+
+### 1.1 `startGame()`
+
+Emulates user clicking the Start button on the loading screen.
+
+| | |
+|-|-|
+| **Emulates** | Touch `startButton` on `LoadingScene` |
+| **Precondition** | AppState = `ready` (bridge is registered, Start button is visible) |
+| **Returns** | `Promise<void>` — resolves when `GameplayScene.start()` fully completes |
+
+**Code path:**
+```
+LoadingScene.onStartClicked()
+  → SlotGame node.active = true → GameplayScene.start()
+    → prepare()                  [spinButton.interactable = false]
+    → await initialize()         [GameController → prepareGame → transitionTo(IDLE)]
+    → await lazyLoadAssets()     [popup initialization]
+    → setupHandlers()            [touch/click handlers registered]
+    → sceneReady resolves        [bridge waits on this]
+  → SoundManager.setupBgAudio()
+```
+
+**Why not just `waitForIdle()`:** `transitionTo(IDLE)` fires during `initialize()` — before `lazyLoadAssets()` and `setupHandlers()` complete. Waiting only for IDLE would resolve too early, leaving popups uninitialized and touch handlers unregistered. `startGame()` waits for both IDLE and `GameplayScene.sceneReady`.
+
+**State flow:** `ready` → `idle` (during initialize) → scene fully ready (after setupHandlers)
+
+> **Source:** `LoadingScene.ts:230-235`, `GameplayScene.ts:114-120`
+
+---
+
+### 2.1 `spin()`
+
+Emulates user touching the spin button.
+
+| | |
+|-|-|
+| **Emulates** | Touch `nodeSpinButton` (TOUCH_START → TOUCH_END) |
+| **Precondition** | AppState = `idle`, no promo popup showing |
+| **Returns** | `Promise<void>` — resolves when state returns to `idle` |
+
+**Code path:**
+```
+GameplayScene.onSpinClicked()
+  → GameplayScene.onSpinButtonReleased()
+    → GameController.onSpinClicked()        [validates idle state]
+      → GameController.spin()               [checks balance ≥ bet]
+        → SlotGameApplication.spin(request) [SignalR 'bet' event]
+```
+
+**State flow:** `idle` → `betting` → (server response) → `result` → (handler chain: spin animation → win lines → big win → transitions) → `idle`
+
+> **Source:** `GameplayScene.ts:868-908`, `GameController.ts:451-468`
+
+---
+
+### 2.2 `stopSpin()`
+
+Emulates user touching stop button to skip reel animation during result.
+
+| | |
+|-|-|
+| **Emulates** | Touch `stopButton` during result animation |
+| **Precondition** | AppState = `result`, turbo allowed |
+
+**Code path:**
+```
+GameplayScene.onStopClicked()
+  → SlotMachineView.stopFast()
+```
+
+> **Source:** `GameplayScene.ts:472-479`, `GameController.ts:471-477`
+
+---
+
+### 2.3 `nextBet()`
+
+Emulates user clicking the next bet button.
+
+| | |
+|-|-|
+| **Emulates** | Click `nextBetButton` |
+| **Precondition** | AppState = `idle`, not in promo/auto/free-spin, not at max bet |
+
+**Code path:**
+```
+GameplayScene.onNextBet()
+  → GameController.onNextBet()
+    → GameLogic.nextBet()
+  → updateBetLabel()  [syncs all UI: bet label, denomination popup, buy bonus popup]
+```
+
+> **Source:** `GameplayScene.ts:944-948`, `GameController.ts:542`
+
+---
+
+### 2.4 `previousBet()`
+
+Emulates user clicking the previous bet button.
+
+| | |
+|-|-|
+| **Emulates** | Click `previousBetButton` |
+| **Precondition** | Same as `nextBet()` but not at min bet |
+
+**Code path:**
+```
+GameplayScene.onPreviousBet()
+  → GameController.onPreviousBet()
+    → GameLogic.previousBet()
+  → updateBetLabel()
+```
+
+> **Source:** `GameplayScene.ts:958-962`, `GameController.ts:544`
+
+---
+
+### 2.5 `selectBet(index: number)`
+
+Emulates user opening denomination popup and selecting a specific denomination.
+
+| | |
+|-|-|
+| **Emulates** | Click denomination in `DenominationsPopup` |
+| **Precondition** | Valid index, denomination ≤ balance |
+
+**Code path:**
+```
+GameplayScene.onSelectedBet(index)
+  → GameController.onSelectedBet(index)
+    → GameLogic.onSelectedBet(index)  [validates denomination ≤ balance]
+  → updateBetLabel()
+```
+
+**Parameter:** `index` — zero-based index into `GameLogic.denominations` array.
+
+> **Source:** `GameplayScene.ts:951-955`, `GameController.ts:543`
+
+---
+
+### 2.6 `openAutoPopup()`
+
+Emulates user clicking the auto button to open the auto-spin configuration popup.
+
+| | |
+|-|-|
+| **Emulates** | Click `autoButton` |
+| **Precondition** | `autoButton.interactable = true` |
+
+**Code path:**
+```
+GameplayScene.onAutoClicked()
+  → autoPopup.open()  [popup becomes visible]
+```
+
+> **Source:** `GameplayScene.ts:982-990`
+
+---
+
+### 2.7 `startAutoSpin(count: number, stopByWin: boolean)`
+
+Emulates user selecting a package in the auto popup and clicking confirm.
+
+| | |
+|-|-|
+| **Emulates** | Select package → click confirm in `AutoPopup` |
+| **Precondition** | AppState = `idle` |
+| **Packages** | `10, 20, 30, 50, Infinity` |
+
+**Code path:**
+```
+AutoPopup.onConfirmClicked()
+  → GameplayScene.onConfirmAuto(count, stopByWin)
+    → GameController.onConfirmAuto(count, stopByWin)
+      → GameLogic.numberAutoSpin = count
+      → GameLogic.isStopByWin = stopByWin
+      → if (count > 0 && idle) → spin()  [immediately triggers first spin]
+```
+
+**Stop-by-win behavior:** If enabled AND a spin has payout > 0 → auto-spin stops.
+
+> **Source:** `GameplayScene.ts:993-998`, `GameController.ts:503-511`, `AutoPopup.ts:79-83`
+
+---
+
+### 2.8 `stopAutoSpin()`
+
+Emulates user clicking the stop auto button.
+
+| | |
+|-|-|
+| **Emulates** | Click `stopAutoButton` |
+
+**Code path:**
+```
+GameplayScene.onStopAuto()
+  → GameController.onConfirmAuto(0, false)
+    → GameLogic.numberAutoSpin = 0
+  → updateSpinButton()
+```
+
+> **Source:** `GameplayScene.ts:1000-1007`
+
+---
+
+### 2.9 `openBuyBonusPopup()`
+
+Emulates user clicking the buy bonus button.
+
+| | |
+|-|-|
+| **Emulates** | Click `buyBonusButton` |
+| **Precondition** | AppState = `idle`, `buyBonusButton.interactable = true` |
+
+**Code path:**
+```
+GameplayScene.onBuyBonusClicked()
+  → buyBonusPopup.open()
+```
+
+> **Source:** `GameplayScene.ts:965-976`
+
+---
+
+### 2.10 `confirmBuyBonus(packageIndex: number)`
+
+Emulates user clicking buy → confirm in the buy bonus popup.
+
+| | |
+|-|-|
+| **Emulates** | Click `BuyButton` → click `confirmButton` in `BuyBousPopup` |
+| **Precondition** | AppState = `idle`, balance ≥ bet x package price |
+| **Returns** | `Promise<void>` — resolves when bonus mode completes and returns to `idle` |
+
+**Code path:**
+```
+BuyBousPopup.onConfirmClicked()
+  → GameplayScene.onConfirmBuyBonus(packageIndex)
+    → GameController.onConfirmBuyBonus(packageIndex)
+      → SlotGameApplication.buyBonus(request)  [SignalR 'buyfreespin' event]
+      → GameLogic.bonusGameType = BONUS_TOTAL_WIN
+```
+
+**State flow:** `idle` → `betting` → `result` → `START_BONUS` → `IN_BONUS` (re-spins) → `END_BONUS` → `idle`
+
+> **Source:** `GameplayScene.ts:978-980`, `GameController.ts:491-501`, `BuyBousPopup.ts:189-192`
+
+---
+
+### 2.11 `setTurbo(enabled: boolean)`
+
+Emulates user clicking the turbo toggle.
+
+| | |
+|-|-|
+| **Emulates** | Click `onTurboButton` (off) or `offTurboButton` (on) |
+| **Note** | During promo mode, turbo may be forced off and toggles become non-interactable |
+
+**Code path:**
+```
+if (enabled):
+  offTurboButton.isChecked = true   [turbo ON]
+else:
+  onTurboButton.isChecked = true    [turbo OFF]
+```
+
+**Naming note:** The toggle names are inverted — `offTurboButton.isChecked = true` means turbo IS active. `onTurboButton` is the "turbo off" state.
+
+> **Source:** `GameplayScene.ts:187-194`, `GameplayScene.ts:1009-1033`
+
+---
+
+### 2.12 `setSound(enabled: boolean)`
+
+Emulates user clicking the sound on/off button.
+
+| | |
+|-|-|
+| **Emulates** | Click `onSoundButton` (mute) or `offSoundButton` (unmute) |
+
+**Code path:**
+```
+if (enabled):
+  GameController.onClickOnOffSound(true)
+  GameController.onClickOnOffMusic(true)
+  onSoundButton.node.active = true
+  offSoundButton.node.active = false
+else:
+  GameController.onClickOnOffSound(false)
+  GameController.onClickOnOffMusic(false)
+  onSoundButton.node.active = false
+  offSoundButton.node.active = true
+```
+
+**Note:** Sound toggle controls BOTH sound effects and music simultaneously.
+
+> **Source:** `GameplayScene.ts:199-214`, `GameController.ts:479-489`
+
+---
+
+### 2.13 `openSettings()`
+
+Emulates user clicking the settings button.
+
+| | |
+|-|-|
+| **Emulates** | Click `settingButton` |
+
+**Code path:**
+```
+GameplayScene.onSettingClicked()
+  → SettingPopup.open(TypePopup.SETTING, { turbo, sound, music })
+```
+
+> **Source:** `GameplayScene.ts:1074-1078`
+
+---
+
+### 2.14 `openInfo()`
+
+Emulates user clicking the info/paytable button.
+
+| | |
+|-|-|
+| **Emulates** | Click `infoButton` |
+
+**Code path:**
+```
+GameplayScene.onInfoClicked()
+  → SettingPopup.open(TypePopup.GENERAL_INFO)
+```
+
+> **Source:** `GameplayScene.ts:1080-1085`
+
+---
+
+### 2.15 `openHistory()`
+
+Emulates user clicking the history button.
+
+| | |
+|-|-|
+| **Emulates** | Click `historyButton` |
+
+**Code path:**
+```
+GameplayScene.onHistoryClicked()
+  → SettingPopup.open(TypePopup.HISTORY)
+```
+
+> **Source:** `GameplayScene.ts:1087-1091`
+
+---
+
+### 2.16 `holdSpinStart()` / `holdSpinRelease()`
+
+Emulates user holding the space bar or long-pressing the spin button during bonus mode.
+
+| | |
+|-|-|
+| **Emulates** | Hold spacebar / long-press spin button |
+| **Precondition** | In bonus mode (Hold&Spin) |
+
+**`holdSpinStart()` code path:**
+```
+onKeyDown(SPACE) / onSpinClicked()
+  → after 1s hold → processHoldSpin()
+    → offTurboButton.isChecked = true  [forces turbo on]
+    → GameController.onSpinClicked()
+    → schedule(countTimeHoldSpinButton, 0.1)  [continuous re-spins]
+```
+
+**`holdSpinRelease()` code path:**
+```
+onSpinButtonReleased()
+  → restores turbo state to before hold
+  → _isHoldSpinButton = false
+  → unschedule(countTimeHoldSpinButton)
+```
+
+> **Source:** `GameplayScene.ts:821-902`
+
+---
+
+### 2.17 `skipBonusTransition()`
+
+Emulates user clicking skip during Hold&Spin entry animation.
+
+| | |
+|-|-|
+| **Emulates** | Click `nodeSkip` in `HoldSpinView` |
+
+**Code path:**
+```
+HoldSpinView.clickSkip()
+  → resolves pending Promise
+  → plays exit animation
+  → hides transition overlay
+```
+
+> **Source:** `HoldSpinView.ts:208-215`
+
+---
+
+### 2.18 `skipBigWin()`
+
+Emulates user pressing space during big win celebration popup.
+
+| | |
+|-|-|
+| **Emulates** | Press SPACE during big win animation |
+
+**Code path:**
+```
+BigWinPopup.skip()
+  → skips celebration animation
+```
+
+> **Source:** `GameplayScene.ts:830`
+
+---
+
+### 2.19 `openDevMode()`
+
+Emulates user clicking the dev mode button (only available in dev environment).
+
+| | |
+|-|-|
+| **Emulates** | Click `devModeButton` |
+| **Precondition** | URL contains `env=dev` |
+
+**Code path:**
+```
+GameplayScene.onDevModeClicked()
+  → devModePopup.node.active = true
+```
+
+> **Source:** `GameplayScene.ts:1093-1096`
+
+---
+
+### 2.20 `setDevModeResult(grid: number[][])`
+
+Emulates user configuring a 3x3 result grid in DevModeComponent.
+
+| | |
+|-|-|
+| **Emulates** | Configure 3x3 grid in dev mode panel and save |
+| **Parameter** | `grid` — 3x3 array of symbol IDs (see Section 7) |
+
+**Code path:**
+```
+DevModeManager.add(key, reelData)
+  → stored in DevModeManager.data Map
+  → next spin: SlotGameApplication.spin() checks DevMode data
+    → if exists: returns injected result instead of server call
+```
+
+**Note:** This is the only action that "fakes" state, but it uses the same mechanism real developers use through the DevMode UI.
+
+> **Source:** `DevModeManager.ts`, `SlotGameApplication.ts:186-194`
+
+---
+
+### 2.21 `openTrophy()`
+
+Emulates user clicking the trophy button.
+
+| | |
+|-|-|
+| **Emulates** | Click `trophyButton` |
+| **Precondition** | `trophyButton.interactable = true` (only after mega/ultra wins) |
+
+**Code path:**
+```
+GameplayScene.onTrophyButtonClicked()
+  → TrophyComponent.show()
+```
+
+> **Source:** `GameplayScene.ts:609-612`
+
+---
+
+## 3. Queries (Read-Only State Inspection)
+
+### 3.1 Game State
+
+| Method | Returns | Source |
+|--------|---------|--------|
+| `getAppState()` | `string` — `'idle'`, `'betting'`, `'result'`, `'error'`, etc. | `ApplicationStateManager.getCurrentState()` |
+| `getSpinState()` | `string` — `'NORMAL'`, `'START_BONUS'`, `'IN_BONUS'`, `'END_BONUS'`, `'PROMO'` | `GameLogic.spinResult.state` |
+| `getBalance()` | `number` — current player balance | `GameLogic.balance` |
+| `getBetAmount()` | `number` — current bet amount | `GameLogic.currentBetAmount` |
+| `getBetIndex()` | `number` — index into denominations array | `GameLogic.currentIndexBet` |
+| `getDenominations()` | `number[]` — all available bet levels | `GameLogic.denominations` |
+| `getFreeSpinsRemaining()` | `number` — remaining free spins in bonus | `GameLogic.freeSpins` |
+| `getAutoSpinsRemaining()` | `number` — remaining auto spins (`Infinity` for continuous) | `GameLogic.numberAutoSpin` |
+| `getLastPayout()` | `number` — payout from last completed spin | `GameLogic.betResult?.payout` |
+| `getLastWinType()` | `string` — `'LOSE'`, `'SLIM_WIN'`, `'SMALL_WIN'`, `'MEDIUM_WIN'`, `'BIG_WIN'`, `'MEGA_WIN'`, `'ULTRA_WIN'` | `GameLogic.spinResult.typeWin` |
+| `isTurboActive()` | `boolean` — is turbo mode on | `offTurboButton.isChecked` |
+| `isSoundEnabled()` | `boolean` | `SoundManager.isSoundEnabled()` |
+| `isMusicEnabled()` | `boolean` | `SoundManager.isMusicEnabled()` |
+| `isPromoMode()` | `boolean` — is promotional game active | `GameLogic.isPromoMode` |
+
+### 3.2 Reel State
+
+| Method | Returns | Source |
+|--------|---------|--------|
+| `getReelResult()` | `number[][]` — 3x3 grid of symbol IDs from server response | `GameLogic.betResult.result.views` |
+| `getCoinPositions()` | `CoinPositions[]` — coins on grid with `{row, col, coinValue, type}` | `GameLogic.spinResult.coinPositions` |
+| `getPaylines()` | `PayLines[]` — winning lines with `{symbols, payline, payoutRate, winType}` | `GameLogic.betResult.paylines` |
+
+### 3.3 Button Interactability
+
+| Method | Returns | What It Checks |
+|--------|---------|----------------|
+| `isSpinEnabled()` | `boolean` | `spinButton.interactable` AND AppState is `idle` |
+| `isBuyBonusEnabled()` | `boolean` | `buyBonusButton.interactable` (disabled during promo, auto, free spin) |
+| `isAutoEnabled()` | `boolean` | `autoButton.interactable` |
+| `isNextBetEnabled()` | `boolean` | `nextBetButton.interactable` (disabled at max bet, during promo) |
+| `isPreviousBetEnabled()` | `boolean` | `previousBetButton.interactable` (disabled at min bet, during promo) |
+| `isStopAutoVisible()` | `boolean` | `stopAutoButton.isChecked` (visible when auto-spin is running) |
+
+### 3.4 Game Info
+
+| Method | Returns | Source |
+|--------|---------|--------|
+| `getGameInfo()` | `GameInfo` — full server game config including settings, pending state, paytable | `GameLogic.gameInfo` |
+| `getCurrency()` | `string` — e.g., `'USD'`, `'EUR'` | `GameLogic.gameInfo.currency` |
+| `getPaytable()` | `Paytable[]` — symbol payout rates | `GameLogic.gameInfo.paytable` |
+| `getFreeSpinPackages()` | `FreeSpinPackage[]` — available bonus packages with `{name, freeSpins, price}` | `GameLogic.gameInfo.freeSpinPackages` |
+
+### 3.5 UI Display Values
+
+These return what the player actually sees on screen — the formatted label text, not raw numbers.
+
+| Method | Returns | Source |
+|--------|---------|--------|
+| `getDisplayBalance()` | `string` — formatted balance (e.g., `"1,000.00"`) | `balanceLabel.string` |
+| `getDisplayBet()` | `string` — formatted bet (e.g., `"1.00"`) | `betLabel.string` |
+| `getDisplayWin()` | `string` — formatted win (e.g., `"25.50"`) | `winLabel.string` |
+
+### 3.6 Snapshot
+
+| Method | Returns |
+|--------|---------|
+| `getSnapshot()` | Full state dump: `{ appState, spinState, balance, betAmount, betIndex, freeSpins, autoSpins, turbo, sound, music, promo, lastPayout, lastWinType, reelResult, coinPositions }` |
+
+---
+
+## 4. Wait Helpers
+
+| Method | Behavior |
+|--------|----------|
+| `waitForState(state: string, timeoutMs?: number)` | Resolves when AppState matches the target. Rejects on timeout (default 30s). Uses `ApplicationStateManager.onStateChanged` callback. |
+| `waitForIdle(timeoutMs?: number)` | Shorthand for `waitForState('idle')`. Most commonly used after actions. |
+| `waitForSpinComplete(timeoutMs?: number)` | Calls `spin()` then `waitForIdle()`. Single call for the most common test operation. |
+
+---
+
+## 5. Event Collection (for Replay Viewer)
+
+### 5.1 `startEventCollection()`
+
+Starts capturing game events with timestamps. Registers hooks on:
+- `ApplicationStateManager.onStateChanged` → `state_change` events
+- `GameLogic.betResult` setter → `spin_result` events
+- Button interactability changes → `button_state` events
+
+### 5.2 `stopEventCollection()`
+
+Stops capturing events. Hooks are unregistered.
+
+### 5.3 `drainEvents()`
+
+Returns all collected events since last drain, then clears the buffer.
+
+**Returns:** `CollectedEvent[]`
+
+```typescript
+interface CollectedEvent {
+    t: number;        // seconds since collection start, 3 decimal places
+    type: string;     // event category (see table below)
+    data: Record<string, any>;
+}
+```
+
+### Event Types
+
+| Type | Hook Point | Payload |
+|------|-----------|---------|
+| `state_change` | `ApplicationStateManager.onStateChanged` | `{ from, to }` |
+| `spin_request` | Bridge `spin()` action | `{ stake, betIndex, devMode }` |
+| `spin_result` | `GameLogic.betResult` set | `{ reels, paylines, payout, stake, typeWin, freeSpinInfo, coinPositions }` |
+| `balance_change` | After spin result | `{ balance, previous }` |
+| `socket_send` | `SignalRConnection.sendEvent` | `{ event }` |
+| `socket_recv` | `SignalRConnection.subscribeEvent` | `{ event, status }` |
+| `button_state` | Sampled at state changes | `{ spin, auto, buyBonus, nextBet, previousBet }` |
+| `free_spin` | `GameLogic.freeSpins` change | `{ remaining }` |
+| `bonus_transition` | SpinState changes | `{ spinState, coinCount }` |
+| `popup` | Popup `.active` changes | `{ name, active }` |
+| `turbo_change` | Turbo toggle | `{ turboActive }` |
+| `error` | AppState.ERROR | `{ message }` |
+
+---
+
+## 6. State Machine Reference
+
+### Application State Machine
+
+```
+INITIAL → CONNECTING → LOADING → READY
+                                   ↓
+                                  IDLE ⇄ BETTING ⇄ RESULT
+                                   ↕        ↕         ↕
+                                 PROMO    ERROR     ERROR
+                                   ↕        ↕
+                                 IDLE   RECONNECTING → IDLE
+```
+
+**Valid transitions** (from `ApplicationStateManager.ts:11-22`):
+
+| From | To |
+|------|----|
+| `initial` | `connecting`, `error` |
+| `connecting` | `loading`, `error`, `idle` |
+| `loading` | `ready`, `error` |
+| `ready` | `idle`, `betting`, `error`, `promo` |
+| `idle` | `betting`, `error`, `promo` |
+| `betting` | `result`, `error`, `promo`, `idle` |
+| `result` | `idle`, `betting`, `error`, `promo` |
+| `error` | `connecting`, `reconnecting`, `idle` |
+| `reconnecting` | `idle`, `error` |
+| `promo` | `idle`, `error` |
+
+### Spin State Machine (Bonus Flow)
+
+```
+NORMAL ──(3+ coins land)──→ START_BONUS
+                                ↓
+                            IN_BONUS ←─(re-spins with coins remaining)
+                                ↓
+                           END_BONUS ──→ NORMAL
+```
+
+| SpinState | Meaning |
+|-----------|---------|
+| `NORMAL` | Regular base game spin |
+| `START_BONUS` | First spin that triggered Hold&Spin |
+| `IN_BONUS` | Re-spins during Hold&Spin |
+| `END_BONUS` | Final Hold&Spin spin (no re-spins left or grid full) |
+| `PROMO` | Promotional game mode spin |
+
+---
+
+## 7. Symbol IDs
+
+From `Constants.ts:133-146` — `SlotSymbol` enum:
+
+| Symbol | ID | Name | Description |
+|--------|----|------|-------------|
+| `ERROR` | -1 | Error | Invalid/error symbol |
+| `A` | 1 | A | Ace card symbol |
+| `J` | 2 | J | Jack card symbol (disabled in config, weight 0) |
+| `Q` | 3 | Q | Queen card symbol |
+| `K` | 4 | K | King card symbol |
+| `P1` | 5 | P1 | Premium 1 — Athena |
+| `P2` | 6 | P2 | Premium 2 — Helmet |
+| `P3` | 7 | P3 | Premium 3 — Zeus |
+| `P4` | 8 | P4 | Premium 4 — Shield |
+| `WILD` | 9 | Wild | Golden Eagle — substitutes for all except Coin |
+| `COIN` | 13 | Coin | Hold&Spin trigger — 3+ coins start bonus |
+| `COIN_EMPTY` | -1 | CoinEmpty | Empty coin slot in bonus mode |
+
+### Coin Types (in Hold&Spin)
+
+| Type | ID | Meaning |
+|------|----|---------|
+| `EMPTY` | 0 | No coin |
+| `NORMAL` | 1 | Regular coin |
+| `MINOR` | 2 | Minor jackpot coin |
+| `MAJOR` | 3 | Major jackpot coin |
+| `GRAND` | 4 | Grand jackpot coin |
+
+---
+
+## 8. Win Type Thresholds
+
+From `Interface.ts:139-147` — multiplier of bet amount:
+
+| Win Type | Multiplier Range | Visual |
+|----------|-----------------|--------|
+| `LOSE` | payout = 0 | No animation |
+| `SLIM_WIN` | 0 < x < 1 | Minimal highlight |
+| `SMALL_WIN` | 1 ≤ x < 2.5 | Win line animation |
+| `MEDIUM_WIN` | 2.5 ≤ x < 10 | Enhanced win animation |
+| `BIG_WIN` | 10 ≤ x < 25 | Big win popup |
+| `MEGA_WIN` | 25 ≤ x < 50 | Mega win popup + trophy |
+| `ULTRA_WIN` | x ≥ 50 | Ultra win popup + trophy |
+
+---
+
+## 9. Game Configuration
+
+From `Constants.ts:8-13`:
+
+| Config | Value |
+|--------|-------|
+| Grid size | 3 rows x 3 columns |
+| Pay lines | 5 |
+| Decimal places | 2 |
+| Auto-spin packages | `[10, 20, 30, 50, Infinity]` |
+
+---
+
+## 10. Bridge Registration & Activation
+
+| | |
+|-|-|
+| **Activation** | URL parameter `?bridge=1` |
+| **Registration** | `window.__gameTestBridge = bridgeInstance` |
+| **Called during** | `LoadingScene.onGameReady()` at `AppState.READY` — before the user clicks Start |
+| **Production safety** | Zero overhead when parameter absent — bridge code never instantiated |
+
+### Activation Timing
+
+The bridge is registered at `AppState.READY`, which is after:
+- `GlobalContext.boot()` completes (connection established, game info received)
+- All game assets are loaded
+- The Start button is shown
+
+This means:
+- Playwright can detect `window.__gameTestBridge` before clicking Start
+- Query methods that only need `GameLogic` (e.g., `getGameInfo()`, `getDenominations()`, `getBalance()`) work immediately
+- Action methods and UI queries that need `GameplayScene` (e.g., `spin()`, `isSpinEnabled()`, `getDisplayBalance()`) require clicking Start first — they throw `"GameplayScene is not yet initialised"` if called too early
+
+### Access from Playwright/test framework:
+```javascript
+// Wait for bridge to be available (at READY state, before Start click)
+await page.waitForFunction(() => window.__gameTestBridge);
+
+// Query game info before clicking Start
+const info = await page.evaluate(() => window.__gameTestBridge.getGameInfo());
+const balance = await page.evaluate(() => window.__gameTestBridge.getBalance());
+
+// Start the game — clicks Start button and waits for idle
+await page.evaluate(() => window.__gameTestBridge.startGame());
+
+// Full bridge API is now available
+await page.evaluate(() => window.__gameTestBridge.spin());
+const snapshot = await page.evaluate(() => window.__gameTestBridge.getSnapshot());
+```
+
+---
+
+## 11. What NOT to Expose
+
+These internal methods must **never** be callable from tests:
+
+| Internal Method | Why Not |
+|-----------------|---------|
+| `GameLogic.nextBet()` | Skips UI label update, denomination popup sync |
+| `GameLogic.numberAutoSpin = X` | Skips UI button state update, doesn't trigger first spin |
+| `ApplicationStateManager.transitionTo()` | Bypasses validation, creates impossible game states |
+| `SlotGameApplication.spin()` | Skips idle check, balance check, UI deactivation sequence |
+| `GameLogic.betResult = X` | Skips state transition, entire handler chain, all animations |
+| `GameLogic._balance = X` | Balance is server-authoritative — direct set will desync |
+| `GamePlayScene.onBetting()` | Internal callback, not a user action |
+| `GameController.spin()` (private) | Skips the idle + promo popup validation in `onSpinClicked()` |
+
+**The only exception:** `setDevModeResult()` injects fake spin outcomes, but it uses the same `DevModeManager` mechanism that real developers use through the DevMode UI panel.
+
+---
+
+## 12. Key Interfaces
+
+### BetResult (server response)
+
+```typescript
+interface BetResult {
+    paylines: PayLines[];
+    id: string;
+    roundId: string;
+    stake: number;
+    payout: number;
+    winlose: number;
+    coinPositions: CoinPositions[];
+    coinCount: number;
+    result: { views: { id: number, value: number[] }[] };
+    balance: number;
+    freeSpinInfo: { freespins: number, totalFreespin: number, accumulateWin: number };
+}
+```
+
+### SpinResult (processed for display)
+
+```typescript
+interface SpinResult {
+    state: SpinState;
+    reels: number[][];
+    paylines: PayLines[];
+    coinPositions: CoinPositions[];
+    coinCount: number;
+    freespins: number;
+    typeWin: WIN_TYPE_STATE;
+    payout: number;
+    stake: number;
+    persistenceInfo: { nextLevel: number, type: TypePersistence };
+}
+```
+
+### CoinPositions
+
+```typescript
+interface CoinPositions {
+    row: number;     // 0-2
+    col: number;     // 0-2
+    coinValue: number;
+    type: TYPE_COIN; // EMPTY=0, NORMAL=1, MINOR=2, MAJOR=3, GRAND=4
+    multiplier?: number;
+}
+```
+
+### PayLines
+
+```typescript
+interface PayLines {
+    symbols: number[];
+    payline: number;
+    payoutRate: number;
+    winType: string;
+}
+```
+
+### GameInfo (server config)
+
+```typescript
+interface GameInfo {
+    settings: {
+        defaultBetLevel: number;
+        minBet: number;
+        maxBet: number;
+        maxPayout: number;
+        denominations: number[];
+        maxMultiplier: number;
+        sessionTimeOut: number;
+    };
+    pending?: {
+        coinPositions: CoinPositions[];
+        freeSpins: number;
+        stake: number;
+    };
+    denominations: number[];
+    username: string;
+    currency: string;
+    balance: number;
+    betlines: number;
+    freeSpinPackages: FreeSpinPackage[];
+    paytable: Paytable[];
+    promo?: PlayerPromoState;
+}
+```
+
+---
+
+## 13. Source File Map
+
+| File | Role |
+|------|------|
+| `assets/src/views/GameplayScene.ts` | All button handlers, event bindings (L165-218), UI state management |
+| `assets/src/controllers/GameController.ts` | Public action methods, handler chain orchestration |
+| `assets/src/managers/GlobalContext.ts` | Singleton accessors for all managers |
+| `assets/src/managers/ApplicationStateManager.ts` | State machine with validated transitions |
+| `assets/src/managers/GameLogic.ts` | Game state: balance, bet, freeSpins, spinResult |
+| `assets/src/controllers/SlotGameApplication.ts` | SignalR server communication |
+| `assets/src/constants/Constants.ts` | AppState, SlotSymbol, GameConfig enums |
+| `assets/src/constants/Interface.ts` | All TypeScript interfaces |
+| `assets/src/views/BuyBousPopup.ts` | Buy bonus popup interaction flow |
+| `assets/submodules/src/views/AutoPopup.ts` | Auto-spin popup interaction flow |
+| `assets/src/views/HoldSpinView.ts` | Hold&Spin bonus game interaction |
+| `assets/src/views/DevMode/DevModeManager.ts` | Dev mode result injection |
+| `assets/submodules/src/views/DenominationsPopup.ts` | Bet denomination selection popup |
+| `assets/submodules/src/views/SettingPopup.ts` | Settings/info/history popup |
+| `assets/src/networks/SignalRConnection.ts` | WebSocket connection (MessagePack protocol) |
+| `assets/src/test/BridgeActivator.ts` | Bridge activation gated by `?bridge=1` URL param |
+| `assets/src/test/ZeusTestBridge.ts` | Concrete bridge implementation |
+| `assets/src/test/TestBridgeBase.ts` | Abstract bridge interface contract |
+| `assets/src/test/EventCollector.ts` | Timestamped event capture for replay viewer |
+| `assets/src/views/LoadingScene.ts` | Calls `BridgeActivator.activate()` at `AppState.READY` |
