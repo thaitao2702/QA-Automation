@@ -1,0 +1,70 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055483.818269,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Complete one bet",
+      "start_ms": 105,
+      "end_ms": 2355
+    },
+    {
+      "id": "step-02",
+      "action": "wait_for_state",
+      "description": "Wait for spin to complete",
+      "start_ms": 2475,
+      "end_ms": 2553
+    },
+    {
+      "id": "step-03",
+      "action": "bridge_action",
+      "description": "Open history popup",
+      "start_ms": 2648,
+      "end_ms": 2767
+    },
+    {
+      "id": "step-04",
+      "action": "wait_ms",
+      "description": "Wait for popup to render",
+      "start_ms": 2905,
+      "end_ms": 3910
+    },
+    {
+      "id": "step-05",
+      "action": "capture",
+      "description": "Screenshot of history popup",
+      "start_ms": 3986,
+      "end_ms": 4385
+    },
+    {
+      "id": "step-06",
+      "action": "assert",
+      "description": "Verify history popup visible with bet records",
+      "start_ms": 4523,
+      "end_ms": 4654
+    },
+    {
+      "id": "teardown-01",
+      "action": "navigate",
+      "description": "Reload game to close popup",
+      "start_ms": 4786,
+      "end_ms": 5959
+    },
+    {
+      "id": "teardown-02",
+      "action": "wait_for_state",
+      "description": "",
+      "start_ms": 5960,
+      "end_ms": 9707
+    },
+    {
+      "id": "teardown-03",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 9761,
+      "end_ms": 10331
+    }
+  ]
+}

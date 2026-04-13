@@ -1,0 +1,107 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055546.7068288,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "setup-01",
+      "action": "bridge_action",
+      "description": "Enable turbo",
+      "start_ms": 0,
+      "end_ms": 98
+    },
+    {
+      "id": "setup-02",
+      "action": "bridge_action",
+      "description": "Inject no-win for initial spins",
+      "start_ms": 199,
+      "end_ms": 300
+    },
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Open auto popup",
+      "start_ms": 498,
+      "end_ms": 595
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Start auto with stopByWin=true",
+      "start_ms": 708,
+      "end_ms": 828
+    },
+    {
+      "id": "step-03",
+      "action": "wait_for_state",
+      "description": "Wait for auto to stop (win triggers stop, or all 10 finish)",
+      "start_ms": 942,
+      "end_ms": 6825
+    },
+    {
+      "id": "step-04",
+      "action": "bridge_assert",
+      "description": "Verify auto stopped",
+      "start_ms": 7079,
+      "end_ms": 7199
+    },
+    {
+      "id": "step-05",
+      "action": "bridge_action",
+      "description": "Capture payout from last spin",
+      "start_ms": 7311,
+      "end_ms": 7423,
+      "result": 0.006
+    },
+    {
+      "id": "step-06",
+      "action": "bridge_action",
+      "description": "Capture remaining auto spins",
+      "start_ms": 7535,
+      "end_ms": 7658,
+      "result": 0
+    },
+    {
+      "id": "step-07",
+      "action": "script",
+      "description": "Verify auto completed (win stopped early OR all 10 finished)",
+      "start_ms": 7780,
+      "end_ms": 7837
+    },
+    {
+      "id": "step-08",
+      "action": "bridge_assert",
+      "description": "Verify spin re-enabled",
+      "start_ms": 7958,
+      "end_ms": 8082
+    },
+    {
+      "id": "step-09",
+      "action": "capture",
+      "description": "Screenshot after auto stopped by win",
+      "start_ms": 8195,
+      "end_ms": 8539
+    },
+    {
+      "id": "step-10",
+      "action": "assert",
+      "description": "AI: verify idle with win displayed",
+      "start_ms": 8653,
+      "end_ms": 8653
+    },
+    {
+      "id": "teardown-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 8770,
+      "end_ms": 8888
+    },
+    {
+      "id": "teardown-02",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 8998,
+      "end_ms": 9109
+    }
+  ]
+}

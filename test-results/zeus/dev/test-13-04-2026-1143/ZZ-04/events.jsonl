@@ -1,0 +1,14 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.081, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Get server game config", "detail": "getGameInfo()", "success": true, "error": null, "duration_ms": 80}}
+{"t": 0.081, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.081, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.081, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.246, "type": "step", "data": {"id": "step-02", "action": "bridge_assert", "description": "Verify default bet is first denomination", "detail": "getBetIndex == 0", "success": true, "error": null, "duration_ms": 78}}
+{"t": 0.4, "type": "step", "data": {"id": "step-03", "action": "bridge_action", "description": "Capture actual bet amount", "detail": "getBetAmount()", "success": true, "error": null, "duration_ms": 79}}
+{"t": 0.559, "type": "step", "data": {"id": "step-04", "action": "bridge_action", "description": "Capture displayed bet string", "detail": "getDisplayBet()", "success": true, "error": null, "duration_ms": 83}}
+{"t": 0.727, "type": "step", "data": {"id": "step-05", "action": "capture", "description": "Screenshot of default state", "detail": "", "success": true, "error": null, "duration_ms": 268}}
+{"t": 1.067, "type": "step", "data": {"id": "step-06", "action": "assert", "description": "Verify can increase but not decrease", "detail": "", "success": true, "error": null, "duration_ms": 90}}
+{"t": 1.243, "type": "step", "data": {"id": "step-07", "action": "bridge_assert", "description": "", "detail": "isPreviousBetEnabled == False", "success": true, "error": null, "duration_ms": 86}}
+{"t": 1.409, "type": "step", "data": {"id": "step-08", "action": "assert", "description": "Verify bet label visible and formatted", "detail": "ai/image", "success": true, "error": null, "duration_ms": 0}}

@@ -1,0 +1,8 @@
+{
+  "bridge_result": "pass",
+  "ai_result": "fail",
+  "final_verdict": "orange",
+  "error": "AI image assert failed: auto_mode_active: got False, expected True",
+  "duration_ms": 5532,
+  "timed_out": false
+}

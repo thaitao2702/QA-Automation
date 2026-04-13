@@ -1,0 +1,12 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.114, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Open paytable tab via openInfo (SettingPopup page 2)", "detail": "openInfo()", "success": true, "error": null, "duration_ms": 113}}
+{"t": 0.331, "type": "step", "data": {"id": "step-02", "action": "wait_ms", "description": "Wait for settings popup to render", "detail": "1000ms", "success": true, "error": null, "duration_ms": 1007}}
+{"t": 1.422, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 1.423, "type": "step", "data": {"id": "step-03", "action": "capture", "description": "Screenshot of paytable tab", "detail": "", "success": true, "error": null, "duration_ms": 348}}
+{"t": 1.521, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 1.871, "type": "step", "data": {"id": "step-04", "action": "assert", "description": "Verify paytable tab is showing inside settings popup", "detail": "ai/image", "success": true, "error": null, "duration_ms": 91}}
+{"t": 2.051, "type": "step", "data": {"id": "teardown-01", "action": "navigate", "description": "Reload game to close popup", "detail": "url_script", "success": true, "error": null, "duration_ms": 931}}
+{"t": 2.982, "type": "step", "data": {"id": "teardown-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5411}}
+{"t": 8.437, "type": "step", "data": {"id": "teardown-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 857}}

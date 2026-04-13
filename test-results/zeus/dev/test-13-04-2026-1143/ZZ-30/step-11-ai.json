@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "data": {
+    "spin_triggered": true,
+    "coins_landed": true,
+    "bonus_mode_entered": true,
+    "respins_occurred": true,
+    "payout_displayed": true,
+    "returned_to_idle": true,
+    "confidence": "high"
+  },
+  "expected": {
+    "spin_triggered": true,
+    "coins_landed": true,
+    "bonus_mode_entered": true,
+    "respins_occurred": true,
+    "payout_displayed": true,
+    "returned_to_idle": true,
+    "confidence": "high"
+  },
+  "mismatches": [],
+  "input_tokens": 21780,
+  "output_tokens": 61
+}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Result — </title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; color: #1f2937; background: #f9fafb; }
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 640px; margin: 0 auto; overflow: hidden; }
+  .header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  .verdict-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .verdict-dot .label { color: #fff; font-weight: 700; font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .title-block { flex: 1; }
+  .title-block h1 { font-size: 1.1rem; margin: 0; }
+  .title-block .subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 2px; }
+  .body { padding: 0 20px 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  tr { border-bottom: 1px solid #f3f4f6; }
+  tr:last-child { border-bottom: none; }
+  th { text-align: left; padding: 8px 12px; color: #6b7280; font-weight: 500; width: 140px; vertical-align: top; }
+  td { padding: 8px 12px; word-break: break-word; }
+  .pass { color: #065f46; }
+  .fail { color: #991b1b; }
+  .skip { color: #6b7280; }
+  .pending { color: #374151; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="verdict-dot" style="background:#10b981;">
+      <span class="label">Pass</span>
+    </div>
+    <div class="title-block">
+      <h1></h1>
+      <div class="subtitle"> &mdash; 36.0s</div>
+    </div>
+  </div>
+  <div class="body">
+    
+    <table>
+      <tr><th>Bridge Result</th><td class="pass">pass</td></tr>
+<tr><th>Ai Result</th><td class="pass">pass</td></tr>
+<tr><th>Duration Ms</th><td>36019</td></tr>
+<tr><th>Timed Out</th><td>No</td></tr>
+<tr><th>Error</th><td>&mdash;</td></tr>
+
+    </table>
+  </div>
+</div>
+</body>
+</html>

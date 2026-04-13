@@ -1,0 +1,21 @@
+{
+  "passed": false,
+  "data": {
+    "settings_popup_open": true,
+    "paytable_tab_visible": false,
+    "has_symbol_payouts": false,
+    "confidence": "high"
+  },
+  "expected": {
+    "settings_popup_open": true,
+    "paytable_tab_visible": true,
+    "has_symbol_payouts": true,
+    "confidence": "high"
+  },
+  "mismatches": [
+    "paytable_tab_visible: got False, expected True",
+    "has_symbol_payouts: got False, expected True"
+  ],
+  "input_tokens": 395,
+  "output_tokens": 41
+}

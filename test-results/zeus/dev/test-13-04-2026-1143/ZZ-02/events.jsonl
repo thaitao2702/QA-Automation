@@ -1,0 +1,13 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.138, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Fetch denomination list from bridge", "detail": "getDenominations()", "success": true, "error": null, "duration_ms": 153}}
+{"t": 0.402, "type": "step", "data": {"id": "step-02", "action": "bridge_assert", "description": "Verify default bet is first denomination (index 0)", "detail": "getBetIndex == 0", "success": true, "error": null, "duration_ms": 111}}
+{"t": 0.515, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 0.655, "type": "step", "data": {"id": "step-03", "action": "bridge_action", "description": "Capture actual bet amount", "detail": "getBetAmount()", "success": true, "error": null, "duration_ms": 95}}
+{"t": 0.616, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.842, "type": "step", "data": {"id": "step-04", "action": "bridge_action", "description": "Capture displayed bet string", "detail": "getDisplayBet()", "success": true, "error": null, "duration_ms": 83}}
+{"t": 1.013, "type": "step", "data": {"id": "step-05", "action": "capture", "description": "Capture bet display", "detail": "", "success": true, "error": null, "duration_ms": 302}}
+{"t": 1.396, "type": "step", "data": {"id": "step-06", "action": "assert", "description": "Verify next bet enabled, previous disabled (at min)", "detail": "", "success": true, "error": null, "duration_ms": 83}}
+{"t": 1.561, "type": "step", "data": {"id": "step-07", "action": "bridge_assert", "description": "", "detail": "isPreviousBetEnabled == False", "success": true, "error": null, "duration_ms": 82}}
+{"t": 1.735, "type": "step", "data": {"id": "step-08", "action": "assert", "description": "Verify bet label is visible and properly formatted", "detail": "ai/image", "success": true, "error": null, "duration_ms": 0}}

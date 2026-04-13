@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Summary — Comprehensive QA Test Cases</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; color: #1f2937; background: #f9fafb; }
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 800px; margin: 0 auto; overflow: hidden; }
+  .header { padding: 20px; border-bottom: 1px solid #e5e7eb; }
+  .header h1 { font-size: 1.2rem; margin: 0 0 4px; }
+  .header .meta { font-size: 0.85rem; color: #6b7280; }
+  .counts { display: flex; gap: 16px; padding: 16px 20px; flex-wrap: wrap; border-bottom: 1px solid #f3f4f6; }
+  .count-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot-sm { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .count-label { font-size: 0.875rem; font-weight: 600; }
+  .body { padding: 0 20px 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 12px; }
+  th { text-align: left; padding: 8px 10px; color: #6b7280; font-weight: 500; border-bottom: 2px solid #e5e7eb; font-size: 0.8rem; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  .cost { font-size: 0.8rem; color: #6b7280; padding: 12px 20px; border-top: 1px solid #f3f4f6; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>Comprehensive QA Test Cases</h1>
+    <div class="meta">zeus &mdash; dev &mdash; 2026-04-13 11:51:12 &mdash; 436.2s &mdash; 18 tests</div>
+  </div>
+  <div class="counts"><div class="count-item"><span class="dot" style="background:#10b981;"></span><span class="count-label">14 Pass</span></div><div class="count-item"><span class="dot" style="background:#f97316;"></span><span class="count-label">4 Suspicious</span></div></div>
+  <div class="body">
+    
+    <table>
+      <thead>
+        <tr><th></th><th>ID</th><th>Title</th><th>Bridge</th><th>AI</th><th>Duration</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-02</td>
+  <td>Check Denomination</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>2.0s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-03</td>
+  <td>Increase/Decrease Bet</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>2.7s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-04</td>
+  <td>Default Bet Level</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>1.7s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-05</td>
+  <td>Balance Deduction on Bet</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>4.4s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-06</td>
+  <td>Add Payout After Spin</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>27.3s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-09</td>
+  <td>History in Game</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>10.8s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#f97316;" title="Suspicious"></span></td>
+  <td>ZZ-11</td>
+  <td>Check UI Paytable</td>
+  <td>pass</td>
+  <td>fail</td>
+  <td>9.8s</td>
+</tr>
+<tr><td></td><td colspan="5"><div style="color:#991b1b;font-family:monospace;font-size:0.8rem;margin-top:4px;">AI image assert failed: paytable_tab_visible: got False, expected True; has_symbol_payouts: got False, expected True</div></td></tr>
+<tr>
+  <td><span class="dot-sm" style="background:#f97316;" title="Suspicious"></span></td>
+  <td>ZZ-13</td>
+  <td>Enable Auto</td>
+  <td>pass</td>
+  <td>fail</td>
+  <td>5.5s</td>
+</tr>
+<tr><td></td><td colspan="5"><div style="color:#991b1b;font-family:monospace;font-size:0.8rem;margin-top:4px;">AI image assert failed: auto_mode_active: got False, expected True</div></td></tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-14</td>
+  <td>Stop by Spin Count</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>36.0s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-15</td>
+  <td>Stop at Any Win</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>9.4s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-17</td>
+  <td>User Stop Auto</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>6.1s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-18</td>
+  <td>Auto Stops on Reload</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>11.6s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#f97316;" title="Suspicious"></span></td>
+  <td>ZZ-19</td>
+  <td>Disable Bet Buttons During Auto</td>
+  <td>pass</td>
+  <td>fail</td>
+  <td>7.6s</td>
+</tr>
+<tr><td></td><td colspan="5"><div style="color:#991b1b;font-family:monospace;font-size:0.8rem;margin-top:4px;">AI image assert failed: spin_counter_visible: got None, expected True</div></td></tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-20</td>
+  <td>Display Spin Count During Auto</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>23.8s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#f97316;" title="Suspicious"></span></td>
+  <td>ZZ-22</td>
+  <td>Check Turbo</td>
+  <td>pass</td>
+  <td>fail</td>
+  <td>2.4s</td>
+</tr>
+<tr><td></td><td colspan="5"><div style="color:#991b1b;font-family:monospace;font-size:0.8rem;margin-top:4px;">AI image assert failed: turbo_off_second: got False, expected True</div></td></tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-26</td>
+  <td>Reconnect After Short Disconnect</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>7.9s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-27</td>
+  <td>Reconnect After Long Disconnect</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>39.7s</td>
+</tr>
+<tr>
+  <td><span class="dot-sm" style="background:#10b981;" title="Pass"></span></td>
+  <td>ZZ-30</td>
+  <td>Trigger Free Spin (3-8 Coins)</td>
+  <td>pass</td>
+  <td>pass</td>
+  <td>82.5s</td>
+</tr>
+
+      </tbody>
+    </table>
+  </div>
+  <div class="cost">20 Gemini calls (19 image, 1 video) &mdash; ~$0.002402</div>
+</div>
+</body>
+</html>

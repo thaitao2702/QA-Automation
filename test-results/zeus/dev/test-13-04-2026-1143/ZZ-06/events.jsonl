@@ -1,0 +1,111 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.0, "type": "step", "data": {"id": "setup-01", "action": "bridge_action", "description": "Inject winning result (3x P1 Crow on top row = payline 2)", "detail": "setDevModeResult(grid=[[5, 5, 5], [5, 1, 1], [5, 3, 3]])", "success": true, "error": null, "duration_ms": 73}}
+{"t": 0.211, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Capture balance before", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 72}}
+{"t": 0.283, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 0.358, "type": "step", "data": {"id": "step-02", "action": "bridge_action", "description": "Capture bet amount", "detail": "getBetAmount()", "success": true, "error": null, "duration_ms": 77}}
+{"t": 0.396, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.396, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.396, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.396, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.396, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.516, "type": "step", "data": {"id": "step-03", "action": "capture", "description": "Screenshot before spin", "detail": "", "success": true, "error": null, "duration_ms": 218}}
+{"t": 0.799, "type": "step", "data": {"id": "step-04", "action": "bridge_action", "description": "Spin with injected win", "detail": "spin()", "success": true, "error": null, "duration_ms": 24186}}
+{"t": 0.873, "type": "spin_request", "data": {"stake": 0.01, "betIndex": 0, "devMode": true}}
+{"t": 0.874, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 0.874, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 0.874, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 1.223, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 1.223, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 1.223, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 1.223, "type": "spin_result", "data": {"reels": [[5, 5, 5], [5, 1, 1], [5, 3, 3]], "paylines": [{"payline": 2, "symbols": [5, 5, 5], "payoutRate": 200, "winType": ""}], "payout": 0.4, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.223, "type": "balance_change", "data": {"balance": 99996.38, "previous": 99995.99}}
+{"t": 2.446, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 2.561, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.561, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.561, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.561, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.561, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 4.637, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 4.768, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 4.768, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 4.768, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 4.768, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 4.768, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 6.904, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 7.102, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.102, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.102, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.102, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.102, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.278, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 9.379, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.379, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.379, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.379, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.379, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.523, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 11.711, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.711, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.711, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.711, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.711, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 13.858, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 14.065, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.065, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.065, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.065, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.065, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.234, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 16.337, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.337, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.337, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.337, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.337, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.504, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 18.719, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.719, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.719, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.719, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.719, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.856, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 20.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.098, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 23.205, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.205, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.205, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.205, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.205, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 24.979, "type": "state_change", "data": {"from": "", "to": "idle"}}
+{"t": 24.979, "type": "button_state", "data": {"spin": true, "auto": true, "buyBonus": true, "nextBet": true, "previousBet": false}}
+{"t": 24.979, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 25.169, "type": "step", "data": {"id": "step-05", "action": "wait_for_state", "description": "Wait for spin to complete", "detail": "state=idle", "success": true, "error": null, "duration_ms": 99}}
+{"t": 25.269, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 25.365, "type": "step", "data": {"id": "step-06", "action": "bridge_action", "description": "Capture payout", "detail": "getLastPayout()", "success": true, "error": null, "duration_ms": 93}}
+{"t": 25.412, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.412, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.412, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.412, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.412, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.558, "type": "step", "data": {"id": "step-06b", "action": "script", "description": "Assert payout is positive (win occurred)", "detail": "assert(steps['step-06'].result > 0, 'Expected positive payout but got ' + steps[...", "success": true, "error": null, "duration_ms": 54}}
+{"t": 25.717, "type": "step", "data": {"id": "step-07", "action": "bridge_action", "description": "Capture balance after", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 103}}
+{"t": 25.919, "type": "step", "data": {"id": "step-08", "action": "bridge_action", "description": "Capture win type", "detail": "getLastWinType()", "success": true, "error": null, "duration_ms": 109}}
+{"t": 26.129, "type": "step", "data": {"id": "step-08b", "action": "script", "description": "Assert win type is not LOSE", "detail": "assert(steps['step-08'].result !== 'LOSE', 'Expected a win but got ' + steps['st...", "success": true, "error": null, "duration_ms": 51}}
+{"t": 26.278, "type": "step", "data": {"id": "step-09", "action": "capture", "description": "Screenshot after spin", "detail": "", "success": true, "error": null, "duration_ms": 306}}
+{"t": 26.682, "type": "step", "data": {"id": "step-10", "action": "assert", "description": "AI: verify balance increased and win displayed", "detail": "ai/image", "success": true, "error": null, "duration_ms": 0}}
+{"t": 26.828, "type": "step", "data": {"id": "teardown-01", "action": "bridge_action", "description": "", "detail": "resetDevMode()", "success": true, "error": null, "duration_ms": 103}}

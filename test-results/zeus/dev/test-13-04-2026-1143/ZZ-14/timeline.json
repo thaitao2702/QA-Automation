@@ -1,0 +1,128 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055510.343834,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "setup-01",
+      "action": "bridge_action",
+      "description": "Enable turbo for faster spins",
+      "start_ms": 0,
+      "end_ms": 84
+    },
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Record balance before auto-spin",
+      "start_ms": 255,
+      "end_ms": 338,
+      "result": 99995.97
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Open auto popup",
+      "start_ms": 418,
+      "end_ms": 507
+    },
+    {
+      "id": "step-03",
+      "action": "bridge_action",
+      "description": "Start 10 auto spins",
+      "start_ms": 601,
+      "end_ms": 699
+    },
+    {
+      "id": "step-04",
+      "action": "wait_ms",
+      "description": "Wait briefly then verify auto is running",
+      "start_ms": 798,
+      "end_ms": 2807
+    },
+    {
+      "id": "step-05",
+      "action": "bridge_assert",
+      "description": "Confirm stop auto button visible (auto running)",
+      "start_ms": 3048,
+      "end_ms": 3168
+    },
+    {
+      "id": "step-06",
+      "action": "capture",
+      "description": "Screenshot during auto-spin",
+      "start_ms": 3277,
+      "end_ms": 3663
+    },
+    {
+      "id": "step-07",
+      "action": "wait_for_state",
+      "description": "Wait for all 10 spins to complete (IDLE only fires after last spin)",
+      "start_ms": 3890,
+      "end_ms": 33741
+    },
+    {
+      "id": "step-08",
+      "action": "bridge_assert",
+      "description": "Verify auto-spin stopped",
+      "start_ms": 33956,
+      "end_ms": 34050
+    },
+    {
+      "id": "step-09",
+      "action": "bridge_assert",
+      "description": "Verify spin count exhausted",
+      "start_ms": 34147,
+      "end_ms": 34241
+    },
+    {
+      "id": "step-10",
+      "action": "bridge_assert",
+      "description": "Verify game returned to idle",
+      "start_ms": 34337,
+      "end_ms": 34433
+    },
+    {
+      "id": "step-11",
+      "action": "bridge_assert",
+      "description": "Verify spin button re-enabled",
+      "start_ms": 34530,
+      "end_ms": 34628
+    },
+    {
+      "id": "step-12",
+      "action": "bridge_action",
+      "description": "Record balance after auto-spin",
+      "start_ms": 34725,
+      "end_ms": 34822,
+      "result": 99996.188
+    },
+    {
+      "id": "step-13",
+      "action": "script",
+      "description": "Verify balance changed (10 spins should deduct)",
+      "start_ms": 34925,
+      "end_ms": 34975
+    },
+    {
+      "id": "step-14",
+      "action": "capture",
+      "description": "Screenshot after auto finished",
+      "start_ms": 35073,
+      "end_ms": 35421
+    },
+    {
+      "id": "step-15",
+      "action": "assert",
+      "description": "AI: verify normal idle state restored",
+      "start_ms": 35520,
+      "end_ms": 35521
+    },
+    {
+      "id": "teardown-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 35616,
+      "end_ms": 35719
+    }
+  ]
+}

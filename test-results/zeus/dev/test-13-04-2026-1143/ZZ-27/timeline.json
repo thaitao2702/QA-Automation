@@ -1,0 +1,84 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055615.8270454,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_assert",
+      "description": "Verify idle state",
+      "start_ms": 107,
+      "end_ms": 218
+    },
+    {
+      "id": "step-02",
+      "action": "capture",
+      "description": "Screenshot before disconnect",
+      "start_ms": 328,
+      "end_ms": 826
+    },
+    {
+      "id": "step-03",
+      "action": "go_offline",
+      "description": "Go offline",
+      "start_ms": 929,
+      "end_ms": 981
+    },
+    {
+      "id": "step-04",
+      "action": "wait_ms",
+      "description": "Stay offline >20s",
+      "start_ms": 1101,
+      "end_ms": 26126
+    },
+    {
+      "id": "step-05",
+      "action": "go_online",
+      "description": "Restore network",
+      "start_ms": 26207,
+      "end_ms": 26259
+    },
+    {
+      "id": "step-06",
+      "action": "wait_ms",
+      "description": "Wait for popup/redirect",
+      "start_ms": 26478,
+      "end_ms": 31489
+    },
+    {
+      "id": "step-07",
+      "action": "capture",
+      "description": "Screenshot after long disconnect",
+      "start_ms": 31592,
+      "end_ms": 31938
+    },
+    {
+      "id": "step-08",
+      "action": "assert",
+      "description": "AI: verify error popup or redirect",
+      "start_ms": 32050,
+      "end_ms": 32050
+    },
+    {
+      "id": "teardown-01",
+      "action": "navigate",
+      "description": "Reload game to recover",
+      "start_ms": 32162,
+      "end_ms": 33174
+    },
+    {
+      "id": "teardown-02",
+      "action": "wait_for_state",
+      "description": "",
+      "start_ms": 33175,
+      "end_ms": 38495
+    },
+    {
+      "id": "teardown-03",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 38568,
+      "end_ms": 39301
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "data": {
+    "idle_state": true,
+    "win_displayed": true,
+    "normal_spin_button": true,
+    "confidence": "high"
+  },
+  "expected": {
+    "idle_state": true,
+    "win_displayed": true,
+    "normal_spin_button": true,
+    "confidence": "high"
+  },
+  "mismatches": [],
+  "input_tokens": 358,
+  "output_tokens": 34
+}

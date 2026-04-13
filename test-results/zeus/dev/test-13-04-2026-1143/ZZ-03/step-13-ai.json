@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "data": {
+    "decreased": true,
+    "confidence": "high"
+  },
+  "expected": {
+    "decreased": true,
+    "confidence": "high"
+  },
+  "mismatches": [],
+  "input_tokens": 592,
+  "output_tokens": 24
+}

@@ -1,0 +1,101 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055447.3814228,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_assert",
+      "description": "Confirm starting at min bet",
+      "start_ms": 80,
+      "end_ms": 162
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Capture initial display bet",
+      "start_ms": 245,
+      "end_ms": 328,
+      "result": "0.01"
+    },
+    {
+      "id": "step-03",
+      "action": "capture",
+      "description": "Screenshot before increase",
+      "start_ms": 411,
+      "end_ms": 667
+    },
+    {
+      "id": "step-04",
+      "action": "bridge_action",
+      "description": "Increase bet",
+      "start_ms": 754,
+      "end_ms": 837
+    },
+    {
+      "id": "step-05",
+      "action": "bridge_assert",
+      "description": "Verify index moved up",
+      "start_ms": 921,
+      "end_ms": 1003
+    },
+    {
+      "id": "step-06",
+      "action": "bridge_action",
+      "description": "Capture new display bet",
+      "start_ms": 1091,
+      "end_ms": 1176,
+      "result": "0.40"
+    },
+    {
+      "id": "step-07",
+      "action": "capture",
+      "description": "Screenshot after increase",
+      "start_ms": 1258,
+      "end_ms": 1515
+    },
+    {
+      "id": "step-08",
+      "action": "assert",
+      "description": "AI: verify bet increased",
+      "start_ms": 1598,
+      "end_ms": 1598
+    },
+    {
+      "id": "step-09",
+      "action": "bridge_action",
+      "description": "Decrease bet back",
+      "start_ms": 1680,
+      "end_ms": 1768
+    },
+    {
+      "id": "step-10",
+      "action": "bridge_assert",
+      "description": "Verify index back to 0",
+      "start_ms": 1846,
+      "end_ms": 1924
+    },
+    {
+      "id": "step-11",
+      "action": "bridge_action",
+      "description": "Capture restored display bet",
+      "start_ms": 2004,
+      "end_ms": 2085,
+      "result": "0.01"
+    },
+    {
+      "id": "step-12",
+      "action": "capture",
+      "description": "Screenshot after decrease",
+      "start_ms": 2170,
+      "end_ms": 2420
+    },
+    {
+      "id": "step-13",
+      "action": "assert",
+      "description": "AI: verify bet decreased",
+      "start_ms": 2497,
+      "end_ms": 2497
+    }
+  ]
+}

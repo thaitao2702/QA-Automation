@@ -1,0 +1,77 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055581.5739367,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "setup-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 0,
+      "end_ms": 87
+    },
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Open auto popup",
+      "start_ms": 271,
+      "end_ms": 361
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Start 10 auto spins",
+      "start_ms": 473,
+      "end_ms": 583
+    },
+    {
+      "id": "step-03",
+      "action": "wait_ms",
+      "description": "Wait for some auto spins to run",
+      "start_ms": 679,
+      "end_ms": 2699
+    },
+    {
+      "id": "step-04",
+      "action": "script",
+      "description": "Verify count has decremented (some spins ran)",
+      "start_ms": 2791,
+      "end_ms": 2823
+    },
+    {
+      "id": "step-05",
+      "action": "capture",
+      "description": "Screenshot showing counter mid-auto",
+      "start_ms": 2927,
+      "end_ms": 3232
+    },
+    {
+      "id": "step-06",
+      "action": "assert",
+      "description": "AI: verify counter is visible and shows a number",
+      "start_ms": 3451,
+      "end_ms": 3541
+    },
+    {
+      "id": "step-07",
+      "action": "wait_for_state",
+      "description": "Wait for all auto spins to complete",
+      "start_ms": 3636,
+      "end_ms": 23023
+    },
+    {
+      "id": "step-08",
+      "action": "bridge_assert",
+      "description": "Verify count is 0 after all spins complete",
+      "start_ms": 23169,
+      "end_ms": 23251
+    },
+    {
+      "id": "teardown-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 23349,
+      "end_ms": 23454
+    }
+  ]
+}

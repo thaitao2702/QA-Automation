@@ -1,0 +1,8 @@
+{
+  "bridge_result": "pass",
+  "ai_result": "fail",
+  "final_verdict": "orange",
+  "error": "AI image assert failed: paytable_tab_visible: got False, expected True; has_symbol_payouts: got False, expected True",
+  "duration_ms": 9764,
+  "timed_out": false
+}

@@ -1,0 +1,87 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055445.357398,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Fetch denomination list from bridge",
+      "start_ms": 138,
+      "end_ms": 291,
+      "result": [
+        0.01,
+        0.4,
+        0.6,
+        0.8,
+        1,
+        1.2,
+        1.4,
+        1.6,
+        1.8,
+        2,
+        4,
+        6,
+        8,
+        10,
+        14,
+        20,
+        30,
+        50,
+        70,
+        100
+      ]
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_assert",
+      "description": "Verify default bet is first denomination (index 0)",
+      "start_ms": 402,
+      "end_ms": 513
+    },
+    {
+      "id": "step-03",
+      "action": "bridge_action",
+      "description": "Capture actual bet amount",
+      "start_ms": 655,
+      "end_ms": 750,
+      "result": 0.01
+    },
+    {
+      "id": "step-04",
+      "action": "bridge_action",
+      "description": "Capture displayed bet string",
+      "start_ms": 842,
+      "end_ms": 925,
+      "result": "0.01"
+    },
+    {
+      "id": "step-05",
+      "action": "capture",
+      "description": "Capture bet display",
+      "start_ms": 1013,
+      "end_ms": 1315
+    },
+    {
+      "id": "step-06",
+      "action": "assert",
+      "description": "Verify next bet enabled, previous disabled (at min)",
+      "start_ms": 1396,
+      "end_ms": 1479
+    },
+    {
+      "id": "step-07",
+      "action": "bridge_assert",
+      "description": "",
+      "start_ms": 1561,
+      "end_ms": 1643
+    },
+    {
+      "id": "step-08",
+      "action": "assert",
+      "description": "Verify bet label is visible and properly formatted",
+      "start_ms": 1735,
+      "end_ms": 1735
+    }
+  ]
+}

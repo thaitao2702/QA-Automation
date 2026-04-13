@@ -6,6 +6,22 @@ Built with Python, Playwright, and Google Gemini. Tests are defined in YAML — 
 
 ---
 
+## Table of Contents
+
+1. [Project Structure](#project-structure)
+2. [What This Project Does](#what-this-project-does)
+3. [Why Game Bridge?](#why-game-bridge)
+4. [How QA Uses This Framework](#how-qa-uses-this-framework)
+5. [Dual-Layer Assertion System](#dual-layer-assertion-system)
+6. [Replay Feature](#replay-feature)
+7. [AI Assertion Capabilities](#ai-assertion-capabilities)
+8. [Does This Replace QA?](#does-this-replace-qa)
+9. [Implementation Result](#implementation-result)
+10. [Roadmap](#roadmap)
+11. [Quick Start](#quick-start)
+
+---
+
 ## Project Structure
 
 ```
@@ -37,24 +53,35 @@ This framework automates the repetitive, time-consuming parts of slot game QA. I
 
 ### Architecture
 
-```
-YAML Test Suite
-     |
-     v
-Suite Runner (Python + Playwright)
-     |
-     +---> Game Bridge (deterministic state control)
-     |         |
-     |         +---> Bridge Assertions (programmatic pass/fail)
-     |
-     +---> Gemini AI (visual assertions)
-     |         |
-     |         +---> Image mode (screenshot analysis)
-     |         +---> Video mode (sequence/transition analysis)
-     |
-     +---> Video Recorder + Event Collector
-               |
-               +---> Replay Viewer (HTML with seek, logs, timeline)
+```mermaid
+flowchart TD
+    A[YAML Test Suite] --> B[Suite Runner\nPython + Playwright]
+
+    B --> C[Game Bridge\nDeterministic State Control]
+    B --> D[Gemini AI\nVisual Assertions]
+    B --> E[Video Recorder\n+ Event Collector]
+
+    C --> C1[Bridge Assertions\nProgrammatic pass/fail]
+    C --> C2[State Injection\nsetDevModeResult]
+    C --> C3[State Queries\ngetBalance, getAppState, ...]
+
+    D --> D1[Image Mode\nScreenshot Analysis\n~$0.0003/image]
+    D --> D2[Video Mode\nTransition Analysis\n~$0.0014/30s clip]
+
+    C1 --> F{Dual-Layer\nVerdict}
+    D1 --> F
+    D2 --> F
+
+    F -->|Both pass| G[GREEN - Pass]
+    F -->|Disagree| H[ORANGE - Review]
+    F -->|Both fail| I[RED - Fail]
+
+    E --> J[Replay Viewer\nHTML + Video + Timeline + Event Log]
+
+    style G fill:#065f46,color:#6ee7b7
+    style H fill:#78350f,color:#fde68a
+    style I fill:#450a0a,color:#fca5a5
+    style F fill:#1e293b,color:#e2e8f0
 ```
 
 ---
@@ -200,8 +227,6 @@ Every test run produces an interactive replay viewer (`replay.html`) that is inv
 
 This is especially helpful for complex cases like bonus sequences, reconnection flows, or timing-sensitive bugs. Instead of trying to reproduce a bug manually, QA can review the exact sequence of events that led to the failure.
 
-For an example of test results, see: `test-results/zeus/dev/test-13-04-2026-1054/`
-
 ---
 
 ## AI Assertion Capabilities
@@ -227,34 +252,45 @@ Video mode handles cases where a single screenshot can't capture the full story:
 
 We prioritize **image analysis** for cost efficiency. Video is reserved for cases requiring transition/animation verification.
 
+**API pricing reference:**
+
+| Model | Input | Output |
+|-------|-------|--------|
+| Gemini 2.5 Flash | $0.30 / 1M tokens | $2.50 / 1M tokens |
+| Gemini 3 Flash Preview | $0.50 / 1M tokens | $3.00 / 1M tokens |
+
 **Image analysis cost (Gemini 2.5 Flash):**
 
-| Component | Tokens | Cost |
-|-----------|--------|------|
-| Input (per image) | ~258 | $0.0000774 |
-| Output (per image) | ~50 | $0.000125 |
-| **Total per image** | | **~$0.0002** |
-| **Per test (1-2 images)** | | **$0.0002–$0.0004** |
+| Component | Tokens | Calculation | Cost |
+|-----------|--------|-------------|------|
+| Input (per image) | ~258 | 258 × $0.30 / 1M | $0.0000774 |
+| Output (per assertion) | ~50–100 | 100 × $2.50 / 1M | $0.000250 |
+| **Total per image** | | | **~$0.0003** |
+| **Per test (1-2 images)** | | | **$0.0003–$0.0007** |
 
 **Video analysis cost (Gemini 3 Flash, 30s video):**
 
-| Component | Tokens | Cost |
-|-----------|--------|------|
-| Input (70 tokens/frame × 30 frames) | 2,100 | $0.00105 |
-| Output | ~50 | $0.00015 |
-| **Total per 30s video** | | **~$0.0012** |
+We choose Gemini 3 Flash for video because input tokens per frame drop from 258 (Gemini 2.5) to 70 (Gemini 3 at medium resolution) — making video ~2x cheaper. Video assertions require more output tokens than image (500–1000 tokens) because the AI must reason about sequences, transitions, and temporal relationships across frames.
 
-Why Gemini 3 Flash for video: at medium resolution, input tokens drop from 258/frame (Gemini 2.5) to 70/frame (Gemini 3) — making video ~2x cheaper. Output quality remains comparable for our use case.
+| Component | Tokens | Calculation | Cost |
+|-----------|--------|-------------|------|
+| Input (70 tokens/frame × 30 frames) | 2,100 | 2,100 × $0.50 / 1M | $0.00105 |
+| Output (reasoning + structured response) | ~500–1000 | 1,000 × $3.00 / 1M | $0.003000 |
+| **Total per 30s video** | | | **~$0.004** |
+
+For comparison, the same 30s video on Gemini 2.5 Flash would cost: 258 × 30 = 7,740 input tokens → $0.00232 input + 1,000 × $2.50/1M = $0.0025 output = **~$0.005** (more expensive, and higher input token count).
+
+We limit video assertions to **<30 seconds** per clip to keep costs predictable.
 
 **Example suite cost (20 tests):**
 
 | Type | Count | Unit Cost | Total |
 |------|-------|-----------|-------|
-| Image assertions | 20 tests × 2 images | $0.0002 | $0.008 |
-| Video assertions | 3 tests × 30s | $0.0012 | $0.0036 |
-| **Suite total** | | | **~$0.012** |
+| Image assertions | 20 tests × 2 images | $0.0003 | $0.012 |
+| Video assertions | 3 tests × 30s | $0.004 | $0.012 |
+| **Suite total** | | | **~$0.024** |
 
-Running the full suite costs roughly **one cent**. Even running 100 times per day would cost ~$1.20/day.
+Running the full suite costs roughly **about two cents**. Even running 100 times per day would cost ~$2.40/day.
 
 ---
 
@@ -279,6 +315,45 @@ Running the full suite costs roughly **one cent**. Even running 100 times per da
 - **Edge cases that need human intuition** — "something feels off about this transition"
 
 The framework handles the tedious, repeatable work so QA can focus on the creative, judgment-heavy testing that humans do best.
+
+---
+
+## Implementation Result
+
+The framework has been applied to the **Zeus (Zappin Zeus)** slot game as a proof of concept. Here is the end-to-end pipeline in action:
+
+### 1. Game Knowledge Created
+
+**Input:** Raw game design document at `games/zeus/docs/raw/Doc Zappin zeus.md`
+
+**Output:** The `/init-knowledge` skill processed the document and generated:
+- `games/zeus/game-knowledge.md` — structured game overview: symbols, mechanics, paylines, win types, Hold & Spin bonus rules
+- `games/zeus/bridge-api.md` — full bridge method reference with 21 actions, 30+ queries, state machine diagrams
+- `games/zeus/docs/assets/symbols.yml` — asset manifest with 9 symbols and 15 UI elements
+
+### 2. Test Suite Generated
+
+**Input:** QA raw test cases from `test-case.xlsx` (52 test cases covering UI, denomination, bet, balance, auto-spin, turbo, reconnect, Hold & Spin, buy bonus, and more)
+
+**Output:** The `/write-test` skill processed the Excel file through an approval loop and generated:
+- `games/zeus/test-suites/test3.yml` — 20 approved test cases in executable YAML format
+
+Each test includes bridge assertions for deterministic state verification and AI assertions for visual confirmation. Tests that couldn't be automated (e.g., no `setBalance` in bridge, multi-tab scenarios, hardware-level network switching) were flagged with reasons.
+
+### 3. Test Execution & Results
+
+**Command:** `/run-test --game=zeus --suite=test3 --env=dev`
+
+**Output:** Full test results available at `test-results/zeus/dev/test-13-04-2026-1143/`
+
+Each test directory contains:
+- `result.json` + `result.html` — verdict with bridge/AI sub-results
+- `session.webm` — full video recording of the test
+- `replay.html` — interactive replay viewer with event timeline
+- `events.jsonl` — timestamped event log (state changes, spin results, balance changes)
+- `timeline.json` — step execution timing
+- Step screenshots (`step-01.jpg`, `step-02.jpg`, ...)
+- `summary.json` + `summary.html` — suite-level overview with cost breakdown
 
 ---
 

@@ -1,0 +1,8 @@
+{
+  "bridge_result": "pass",
+  "ai_result": "fail",
+  "final_verdict": "orange",
+  "error": "AI image assert failed: spin_counter_visible: got None, expected True",
+  "duration_ms": 7552,
+  "timed_out": false
+}

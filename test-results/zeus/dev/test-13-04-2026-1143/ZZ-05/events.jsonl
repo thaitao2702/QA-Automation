@@ -1,0 +1,44 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.0, "type": "step", "data": {"id": "setup-01", "action": "bridge_action", "description": "Inject no-win result", "detail": "setDevModeResult(grid=[[1, 1, 1], [3, 3, 3], [4, 4, 4]])", "success": true, "error": null, "duration_ms": 87}}
+{"t": 0.255, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Capture balance before spin", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 89}}
+{"t": 0.39, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 0.433, "type": "step", "data": {"id": "step-02", "action": "bridge_action", "description": "Capture bet amount", "detail": "getBetAmount()", "success": true, "error": null, "duration_ms": 87}}
+{"t": 0.519, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.519, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.519, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.519, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.601, "type": "step", "data": {"id": "step-03", "action": "capture", "description": "Screenshot before spin", "detail": "", "success": true, "error": null, "duration_ms": 242}}
+{"t": 0.922, "type": "step", "data": {"id": "step-04", "action": "bridge_action", "description": "Spin with injected no-win result", "detail": "spin()", "success": true, "error": null, "duration_ms": 2354}}
+{"t": 1.001, "type": "spin_request", "data": {"stake": 0.01, "betIndex": 0, "devMode": true}}
+{"t": 1.003, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 1.003, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 1.003, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 1.353, "type": "spin_result", "data": {"reels": [[1, 1, 1], [3, 3, 3], [4, 4, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.353, "type": "balance_change", "data": {"balance": 99995.99, "previous": 99996}}
+{"t": 1.353, "type": "spin_result", "data": {"reels": [[1, 1, 1], [3, 3, 3], [4, 4, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.353, "type": "balance_change", "data": {"balance": 99995.99, "previous": 99996}}
+{"t": 1.353, "type": "spin_result", "data": {"reels": [[1, 1, 1], [3, 3, 3], [4, 4, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.353, "type": "balance_change", "data": {"balance": 99995.99, "previous": 99996}}
+{"t": 1.353, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 1.353, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 1.353, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 1.353, "type": "spin_result", "data": {"reels": [[1, 1, 1], [3, 3, 3], [4, 4, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.353, "type": "balance_change", "data": {"balance": 99995.99, "previous": 99996}}
+{"t": 1.353, "type": "spin_result", "data": {"reels": [[1, 1, 1], [3, 3, 3], [4, 4, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 1.353, "type": "balance_change", "data": {"balance": 99995.99, "previous": 99996}}
+{"t": 2.591, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 2.703, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.703, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.703, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 2.703, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 3.276, "type": "state_change", "data": {"from": "", "to": "idle"}}
+{"t": 3.276, "type": "button_state", "data": {"spin": true, "auto": true, "buyBonus": true, "nextBet": true, "previousBet": false}}
+{"t": 3.276, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 3.357, "type": "step", "data": {"id": "step-05", "action": "wait_for_state", "description": "Wait for spin to complete", "detail": "state=idle", "success": true, "error": null, "duration_ms": 64}}
+{"t": 3.489, "type": "step", "data": {"id": "step-06", "action": "bridge_action", "description": "Capture balance after spin", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 67}}
+{"t": 3.627, "type": "step", "data": {"id": "step-07", "action": "bridge_assert", "description": "Confirm no win", "detail": "getLastPayout == 0", "success": true, "error": null, "duration_ms": 72}}
+{"t": 3.769, "type": "step", "data": {"id": "step-08", "action": "capture", "description": "Screenshot after spin", "detail": "", "success": true, "error": null, "duration_ms": 218}}
+{"t": 4.056, "type": "step", "data": {"id": "step-09", "action": "assert", "description": "AI: verify balance decreased", "detail": "ai/image", "success": true, "error": null, "duration_ms": 0}}
+{"t": 4.13, "type": "step", "data": {"id": "teardown-01", "action": "bridge_action", "description": "", "detail": "resetDevMode()", "success": true, "error": null, "duration_ms": 69}}

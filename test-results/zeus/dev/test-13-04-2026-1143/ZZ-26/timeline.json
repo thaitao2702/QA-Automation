@@ -1,0 +1,93 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055607.7992857,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_assert",
+      "description": "Verify idle state",
+      "start_ms": 105,
+      "end_ms": 209
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Capture balance before",
+      "start_ms": 315,
+      "end_ms": 418,
+      "result": 99995.52
+    },
+    {
+      "id": "step-03",
+      "action": "capture",
+      "description": "Screenshot before disconnect",
+      "start_ms": 522,
+      "end_ms": 838
+    },
+    {
+      "id": "step-04",
+      "action": "go_offline",
+      "description": "Go offline",
+      "start_ms": 940,
+      "end_ms": 989
+    },
+    {
+      "id": "step-05",
+      "action": "wait_ms",
+      "description": "Stay offline 5 seconds",
+      "start_ms": 1095,
+      "end_ms": 6105
+    },
+    {
+      "id": "step-06",
+      "action": "go_online",
+      "description": "Restore network",
+      "start_ms": 6168,
+      "end_ms": 6218
+    },
+    {
+      "id": "step-07",
+      "action": "wait_for_state",
+      "description": "Wait for game to reconnect",
+      "start_ms": 6326,
+      "end_ms": 6432
+    },
+    {
+      "id": "step-08",
+      "action": "bridge_action",
+      "description": "Capture balance after",
+      "start_ms": 6541,
+      "end_ms": 6642,
+      "result": 99995.52
+    },
+    {
+      "id": "step-09",
+      "action": "bridge_assert",
+      "description": "Verify back to idle",
+      "start_ms": 6746,
+      "end_ms": 6850
+    },
+    {
+      "id": "step-10",
+      "action": "bridge_assert",
+      "description": "Verify spin available",
+      "start_ms": 6963,
+      "end_ms": 7066
+    },
+    {
+      "id": "step-11",
+      "action": "capture",
+      "description": "Screenshot after reconnect",
+      "start_ms": 7168,
+      "end_ms": 7500
+    },
+    {
+      "id": "step-12",
+      "action": "assert",
+      "description": "AI: verify game recovered",
+      "start_ms": 7601,
+      "end_ms": 7601
+    }
+  ]
+}

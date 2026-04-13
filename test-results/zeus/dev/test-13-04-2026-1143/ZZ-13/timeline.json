@@ -1,0 +1,78 @@
+{
+  "video_start_time": 1776055437.5656998,
+  "event_collection_start_time": 1776055504.5829277,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "step-01",
+      "action": "bridge_assert",
+      "description": "Verify auto button enabled",
+      "start_ms": 105,
+      "end_ms": 238
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Open auto popup",
+      "start_ms": 335,
+      "end_ms": 456
+    },
+    {
+      "id": "step-03",
+      "action": "bridge_action",
+      "description": "Start 10 auto spins",
+      "start_ms": 599,
+      "end_ms": 718
+    },
+    {
+      "id": "step-04",
+      "action": "wait_ms",
+      "description": "Wait for first spin to start",
+      "start_ms": 881,
+      "end_ms": 2892
+    },
+    {
+      "id": "step-05",
+      "action": "bridge_assert",
+      "description": "Verify stop auto button visible",
+      "start_ms": 3007,
+      "end_ms": 3109
+    },
+    {
+      "id": "step-06",
+      "action": "bridge_action",
+      "description": "Capture remaining count",
+      "start_ms": 3202,
+      "end_ms": 3295,
+      "result": 8
+    },
+    {
+      "id": "step-07",
+      "action": "capture",
+      "description": "Screenshot during auto",
+      "start_ms": 3393,
+      "end_ms": 3713
+    },
+    {
+      "id": "step-08",
+      "action": "assert",
+      "description": "AI: verify auto mode active",
+      "start_ms": 3818,
+      "end_ms": 3818
+    },
+    {
+      "id": "teardown-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 3926,
+      "end_ms": 4126
+    },
+    {
+      "id": "teardown-02",
+      "action": "wait_for_state",
+      "description": "",
+      "start_ms": 4226,
+      "end_ms": 5227
+    }
+  ]
+}

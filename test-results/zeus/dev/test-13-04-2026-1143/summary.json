@@ -1,0 +1,223 @@
+{
+  "suite": "Comprehensive QA Test Cases",
+  "game": "zeus",
+  "env": "dev",
+  "run_date": "2026-04-13 11:51:12",
+  "duration_ms": 436174,
+  "total": 18,
+  "counts": {
+    "green": 14,
+    "orange": 4,
+    "red": 0,
+    "pending": 0,
+    "skip": 0
+  },
+  "stop_reason": null,
+  "tests": [
+    {
+      "test_id": "ZZ-02",
+      "title": "Check Denomination",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 2000,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-02"
+    },
+    {
+      "test_id": "ZZ-03",
+      "title": "Increase/Decrease Bet",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 2743,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-03"
+    },
+    {
+      "test_id": "ZZ-04",
+      "title": "Default Bet Level",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 1655,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-04"
+    },
+    {
+      "test_id": "ZZ-05",
+      "title": "Balance Deduction on Bet",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 4416,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-05"
+    },
+    {
+      "test_id": "ZZ-06",
+      "title": "Add Payout After Spin",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 27263,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-06"
+    },
+    {
+      "test_id": "ZZ-09",
+      "title": "History in Game",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 10784,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-09"
+    },
+    {
+      "test_id": "ZZ-11",
+      "title": "Check UI Paytable",
+      "bridge_result": "pass",
+      "ai_result": "fail",
+      "final_verdict": "orange",
+      "duration_ms": 9764,
+      "error": "AI image assert failed: paytable_tab_visible: got False, expected True; has_symbol_payouts: got False, expected True",
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-11"
+    },
+    {
+      "test_id": "ZZ-13",
+      "title": "Enable Auto",
+      "bridge_result": "pass",
+      "ai_result": "fail",
+      "final_verdict": "orange",
+      "duration_ms": 5532,
+      "error": "AI image assert failed: auto_mode_active: got False, expected True",
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-13"
+    },
+    {
+      "test_id": "ZZ-14",
+      "title": "Stop by Spin Count",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 36019,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-14"
+    },
+    {
+      "test_id": "ZZ-15",
+      "title": "Stop at Any Win",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 9441,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-15"
+    },
+    {
+      "test_id": "ZZ-17",
+      "title": "User Stop Auto",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 6053,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-17"
+    },
+    {
+      "test_id": "ZZ-18",
+      "title": "Auto Stops on Reload",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 11596,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-18"
+    },
+    {
+      "test_id": "ZZ-19",
+      "title": "Disable Bet Buttons During Auto",
+      "bridge_result": "pass",
+      "ai_result": "fail",
+      "final_verdict": "orange",
+      "duration_ms": 7552,
+      "error": "AI image assert failed: spin_counter_visible: got None, expected True",
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-19"
+    },
+    {
+      "test_id": "ZZ-20",
+      "title": "Display Spin Count During Auto",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 23773,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-20"
+    },
+    {
+      "test_id": "ZZ-22",
+      "title": "Check Turbo",
+      "bridge_result": "pass",
+      "ai_result": "fail",
+      "final_verdict": "orange",
+      "duration_ms": 2423,
+      "error": "AI image assert failed: turbo_off_second: got False, expected True",
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-22"
+    },
+    {
+      "test_id": "ZZ-26",
+      "title": "Reconnect After Short Disconnect",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 7925,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-26"
+    },
+    {
+      "test_id": "ZZ-27",
+      "title": "Reconnect After Long Disconnect",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 39741,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-27"
+    },
+    {
+      "test_id": "ZZ-30",
+      "title": "Trigger Free Spin (3-8 Coins)",
+      "bridge_result": "pass",
+      "ai_result": "pass",
+      "final_verdict": "green",
+      "duration_ms": 82519,
+      "error": null,
+      "timed_out": false,
+      "artifact_dir": "D:\\Project\\qa-platform\\test-results\\zeus\\dev\\test-13-04-2026-1143\\ZZ-30"
+    }
+  ],
+  "costs": {
+    "gemini_image_calls": 19,
+    "gemini_video_calls": 1,
+    "gemini_input_tokens": 29707,
+    "gemini_output_tokens": 580,
+    "estimated_cost_usd": 0.002402
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "data": {
+    "balance_increased": true,
+    "win_displayed": true,
+    "confidence": "high"
+  },
+  "expected": {
+    "balance_increased": true,
+    "win_displayed": true,
+    "confidence": "high"
+  },
+  "mismatches": [],
+  "input_tokens": 609,
+  "output_tokens": 34
+}

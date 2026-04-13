@@ -1,0 +1,223 @@
+{"t": 0.0, "type": "step", "data": {"id": "global-setup-01", "action": "navigate", "description": "", "detail": "url_script", "success": true, "error": null, "duration_ms": 1297}}
+{"t": 1.298, "type": "step", "data": {"id": "global-setup-02", "action": "wait_for_state", "description": "", "detail": "state=ready", "success": true, "error": null, "duration_ms": 5284}}
+{"t": 6.667, "type": "step", "data": {"id": "global-setup-03", "action": "bridge_action", "description": "", "detail": "startGame()", "success": true, "error": null, "duration_ms": 713}}
+{"t": 0.0, "type": "step", "data": {"id": "setup-01", "action": "bridge_action", "description": "Enable turbo for faster spins", "detail": "setTurbo(enabled=True)", "success": true, "error": null, "duration_ms": 84}}
+{"t": 0.085, "type": "turbo_change", "data": {"turboActive": true}}
+{"t": 0.255, "type": "step", "data": {"id": "step-01", "action": "bridge_action", "description": "Record balance before auto-spin", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 83}}
+{"t": 0.418, "type": "step", "data": {"id": "step-02", "action": "bridge_action", "description": "Open auto popup", "detail": "openAutoPopup()", "success": true, "error": null, "duration_ms": 89}}
+{"t": 0.601, "type": "step", "data": {"id": "step-03", "action": "bridge_action", "description": "Start 10 auto spins", "detail": "startAutoSpin(count=10, stopByWin=False)", "success": true, "error": null, "duration_ms": 98}}
+{"t": 0.697, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 0.697, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 0.697, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 0.697, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 0.797, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 0.798, "type": "step", "data": {"id": "step-04", "action": "wait_ms", "description": "Wait briefly then verify auto is running", "detail": "2000ms", "success": true, "error": null, "duration_ms": 2009}}
+{"t": 0.856, "type": "spin_result", "data": {"reels": [[3, 5, 8], [1, 13, 7], [3, 8, 3]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 1, "col": 1, "coinValue": 0.02, "multiplier": 2, "type": 1}]}}
+{"t": 0.856, "type": "balance_change", "data": {"balance": 99995.96, "previous": 99995.97}}
+{"t": 0.856, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 0.856, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 0.856, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 1}}
+{"t": 0.856, "type": "spin_result", "data": {"reels": [[3, 5, 8], [1, 13, 7], [3, 8, 3]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 1, "col": 1, "coinValue": 0.02, "multiplier": 2, "type": 1}]}}
+{"t": 0.856, "type": "balance_change", "data": {"balance": 99995.96, "previous": 99995.97}}
+{"t": 0.856, "type": "spin_result", "data": {"reels": [[3, 5, 8], [1, 13, 7], [3, 8, 3]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 1, "col": 1, "coinValue": 0.02, "multiplier": 2, "type": 1}]}}
+{"t": 0.856, "type": "balance_change", "data": {"balance": 99995.96, "previous": 99995.97}}
+{"t": 0.857, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055511567, "result": {"result": {"views": [{"id": 1, "value": [3, 5, 8]}, {"id": 2, "value": [1, 13, 7]}, {"id": 3, "value": [3, 8, 3]}]}, "freeSpinInfo": null, "coinCount": 1, "coinPositions": [{"row": 1, "col": 1, "coinValue": 0.02, "multiplier": 2}], "paylines": [], "id": "825663099687141377", "refId": "825663099695529985", "roundId": "825663099695529985", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055511522, "processedTime": 1776055511566, "settledTime": 1776055511566, "betLines": 5, "jackpot": 0, "balance": 99995.96, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 0.857, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055511567, "result": {"result": {"views": [{"id": 1, "value": [3, 5, 8]}, {"id": 2, "value": [1, 13, 7]}, {"id": 3, "value": [3, 8, 3]}]}, "freeSpinInfo": null, "coinCount": 1, "coinPositions": [{"row": 1, "col": 1, "coinValue": 0.02, "multiplier": 2}], "paylines": [], "id": "825663099687141377", "refId": "825663099695529985", "roundId": "825663099695529985", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055511522, "processedTime": 1776055511566, "settledTime": 1776055511566, "betLines": 5, "jackpot": 0, "balance": 99995.96, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 0.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 0.958, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 1.451, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 1.451, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 1.451, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 1}}
+{"t": 1.451, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 1.651, "type": "spin_result", "data": {"reels": [[6, 4, 7], [13, 4, 8], [6, 1, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 0, "col": 1, "coinValue": 0.01, "multiplier": 1, "type": 1}]}}
+{"t": 1.651, "type": "balance_change", "data": {"balance": 99995.95, "previous": 99995.96}}
+{"t": 1.651, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 1.651, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 1.651, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 1}}
+{"t": 1.651, "type": "spin_result", "data": {"reels": [[6, 4, 7], [13, 4, 8], [6, 1, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 0, "col": 1, "coinValue": 0.01, "multiplier": 1, "type": 1}]}}
+{"t": 1.651, "type": "balance_change", "data": {"balance": 99995.95, "previous": 99995.96}}
+{"t": 1.651, "type": "spin_result", "data": {"reels": [[6, 4, 7], [13, 4, 8], [6, 1, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": [{"row": 0, "col": 1, "coinValue": 0.01, "multiplier": 1, "type": 1}]}}
+{"t": 1.651, "type": "balance_change", "data": {"balance": 99995.95, "previous": 99995.96}}
+{"t": 1.652, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055512333, "result": {"result": {"views": [{"id": 1, "value": [6, 4, 7]}, {"id": 2, "value": [13, 4, 8]}, {"id": 3, "value": [6, 1, 4]}]}, "freeSpinInfo": null, "coinCount": 1, "coinPositions": [{"row": 0, "col": 1, "coinValue": 0.01, "multiplier": 1}], "paylines": [], "id": "825663106020540417", "refId": "825663106028929025", "roundId": "825663106028929025", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055512276, "processedTime": 1776055512332, "settledTime": 1776055512332, "betLines": 5, "jackpot": 0, "balance": 99995.95, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 1.652, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055512333, "result": {"result": {"views": [{"id": 1, "value": [6, 4, 7]}, {"id": 2, "value": [13, 4, 8]}, {"id": 3, "value": [6, 1, 4]}]}, "freeSpinInfo": null, "coinCount": 1, "coinPositions": [{"row": 0, "col": 1, "coinValue": 0.01, "multiplier": 1}], "paylines": [], "id": "825663106020540417", "refId": "825663106028929025", "roundId": "825663106028929025", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055512276, "processedTime": 1776055512332, "settledTime": 1776055512332, "betLines": 5, "jackpot": 0, "balance": 99995.95, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 2.222, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 2.222, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 2.222, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 1}}
+{"t": 2.222, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 2.415, "type": "spin_result", "data": {"reels": [[3, 4, 3], [8, 4, 9], [9, 3, 3]], "paylines": [{"symbols": [3, 9, 3], "payline": 3, "payoutRate": 3, "winType": "Q-WILD!-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 2.415, "type": "balance_change", "data": {"balance": 99995.946, "previous": 99995.95}}
+{"t": 2.415, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 2.415, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 2.415, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 2.415, "type": "spin_result", "data": {"reels": [[3, 4, 3], [8, 4, 9], [9, 3, 3]], "paylines": [{"symbols": [3, 9, 3], "payline": 3, "payoutRate": 3, "winType": "Q-WILD!-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 2.415, "type": "balance_change", "data": {"balance": 99995.946, "previous": 99995.95}}
+{"t": 2.415, "type": "spin_result", "data": {"reels": [[3, 4, 3], [8, 4, 9], [9, 3, 3]], "paylines": [{"symbols": [3, 9, 3], "payline": 3, "payoutRate": 3, "winType": "Q-WILD!-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 2.415, "type": "balance_change", "data": {"balance": 99995.946, "previous": 99995.95}}
+{"t": 2.415, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055513089, "result": {"result": {"views": [{"id": 1, "value": [3, 4, 3]}, {"id": 2, "value": [8, 4, 9]}, {"id": 3, "value": [9, 3, 3]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 9, 3], "payline": 3, "payoutRate": 3, "winType": "Q-WILD!-Q"}], "id": "825663112479768577", "refId": "825663112488157185", "roundId": "825663112488157185", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055513047, "processedTime": 1776055513089, "settledTime": 1776055513089, "betLines": 5, "jackpot": 0, "balance": 99995.946, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 2.415, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055513089, "result": {"result": {"views": [{"id": 1, "value": [3, 4, 3]}, {"id": 2, "value": [8, 4, 9]}, {"id": 3, "value": [9, 3, 3]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 9, 3], "payline": 3, "payoutRate": 3, "winType": "Q-WILD!-Q"}], "id": "825663112479768577", "refId": "825663112488157185", "roundId": "825663112488157185", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055513047, "processedTime": 1776055513089, "settledTime": 1776055513089, "betLines": 5, "jackpot": 0, "balance": 99995.946, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 3.048, "type": "step", "data": {"id": "step-05", "action": "bridge_assert", "description": "Confirm stop auto button visible (auto running)", "detail": "isStopAutoVisible == True", "success": true, "error": null, "duration_ms": 120}}
+{"t": 3.053, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 3.169, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 3.169, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 3.277, "type": "step", "data": {"id": "step-06", "action": "capture", "description": "Screenshot during auto-spin", "detail": "", "success": true, "error": null, "duration_ms": 386}}
+{"t": 3.89, "type": "step", "data": {"id": "step-07", "action": "wait_for_state", "description": "Wait for all 10 spins to complete (IDLE only fires after last spin)", "detail": "state=idle", "success": true, "error": null, "duration_ms": 29851}}
+{"t": 4.094, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 4.094, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 4.094, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 4.094, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 4.259, "type": "spin_result", "data": {"reels": [[1, 8, 5], [4, 3, 8], [3, 3, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.259, "type": "balance_change", "data": {"balance": 99995.936, "previous": 99995.946}}
+{"t": 4.259, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 4.259, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 4.259, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 4.259, "type": "spin_result", "data": {"reels": [[1, 8, 5], [4, 3, 8], [3, 3, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.259, "type": "balance_change", "data": {"balance": 99995.936, "previous": 99995.946}}
+{"t": 4.259, "type": "spin_result", "data": {"reels": [[1, 8, 5], [4, 3, 8], [3, 3, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.259, "type": "balance_change", "data": {"balance": 99995.936, "previous": 99995.946}}
+{"t": 4.26, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055514968, "result": {"result": {"views": [{"id": 1, "value": [1, 8, 5]}, {"id": 2, "value": [4, 3, 8]}, {"id": 3, "value": [3, 3, 6]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663128191631361", "refId": "825663128200019969", "roundId": "825663128200019969", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055514920, "processedTime": 1776055514968, "settledTime": 1776055514968, "betLines": 5, "jackpot": 0, "balance": 99995.936, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 4.26, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055514968, "result": {"result": {"views": [{"id": 1, "value": [1, 8, 5]}, {"id": 2, "value": [4, 3, 8]}, {"id": 3, "value": [3, 3, 6]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663128191631361", "refId": "825663128200019969", "roundId": "825663128200019969", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055514920, "processedTime": 1776055514968, "settledTime": 1776055514968, "betLines": 5, "jackpot": 0, "balance": 99995.936, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 4.824, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 4.824, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 4.824, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 4.824, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 4.996, "type": "spin_result", "data": {"reels": [[6, 1, 3], [3, 4, 3], [4, 1, 3]], "paylines": [{"symbols": [3, 3, 3], "payline": 3, "payoutRate": 3, "winType": "Q-Q-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.996, "type": "balance_change", "data": {"balance": 99995.932, "previous": 99995.936}}
+{"t": 4.996, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 4.996, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 4.996, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 4.996, "type": "spin_result", "data": {"reels": [[6, 1, 3], [3, 4, 3], [4, 1, 3]], "paylines": [{"symbols": [3, 3, 3], "payline": 3, "payoutRate": 3, "winType": "Q-Q-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.996, "type": "balance_change", "data": {"balance": 99995.932, "previous": 99995.936}}
+{"t": 4.996, "type": "spin_result", "data": {"reels": [[6, 1, 3], [3, 4, 3], [4, 1, 3]], "paylines": [{"symbols": [3, 3, 3], "payline": 3, "payoutRate": 3, "winType": "Q-Q-Q"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 4.996, "type": "balance_change", "data": {"balance": 99995.932, "previous": 99995.936}}
+{"t": 4.997, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055515693, "result": {"result": {"views": [{"id": 1, "value": [6, 1, 3]}, {"id": 2, "value": [3, 4, 3]}, {"id": 3, "value": [4, 1, 3]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 3, 3], "payline": 3, "payoutRate": 3, "winType": "Q-Q-Q"}], "id": "825663134315315201", "refId": "825663134315315201", "roundId": "825663134315315201", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055515649, "processedTime": 1776055515693, "settledTime": 1776055515693, "betLines": 5, "jackpot": 0, "balance": 99995.932, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 4.997, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055515693, "result": {"result": {"views": [{"id": 1, "value": [6, 1, 3]}, {"id": 2, "value": [3, 4, 3]}, {"id": 3, "value": [4, 1, 3]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 3, 3], "payline": 3, "payoutRate": 3, "winType": "Q-Q-Q"}], "id": "825663134315315201", "refId": "825663134315315201", "roundId": "825663134315315201", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055515649, "processedTime": 1776055515693, "settledTime": 1776055515693, "betLines": 5, "jackpot": 0, "balance": 99995.932, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 5.265, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 5.358, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 5.358, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 6.627, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 6.627, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 6.627, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 6.627, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 6.822, "type": "spin_result", "data": {"reels": [[6, 4, 8], [3, 7, 4], [7, 9, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 6.822, "type": "balance_change", "data": {"balance": 99995.922, "previous": 99995.932}}
+{"t": 6.822, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 6.822, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 6.822, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 6.822, "type": "spin_result", "data": {"reels": [[6, 4, 8], [3, 7, 4], [7, 9, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 6.822, "type": "balance_change", "data": {"balance": 99995.922, "previous": 99995.932}}
+{"t": 6.822, "type": "spin_result", "data": {"reels": [[6, 4, 8], [3, 7, 4], [7, 9, 4]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 6.822, "type": "balance_change", "data": {"balance": 99995.922, "previous": 99995.932}}
+{"t": 6.822, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055517496, "result": {"result": {"views": [{"id": 1, "value": [6, 4, 8]}, {"id": 2, "value": [3, 7, 4]}, {"id": 3, "value": [7, 9, 4]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663149431586817", "refId": "825663149439975425", "roundId": "825663149439975425", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055517452, "processedTime": 1776055517496, "settledTime": 1776055517496, "betLines": 5, "jackpot": 0, "balance": 99995.922, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 6.822, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055517496, "result": {"result": {"views": [{"id": 1, "value": [6, 4, 8]}, {"id": 2, "value": [3, 7, 4]}, {"id": 3, "value": [7, 9, 4]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663149431586817", "refId": "825663149439975425", "roundId": "825663149439975425", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055517452, "processedTime": 1776055517496, "settledTime": 1776055517496, "betLines": 5, "jackpot": 0, "balance": 99995.922, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 7.383, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 7.383, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 7.383, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 7.383, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 7.426, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 7.573, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.573, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 7.625, "type": "spin_result", "data": {"reels": [[3, 6, 3], [3, 8, 4], [9, 3, 7]], "paylines": [{"symbols": [3, 3, 9], "payline": 2, "payoutRate": 3, "winType": "Q-Q-WILD!"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 7.625, "type": "balance_change", "data": {"balance": 99995.918, "previous": 99995.922}}
+{"t": 7.625, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 7.625, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 7.625, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 7.625, "type": "spin_result", "data": {"reels": [[3, 6, 3], [3, 8, 4], [9, 3, 7]], "paylines": [{"symbols": [3, 3, 9], "payline": 2, "payoutRate": 3, "winType": "Q-Q-WILD!"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 7.625, "type": "balance_change", "data": {"balance": 99995.918, "previous": 99995.922}}
+{"t": 7.625, "type": "spin_result", "data": {"reels": [[3, 6, 3], [3, 8, 4], [9, 3, 7]], "paylines": [{"symbols": [3, 3, 9], "payline": 2, "payoutRate": 3, "winType": "Q-Q-WILD!"}], "payout": 0.006, "stake": 0.01, "typeWin": "5", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 7.625, "type": "balance_change", "data": {"balance": 99995.918, "previous": 99995.922}}
+{"t": 7.625, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055518250, "result": {"result": {"views": [{"id": 1, "value": [3, 6, 3]}, {"id": 2, "value": [3, 8, 4]}, {"id": 3, "value": [9, 3, 7]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 3, 9], "payline": 2, "payoutRate": 3, "winType": "Q-Q-WILD!"}], "id": "825663155781763073", "refId": "825663155790151681", "roundId": "825663155790151681", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055518209, "processedTime": 1776055518250, "settledTime": 1776055518250, "betLines": 5, "jackpot": 0, "balance": 99995.918, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 7.625, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055518250, "result": {"result": {"views": [{"id": 1, "value": [3, 6, 3]}, {"id": 2, "value": [3, 8, 4]}, {"id": 3, "value": [9, 3, 7]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [3, 3, 9], "payline": 2, "payoutRate": 3, "winType": "Q-Q-WILD!"}], "id": "825663155781763073", "refId": "825663155790151681", "roundId": "825663155790151681", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.006, "payout": 0.006, "accumulatedWinAmount": 0.006, "winlose": -0.004, "betTime": 1776055518209, "processedTime": 1776055518250, "settledTime": 1776055518250, "betLines": 5, "jackpot": 0, "balance": 99995.918, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 9.264, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 9.264, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 9.264, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 9.264, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 9.42, "type": "spin_result", "data": {"reels": [[7, 9, 7], [9, 9, 3], [9, 7, 4]], "paylines": [{"symbols": [9, 9, 7], "payline": 1, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}, {"symbols": [7, 9, 9], "payline": 2, "payoutRate": 50, "winType": "P3-WILD!-WILD!"}, {"symbols": [7, 9, 9], "payline": 5, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}], "payout": 0.3, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 9.42, "type": "balance_change", "data": {"balance": 99996.208, "previous": 99995.918}}
+{"t": 9.42, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 9.42, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 9.42, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 9.42, "type": "spin_result", "data": {"reels": [[7, 9, 7], [9, 9, 3], [9, 7, 4]], "paylines": [{"symbols": [9, 9, 7], "payline": 1, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}, {"symbols": [7, 9, 9], "payline": 2, "payoutRate": 50, "winType": "P3-WILD!-WILD!"}, {"symbols": [7, 9, 9], "payline": 5, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}], "payout": 0.3, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 9.42, "type": "balance_change", "data": {"balance": 99996.208, "previous": 99995.918}}
+{"t": 9.42, "type": "spin_result", "data": {"reels": [[7, 9, 7], [9, 9, 3], [9, 7, 4]], "paylines": [{"symbols": [9, 9, 7], "payline": 1, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}, {"symbols": [7, 9, 9], "payline": 2, "payoutRate": 50, "winType": "P3-WILD!-WILD!"}, {"symbols": [7, 9, 9], "payline": 5, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}], "payout": 0.3, "stake": 0.01, "typeWin": "1", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 9.42, "type": "balance_change", "data": {"balance": 99996.208, "previous": 99995.918}}
+{"t": 9.421, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055520130, "result": {"result": {"views": [{"id": 1, "value": [7, 9, 7]}, {"id": 2, "value": [9, 9, 3]}, {"id": 3, "value": [9, 7, 4]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [9, 9, 7], "payline": 1, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}, {"symbols": [7, 9, 9], "payline": 2, "payoutRate": 50, "winType": "P3-WILD!-WILD!"}, {"symbols": [9, 9, 7], "payline": 5, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}], "id": "825663171569123329", "refId": "825663171569123329", "roundId": "825663171569123329", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.3, "payout": 0.3, "accumulatedWinAmount": 0.3, "winlose": 0.29, "betTime": 1776055520090, "processedTime": 1776055520130, "settledTime": 1776055520130, "betLines": 5, "jackpot": 0, "balance": 99996.208, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 9.421, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055520130, "result": {"result": {"views": [{"id": 1, "value": [7, 9, 7]}, {"id": 2, "value": [9, 9, 3]}, {"id": 3, "value": [9, 7, 4]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [{"symbols": [9, 9, 7], "payline": 1, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}, {"symbols": [7, 9, 9], "payline": 2, "payoutRate": 50, "winType": "P3-WILD!-WILD!"}, {"symbols": [9, 9, 7], "payline": 5, "payoutRate": 50, "winType": "WILD!-WILD!-P3"}], "id": "825663171569123329", "refId": "825663171569123329", "roundId": "825663171569123329", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0.3, "payout": 0.3, "accumulatedWinAmount": 0.3, "winlose": 0.29, "betTime": 1776055520090, "processedTime": 1776055520130, "settledTime": 1776055520130, "betLines": 5, "jackpot": 0, "balance": 99996.208, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 9.665, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 9.763, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 9.763, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 11.874, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 12.008, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 12.008, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.145, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 14.246, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 14.246, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.431, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 16.538, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 16.538, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.67, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 18.788, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 18.788, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 20.942, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 21.057, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 21.057, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.214, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 23.33, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 23.33, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.493, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 25.605, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 25.605, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 27.818, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 27.941, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 27.941, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 30.134, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 30.249, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 30.249, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 31.944, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 31.944, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 31.944, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 31.944, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 32.131, "type": "spin_result", "data": {"reels": [[5, 4, 3], [4, 3, 1], [1, 1, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.131, "type": "balance_change", "data": {"balance": 99996.198, "previous": 99996.208}}
+{"t": 32.131, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 32.131, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 32.131, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 32.131, "type": "spin_result", "data": {"reels": [[5, 4, 3], [4, 3, 1], [1, 1, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.131, "type": "balance_change", "data": {"balance": 99996.198, "previous": 99996.208}}
+{"t": 32.131, "type": "spin_result", "data": {"reels": [[5, 4, 3], [4, 3, 1], [1, 1, 6]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.131, "type": "balance_change", "data": {"balance": 99996.198, "previous": 99996.208}}
+{"t": 32.132, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055542837, "result": {"result": {"views": [{"id": 1, "value": [5, 4, 3]}, {"id": 2, "value": [4, 3, 1]}, {"id": 3, "value": [1, 1, 6]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663361822752769", "refId": "825663361831141377", "roundId": "825663361831141377", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055542770, "processedTime": 1776055542836, "settledTime": 1776055542836, "betLines": 5, "jackpot": 0, "balance": 99996.198, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 32.132, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055542837, "result": {"result": {"views": [{"id": 1, "value": [5, 4, 3]}, {"id": 2, "value": [4, 3, 1]}, {"id": 3, "value": [1, 1, 6]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663361822752769", "refId": "825663361831141377", "roundId": "825663361831141377", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055542770, "processedTime": 1776055542836, "settledTime": 1776055542836, "betLines": 5, "jackpot": 0, "balance": 99996.198, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 32.307, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 32.43, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 32.43, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 32.694, "type": "state_change", "data": {"from": "", "to": "betting"}}
+{"t": 32.694, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 32.694, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 32.694, "type": "socket_send", "data": {"event": "bet", "data": {"info": {"stake": 0.01}}}}
+{"t": 32.861, "type": "spin_result", "data": {"reels": [[5, 5, 1], [5, 4, 7], [6, 8, 1]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.861, "type": "balance_change", "data": {"balance": 99996.188, "previous": 99996.198}}
+{"t": 32.861, "type": "state_change", "data": {"from": "", "to": "result"}}
+{"t": 32.861, "type": "button_state", "data": {"spin": false, "auto": false, "buyBonus": false, "nextBet": false, "previousBet": false}}
+{"t": 32.861, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 32.861, "type": "spin_result", "data": {"reels": [[5, 5, 1], [5, 4, 7], [6, 8, 1]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.861, "type": "balance_change", "data": {"balance": 99996.188, "previous": 99996.198}}
+{"t": 32.861, "type": "spin_result", "data": {"reels": [[5, 5, 1], [5, 4, 7], [6, 8, 1]], "paylines": [], "payout": 0, "stake": 0.01, "typeWin": "3", "freeSpinInfo": null, "coinPositions": []}}
+{"t": 32.861, "type": "balance_change", "data": {"balance": 99996.188, "previous": 99996.198}}
+{"t": 32.862, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055543561, "result": {"result": {"views": [{"id": 1, "value": [5, 5, 1]}, {"id": 2, "value": [5, 4, 7]}, {"id": 3, "value": [6, 8, 1]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663368122597377", "refId": "825663368122597377", "roundId": "825663368122597377", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055543522, "processedTime": 1776055543561, "settledTime": 1776055543561, "betLines": 5, "jackpot": 0, "balance": 99996.188, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 32.862, "type": "socket_recv", "data": {"event": "bet", "data": {"status": 1, "code": 0, "msg": "", "timestamp": 1776055543561, "result": {"result": {"views": [{"id": 1, "value": [5, 5, 1]}, {"id": 2, "value": [5, 4, 7]}, {"id": 3, "value": [6, 8, 1]}]}, "freeSpinInfo": null, "coinCount": 0, "coinPositions": [], "paylines": [], "id": "825663368122597377", "refId": "825663368122597377", "roundId": "825663368122597377", "baseStake": 0.01, "stake": 0.01, "rawPayout": 0, "payout": 0, "accumulatedWinAmount": 0, "winlose": -0.01, "betTime": 1776055543522, "processedTime": 1776055543561, "settledTime": 1776055543561, "betLines": 5, "jackpot": 0, "balance": 99996.188, "hasReachedMaxWin": false, "maxWin": 100000, "gameState": 1, "promoResult": null}}}}
+{"t": 33.457, "type": "state_change", "data": {"from": "", "to": "idle"}}
+{"t": 33.457, "type": "button_state", "data": {"spin": true, "auto": true, "buyBonus": true, "nextBet": true, "previousBet": false}}
+{"t": 33.457, "type": "bonus_transition", "data": {"spinState": 0, "coinCount": 0}}
+{"t": 33.956, "type": "step", "data": {"id": "step-08", "action": "bridge_assert", "description": "Verify auto-spin stopped", "detail": "isStopAutoVisible == False", "success": true, "error": null, "duration_ms": 94}}
+{"t": 34.147, "type": "step", "data": {"id": "step-09", "action": "bridge_assert", "description": "Verify spin count exhausted", "detail": "getAutoSpinsRemaining == 0", "success": true, "error": null, "duration_ms": 94}}
+{"t": 34.337, "type": "step", "data": {"id": "step-10", "action": "bridge_assert", "description": "Verify game returned to idle", "detail": "getAppState == 'idle'", "success": true, "error": null, "duration_ms": 96}}
+{"t": 34.482, "type": "socket_send", "data": {"event": "ping", "data": null}}
+{"t": 34.53, "type": "step", "data": {"id": "step-11", "action": "bridge_assert", "description": "Verify spin button re-enabled", "detail": "isSpinEnabled == True", "success": true, "error": null, "duration_ms": 98}}
+{"t": 34.579, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 34.579, "type": "socket_recv", "data": {"event": "pong", "data": null}}
+{"t": 34.725, "type": "step", "data": {"id": "step-12", "action": "bridge_action", "description": "Record balance after auto-spin", "detail": "getBalance()", "success": true, "error": null, "duration_ms": 97}}
+{"t": 34.925, "type": "step", "data": {"id": "step-13", "action": "script", "description": "Verify balance changed (10 spins should deduct)", "detail": "assert(steps['step-12'].result !== steps['step-01'].result, 'Balance should have...", "success": true, "error": null, "duration_ms": 50}}
+{"t": 35.073, "type": "step", "data": {"id": "step-14", "action": "capture", "description": "Screenshot after auto finished", "detail": "", "success": true, "error": null, "duration_ms": 348}}
+{"t": 35.52, "type": "step", "data": {"id": "step-15", "action": "assert", "description": "AI: verify normal idle state restored", "detail": "ai/image", "success": true, "error": null, "duration_ms": 1}}
+{"t": 35.616, "type": "step", "data": {"id": "teardown-01", "action": "bridge_action", "description": "", "detail": "setTurbo(enabled=False)", "success": true, "error": null, "duration_ms": 103}}
+{"t": 35.716, "type": "turbo_change", "data": {"turboActive": false}}
