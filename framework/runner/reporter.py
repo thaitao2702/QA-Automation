@@ -186,55 +186,79 @@ class Reporter:
     # ------------------------------------------------------------------
 
     def _collect_results(self) -> list[TestResultEntry]:
-        """Scan results_dir for per-test result.json files."""
+        """Scan results_dir for per-test result.json files.
+
+        A run's ``result.json`` (``kind: "run"``) expands into one entry per case.
+        """
         entries: list[TestResultEntry] = []
         for result_file in sorted(self.results_dir.rglob("result.json")):
             # Skip the suite-level setup/teardown pseudo-tests
             parent = result_file.parent
             if parent.name.startswith("_"):
                 continue
-            entry = self._parse_result(result_file)
-            if entry is not None:
-                entries.append(entry)
+            entries.extend(self._parse_result(result_file))
 
         # Sort by test_id lexicographically
         entries.sort(key=lambda e: e.test_id)
         return entries
 
-    def _parse_result(self, result_file: Path) -> TestResultEntry | None:
-        """Parse a single result.json into a TestResultEntry."""
+    def _parse_result(self, result_file: Path) -> list[TestResultEntry]:
+        """Parse a result.json into one or more TestResultEntry.
+
+        Single-test result.json → one entry. A run result.json (``kind: "run"``)
+        → one entry per case, all sharing the run's artifact directory.
+        """
         try:
             data = json.loads(result_file.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Could not parse %s: %s", result_file, exc)
-            return None
+            return []
 
-        test_id = data.get("test_id", result_file.parent.name)
+        artifact_dir = result_file.parent
+        screenshots = sorted(artifact_dir.glob("step-*.jpg"))
+        ai_result_files = sorted(artifact_dir.glob("step-*-ai.json"))
+
+        if data.get("kind") == "run":
+            entries: list[TestResultEntry] = []
+            for case in data.get("cases", []):
+                bridge_result = case.get("bridge_result", "skip")
+                ai_result = case.get("ai_result", "skip")
+                entries.append(
+                    TestResultEntry(
+                        test_id=case.get("id", artifact_dir.name),
+                        title=case.get("title", case.get("id", "")),
+                        bridge_result=bridge_result,
+                        ai_result=ai_result,
+                        final_verdict=_compute_verdict(bridge_result, ai_result),
+                        error=case.get("error"),
+                        duration_ms=int(data.get("duration_ms", 0)),
+                        timed_out=bool(data.get("timed_out", False)),
+                        artifact_dir=artifact_dir,  # shared run dir
+                        screenshots=screenshots,
+                        ai_result_files=ai_result_files,
+                    )
+                )
+            return entries
+
+        test_id = data.get("test_id", artifact_dir.name)
         bridge_result = data.get("bridge_result", "skip")
         ai_result = data.get("ai_result", "skip")
         # Re-compute verdict from raw fields — authoritative source
-        final_verdict = _compute_verdict(bridge_result, ai_result)
-
-        artifact_dir = result_file.parent
-
-        # Collect screenshots
-        screenshots = sorted(artifact_dir.glob("step-*.jpg"))
-        # Collect AI result files (step-N-ai.json)
-        ai_result_files = sorted(artifact_dir.glob("step-*-ai.json"))
-
-        return TestResultEntry(
-            test_id=test_id,
-            title=data.get("title", test_id),
-            bridge_result=bridge_result,
-            ai_result=ai_result,
-            final_verdict=final_verdict,
-            error=data.get("error"),
-            duration_ms=int(data.get("duration_ms", 0)),
-            timed_out=bool(data.get("timed_out", False)),
-            artifact_dir=artifact_dir,
-            screenshots=screenshots,
-            ai_result_files=ai_result_files,
-        )
+        return [
+            TestResultEntry(
+                test_id=test_id,
+                title=data.get("title", test_id),
+                bridge_result=bridge_result,
+                ai_result=ai_result,
+                final_verdict=_compute_verdict(bridge_result, ai_result),
+                error=data.get("error"),
+                duration_ms=int(data.get("duration_ms", 0)),
+                timed_out=bool(data.get("timed_out", False)),
+                artifact_dir=artifact_dir,
+                screenshots=screenshots,
+                ai_result_files=ai_result_files,
+            )
+        ]
 
     # ------------------------------------------------------------------
     # Verdict counting

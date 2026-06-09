@@ -35,7 +35,7 @@ SHA-256 content hash, hash manifest (`.docs-hash.json`), dirty check, delta clas
 full regeneration (not partial diff), context interaction risk, knowledge staleness, QA confirmation gate, mechanism re-detection, idempotent output
 
 **Document Pipeline:**
-raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game knowledge file (`game-knowledge.md`), source-of-truth hierarchy
+raw documentation corpus (`docs/raw/`), asset manifest (`docs/assets/assets.yml`), generated knowledge outputs (`docs/final/game-knowledge.md` + `docs/final/paytable.md`), source-of-truth hierarchy
 
 ---
 
@@ -47,9 +47,9 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
 **Resolution:** Always perform full regeneration via init-knowledge pipeline. Read all current files from scratch.
 
 ### 2. Silent Overwrite
-**Detection:** Writing `game-knowledge.md` without presenting mechanism detection findings to QA first.
-**Why it's wrong:** A doc change may introduce a new mechanic or remove a previously confirmed one. QA must verify before the knowledge file is overwritten.
-**Resolution:** Always present detection findings and wait for QA confirmation before any write to `game-knowledge.md`.
+**Detection:** Writing `docs/final/game-knowledge.md` (or `docs/final/paytable.md`) without presenting mechanism detection findings to QA first.
+**Why it's wrong:** A doc change may introduce a new mechanic or remove a previously confirmed one. QA must verify before the knowledge files are overwritten.
+**Resolution:** Always present detection findings and wait for QA confirmation before any write to `docs/final/`.
 
 ### 3. Stale Manifest Entry
 **Detection:** A deleted file still appears in the updated `.docs-hash.json`.
@@ -84,9 +84,12 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
 
 ### Step 2 — Enumerate Current Files
 
-4. List all files currently in `games/{game}/docs/` recursively (all subdirectories, all file types).
+4. List all files currently in `games/{game}/docs/` recursively (all subdirectories, all file types),
+   **EXCLUDING the generated `docs/final/` directory** — its files (`game-knowledge.md`,
+   `paytable.md`) are init-knowledge **outputs**, not source, and are not in the manifest
+   (consistent with init-knowledge Step 6). The tracked corpus is `docs/raw/` + `docs/assets/assets.yml`.
 5. Build a list using paths relative to `games/{game}/` (matching the key format in `.docs-hash.json`).
-   - Example key: `docs/raw/paytable.pdf`, `docs/assets/symbols.yml`
+   - Example key: `docs/raw/paytable.pdf`, `docs/assets/assets.yml`
 
 ### Step 3 — Compute Current Hashes
 
@@ -120,7 +123,7 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
     Last updated: {generated_at from .docs-hash.json}
     Checked {N} files -- all hashes match.
 
-    No action taken. games/{game}/game-knowledge.md is current.
+    No action taken. games/{game}/docs/final/game-knowledge.md is current.
     ```
 13. STOP. Do not modify any file.
 
@@ -149,13 +152,15 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
 
 16. Execute the complete init-knowledge pipeline (Steps 1-8 of `/init-knowledge`) using all files currently on disk.
     - Read all current files in `games/{game}/docs/raw/` from scratch.
-    - Load shared mechanisms from `shared-mechanisms/`.
-    - Detect mechanics from current docs.
+    - Read **every** file in `shared-mechanisms/` (glob the directory — don't assume a fixed list).
+    - Detect **all** mechanics from the current docs — **shared AND custom/game-specific** — and compare each shared mechanism to its canonical pattern (matches/deviates).
     - **Present detection findings to QA.** Wait for confirmation before writing.
-    - Write `game-knowledge.md`.
-    - Write `symbols.yml` IF symbol changes are detected.
+    - Write `games/{game}/docs/final/game-knowledge.md` (and `games/{game}/docs/final/paytable.md` IF a paytable is documented).
+    - Write `games/{game}/docs/assets/assets.yml` IF asset changes are detected.
 
-17. After regeneration, write the updated `.docs-hash.json`:
+17. After regeneration, write the updated `.docs-hash.json`. Hash the **same source set as
+    init-knowledge Step 6** — everything under `docs/` **except the generated `docs/final/`
+    directory**:
     ```json
     {
       "generated_at": "{current ISO 8601 timestamp}",
@@ -165,7 +170,7 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
       }
     }
     ```
-    Include ONLY files that currently exist. Deleted files must not appear.
+    Include ONLY files that currently exist (and never `docs/final/` outputs). Deleted files must not appear.
 
 ### Step 7 — Confirm Completion
 
@@ -179,9 +184,10 @@ raw documentation corpus (`docs/raw/`), asset manifest (`symbols.yml`), game kno
       Deleted:  {N} file(s)
 
     Files regenerated:
-      games/{game}/game-knowledge.md
+      games/{game}/docs/final/game-knowledge.md
+      games/{game}/docs/final/paytable.md            (if a paytable is documented)
       games/{game}/.docs-hash.json
-      games/{game}/docs/assets/symbols.yml  (if symbols changed)
+      games/{game}/docs/assets/assets.yml            (if assets changed)
 
     Last updated: {new generated_at timestamp}
     ```
@@ -208,7 +214,7 @@ No changes detected.
 Last updated: 2026-03-15T14:30:00Z
 Checked 7 files -- all hashes match.
 
-No action taken. games/fortune-tiger/game-knowledge.md is current.
+No action taken. games/fortune-tiger/docs/final/game-knowledge.md is current.
 ```
 No files written. No QA prompt. Exits cleanly.
 

@@ -81,6 +81,28 @@ def _write_test_result(
     return test_dir
 
 
+def _write_run_result(
+    parent: Path,
+    run_id: str,
+    cases: list[dict],
+    duration_ms: int = 2000,
+) -> Path:
+    """Write a multi-verdict run result.json (kind: "run") and return the dir."""
+    run_dir = parent / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    data = {
+        "kind": "run",
+        "run_id": run_id,
+        "title": f"Run {run_id}",
+        "duration_ms": duration_ms,
+        "timed_out": False,
+        "error": None,
+        "cases": cases,
+    }
+    (run_dir / "result.json").write_text(json.dumps(data), encoding="utf-8")
+    return run_dir
+
+
 def _write_minimal_template(template_dir: Path) -> None:
     """Write a minimal replay.html template with the placeholder."""
     template_dir.mkdir(parents=True, exist_ok=True)
@@ -142,6 +164,46 @@ class TestResultCollection:
 
         assert summary.total == 0
         assert summary.counts["green"] == 0
+
+    def test_run_result_expands_into_per_case_entries(self, tmp_path: Path) -> None:
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_run_result(
+            results_dir,
+            "fs-run",
+            cases=[
+                {"id": "ZZ-30", "title": "Trigger", "bridge_result": "pass", "ai_result": "pass"},
+                {"id": "ZZ-32", "title": "Held", "bridge_result": "pass", "ai_result": "skip"},
+                {"id": "ZZ-33", "title": "NonCoin", "bridge_result": "fail", "ai_result": "fail", "error": "coins moved"},
+            ],
+        )
+        template_dir = tmp_path / "templates"
+        _write_minimal_template(template_dir)
+
+        reporter = Reporter(results_dir=results_dir, template_dir=template_dir)
+        summary = reporter.generate()
+
+        # 3 cases from ONE run dir, counted as 3 tests
+        assert summary.total == 3
+        assert summary.counts["green"] == 2  # ZZ-30 (pass/pass), ZZ-32 (pass/skip)
+        assert summary.counts["red"] == 1    # ZZ-33 (fail/fail)
+        ids = {e.test_id: e for e in summary.tests}
+        assert set(ids) == {"ZZ-30", "ZZ-32", "ZZ-33"}
+        # all share the one run artifact dir
+        assert len({str(e.artifact_dir) for e in summary.tests}) == 1
+        assert ids["ZZ-33"].error == "coins moved"
+
+    def test_legacy_single_test_result_yields_one_entry(self, tmp_path: Path) -> None:
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_test_result(results_dir, "ZZ-01")
+        template_dir = tmp_path / "templates"
+        _write_minimal_template(template_dir)
+
+        reporter = Reporter(results_dir=results_dir, template_dir=template_dir)
+        summary = reporter.generate()
+        assert summary.total == 1
+        assert summary.tests[0].test_id == "ZZ-01"
 
 
 # ---------------------------------------------------------------------------

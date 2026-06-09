@@ -360,3 +360,241 @@ class TestEdgeCases:
         assert "file.yml" in text
         assert "$.tests[0]" in text
         assert "test error" in text
+
+
+class TestSaveAndBridgeAssertVar:
+    def test_save_field_and_bridge_assert_var_valid(self) -> None:
+        doc = _minimal_valid_suite()
+        doc["tests"][0]["steps"] = [
+            {
+                "id": "step-01",
+                "action": "bridge_action",
+                "params": {"name": "getLastPayout"},
+                "save": "declaredVar",
+            },
+            {
+                "id": "step-02",
+                "action": "bridge_assert",
+                "params": {"method": "testFreeSpin", "args": ["$declaredVar"], "expected": True},
+            },
+        ]
+        errors = validate_suite(doc, source="vars.yml")
+        assert errors == []
+
+    def test_non_string_save_rejected(self) -> None:
+        doc = _minimal_valid_suite()
+        doc["tests"][0]["steps"][0]["save"] = 123
+        errors = validate_suite(doc, source="bad-save.yml")
+        assert any(e.path.endswith(".save") for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# runs: — one execution, many test-case verdicts
+# ---------------------------------------------------------------------------
+
+
+def _suite_with_run() -> dict:
+    """Smallest valid suite that uses a `runs:` block instead of `tests:`."""
+    return {
+        "suite": "Runs demo",
+        "game": "zeus",
+        "version": "1.0",
+        "config": {"test_timeout_ms": 60000, "suite_timeout_ms": 600000},
+        "runs": [
+            {
+                "id": "run-01",
+                "title": "One bonus, many cases",
+                "cases": [
+                    {"id": "ZZ-30", "title": "3 coins -> 3 free spins"},
+                    {"id": "ZZ-32", "title": "coins held"},
+                ],
+                "steps": [
+                    {"id": "step-01", "action": "bridge_action", "params": {"name": "spinUntilBonus"}},
+                    {
+                        "id": "step-02",
+                        "case": "ZZ-30",
+                        "assert": {"bridge": {"method": "getFreeSpinsRemaining", "expected": 3}},
+                    },
+                    {
+                        "id": "step-03",
+                        "case": ["ZZ-32"],
+                        "action": "bridge_assert",
+                        "params": {"method": "verifyHoldSpinCoinsHeld", "args": ["$events"], "expected": True},
+                    },
+                ],
+            }
+        ],
+    }
+
+
+def _ai_video_step(expected_by_case: dict, step_id: str = "step-ai") -> dict:
+    return {
+        "id": step_id,
+        "assert": {
+            "ai": {
+                "mode": "video",
+                "video_trim": {"from_step": "step-01", "to_step": "step-01"},
+                "prompt": "Report each field.",
+                "output_schema": {
+                    "entered_bonus": {"type": "boolean"},
+                    "coins_held": {"type": "boolean"},
+                    "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+                },
+                "expected_by_case": expected_by_case,
+            }
+        },
+    }
+
+
+class TestRunsAndCases:
+    def test_valid_run_passes(self) -> None:
+        assert validate_suite(_suite_with_run(), source="runs.yml") == []
+
+    def test_run_missing_cases(self) -> None:
+        doc = _suite_with_run()
+        del doc["runs"][0]["cases"]
+        errors = validate_suite(doc, source="r.yml")
+        assert any("cases" in e.message or e.path.endswith("cases") for e in errors)
+
+    def test_run_empty_cases(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["cases"] = []
+        errors = validate_suite(doc, source="r.yml")
+        assert any("cases" in (e.message + e.path) for e in errors)
+
+    def test_run_missing_steps(self) -> None:
+        doc = _suite_with_run()
+        del doc["runs"][0]["steps"]
+        errors = validate_suite(doc, source="r.yml")
+        assert any("steps" in (e.message + e.path) for e in errors)
+
+    def test_case_missing_title(self) -> None:
+        doc = _suite_with_run()
+        del doc["runs"][0]["cases"][0]["title"]
+        errors = validate_suite(doc, source="r.yml")
+        assert any("title" in e.message for e in errors)
+
+    def test_case_tag_references_undeclared_case(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"][1]["case"] = "ZZ-99"
+        errors = validate_suite(doc, source="r.yml")
+        assert any("ZZ-99" in e.message for e in errors)
+
+    def test_case_tag_on_non_assert_step_rejected(self) -> None:
+        doc = _suite_with_run()
+        # step-01 is a plain bridge_action — tagging it with a case is invalid
+        doc["runs"][0]["steps"][0]["case"] = "ZZ-30"
+        errors = validate_suite(doc, source="r.yml")
+        assert any("may only tag assert steps" in e.message for e in errors)
+
+    def test_case_tag_as_list_passes(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"][2]["case"] = ["ZZ-30", "ZZ-32"]
+        assert validate_suite(doc, source="r.yml") == []
+
+    def test_case_tag_bad_type_rejected(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"][1]["case"] = 123
+        errors = validate_suite(doc, source="r.yml")
+        assert any("must be a string or list" in e.message for e in errors)
+
+    def test_duplicate_case_id(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["cases"][1]["id"] = "ZZ-30"
+        errors = validate_suite(doc, source="r.yml")
+        assert any("ZZ-30" in e.message and "duplicate" in e.message for e in errors)
+
+    def test_run_id_collides_with_test_id(self) -> None:
+        doc = _suite_with_run()
+        doc["tests"] = [
+            {
+                "id": "run-01",  # collides with the run id
+                "title": "t",
+                "steps": [{"id": "s1", "action": "capture"}],
+            }
+        ]
+        errors = validate_suite(doc, source="r.yml")
+        assert any("run-01" in e.message and "duplicate" in e.message for e in errors)
+
+    def test_case_with_no_coverage_rejected(self) -> None:
+        doc = _suite_with_run()
+        # remove the step covering ZZ-32
+        doc["runs"][0]["steps"] = doc["runs"][0]["steps"][:2]
+        errors = validate_suite(doc, source="r.yml")
+        assert any("ZZ-32" in e.message and "no asserts" in e.message for e in errors)
+
+    def test_run_inside_group_passes(self) -> None:
+        doc = _suite_with_run()
+        run = doc.pop("runs")[0]
+        doc["groups"] = [{"id": "g1", "title": "grp", "runs": [run]}]
+        assert validate_suite(doc, source="r.yml") == []
+
+    def test_group_with_only_runs_passes(self) -> None:
+        doc = _suite_with_run()
+        run = doc.pop("runs")[0]
+        doc["groups"] = [{"id": "g1", "runs": [run]}]
+        assert validate_suite(doc, source="r.yml") == []
+
+    # --- expected_by_case (AI output partitioned across cases) ---
+
+    def test_expected_by_case_valid(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"].append(
+            _ai_video_step(
+                {
+                    "ZZ-30": {"entered_bonus": True, "confidence": "high"},
+                    "ZZ-32": {"coins_held": True, "confidence": "high"},
+                }
+            )
+        )
+        assert validate_suite(doc, source="r.yml") == []
+
+    def test_expected_by_case_covers_cases(self) -> None:
+        # A case covered ONLY by expected_by_case (no `case:` tag) is valid.
+        doc = _suite_with_run()
+        # drop the bridge step covering ZZ-32; cover it via expected_by_case instead
+        doc["runs"][0]["steps"] = doc["runs"][0]["steps"][:2]
+        doc["runs"][0]["steps"].append(
+            _ai_video_step({"ZZ-32": {"coins_held": True}})
+        )
+        assert validate_suite(doc, source="r.yml") == []
+
+    def test_expected_by_case_undeclared_case_rejected(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"].append(_ai_video_step({"ZZ-99": {"coins_held": True}}))
+        errors = validate_suite(doc, source="r.yml")
+        assert any("ZZ-99" in e.message for e in errors)
+
+    def test_expected_by_case_unknown_field_rejected(self) -> None:
+        doc = _suite_with_run()
+        doc["runs"][0]["steps"].append(_ai_video_step({"ZZ-30": {"not_a_field": True}}))
+        errors = validate_suite(doc, source="r.yml")
+        assert any("not_a_field" in e.message for e in errors)
+
+    def test_expected_by_case_with_plain_expected_rejected(self) -> None:
+        doc = _suite_with_run()
+        step = _ai_video_step({"ZZ-30": {"coins_held": True}})
+        step["assert"]["ai"]["expected"] = {"coins_held": True}
+        doc["runs"][0]["steps"].append(step)
+        errors = validate_suite(doc, source="r.yml")
+        assert any("not both" in e.message for e in errors)
+
+    def test_expected_by_case_in_test_rejected(self) -> None:
+        # expected_by_case is runs-only; using it in a normal test is an error.
+        doc = _minimal_valid_suite()
+        doc["tests"][0]["steps"].append(
+            {
+                "id": "step-09",
+                "assert": {
+                    "ai": {
+                        "mode": "video",
+                        "video_trim": {"from_step": "step-01", "to_step": "step-02"},
+                        "prompt": "x",
+                        "output_schema": {"ok": {"type": "boolean"}},
+                        "expected_by_case": {"ZZ-01": {"ok": True}},
+                    }
+                },
+            }
+        )
+        errors = validate_suite(doc, source="t.yml")
+        assert any("expected_by_case" in e.path and "only valid in a run" in e.message for e in errors)

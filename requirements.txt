@@ -9,6 +9,9 @@ playwright>=1.44.0
 # Google Generative AI (Gemini 2.5 Flash)
 google-generativeai>=0.7.0
 
+# HTTP client for the local AI provider (AI_PROVIDER=local) and game URL scripts
+requests>=2.31.0
+
 # Perceptual image hashing
 imagehash>=4.3.1
 Pillow>=10.3.0

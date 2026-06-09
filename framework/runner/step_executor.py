@@ -24,7 +24,8 @@ UnsupportedActionError
 Supported action types
 ----------------------
 navigate, wait_for_state, bridge_action, bridge_assert, capture, assert,
-script, go_offline, go_online, press_key, click, wait_ms
+script, go_offline, go_online, press_key, click, wait_ms, bo_paytable_ensure,
+bo_paytable_select, bo_paytable_update, bo_paytable_reset
 """
 
 from __future__ import annotations
@@ -66,6 +67,10 @@ _ACTION_COLORS: dict[str, str] = {
     "wait_ms": _DIM,
     "go_offline": _RED,
     "go_online": _GREEN,
+    "bo_paytable_ensure": _BLUE,
+    "bo_paytable_select": _BLUE,
+    "bo_paytable_update": _BLUE,
+    "bo_paytable_reset": _BLUE,
 }
 
 
@@ -129,6 +134,8 @@ class StepExecutor:
         The raw Playwright Page (needed for press_key / click).
     test_start_time:
         Unix timestamp when the test started (for timeline ms offsets).
+    bo:
+        Optional BoHelper for back-office paytable updates (bo_paytable_update).
     """
 
     def __init__(
@@ -140,6 +147,7 @@ class StepExecutor:
         page: Any,
         test_start_time: float | None = None,
         game_url: str | None = None,
+        bo: Any = None,
     ) -> None:
         self._bridge = bridge
         self._network = network
@@ -148,8 +156,13 @@ class StepExecutor:
         self._page = page
         self._test_start_time: float = test_start_time or time.time()
         self._game_url: str = game_url or ""
+        self._bo = bo
         # Accumulates timeline entries: list of dicts with id, action, start_ms, end_ms
         self.timeline: list[dict[str, Any]] = []
+        # Named variables saved via a step's `save:` field, passed to bridge
+        # functions later by `bridge_assert` (var/args). Per-test scope: one
+        # executor lives for setup→steps→teardown.
+        self.vars: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -207,6 +220,22 @@ class StepExecutor:
         }
         if result.result is not None:
             entry["result"] = result.result
+
+        # Save this step's result into a named variable for later bridge_assert steps.
+        save_name = step.get("save")
+        if save_name and result.success:
+            self.vars[save_name] = result.result
+            entry["saved"] = {save_name: result.result}
+            if result.result is None:
+                logger.warning(
+                    "save '%s' stored None — step %s produced no result value",
+                    save_name, step_id,
+                )
+            else:
+                logger.info(
+                    "  %s%s = %r%s", _DIM, save_name, result.result, _RESET
+                )
+
         self.timeline.append(entry)
 
         # Emit step action as an event so it appears in the replay console
@@ -258,6 +287,10 @@ class StepExecutor:
             "press_key": self._handle_press_key,
             "click": self._handle_click,
             "wait_ms": self._handle_wait_ms,
+            "bo_paytable_ensure": self._handle_bo_paytable_ensure,
+            "bo_paytable_select": self._handle_bo_paytable_select,
+            "bo_paytable_update": self._handle_bo_paytable_update,
+            "bo_paytable_reset": self._handle_bo_paytable_reset,
         }
 
         handler = handlers.get(action)
@@ -310,8 +343,52 @@ class StepExecutor:
             screenshot_path = await self._capture_screenshot()
         return StepResult(success=True, screenshot_path=screenshot_path)
 
+    def _resolve_args(self, raw_args: Any) -> tuple[list[Any], str | None]:
+        """Resolve a YAML ``args`` list to concrete call values.
+
+        Each element is passed through literally, except a string ``"$name"``
+        which resolves to the variable saved as *name* by an earlier step's
+        ``save:`` field (use ``"$$"`` to escape a literal leading ``$`` —
+        ``"$$5"`` → ``"$5"``). A saved variable may appear at any position.
+
+        Returns ``(arg_values, error)``; *error* is ``None`` on success. Shared
+        by ``bridge_action`` and ``bridge_assert`` so both have identical
+        variable-substitution semantics.
+        """
+        if not isinstance(raw_args, list):
+            return [], "'args' must be a list"
+        arg_values: list[Any] = []
+        for item in raw_args:
+            if isinstance(item, str) and item.startswith("$") and not item.startswith("$$"):
+                name = item[1:]
+                if name not in self.vars:
+                    return [], (
+                        f"variable '{name}' (arg '{item}') was not saved by an "
+                        f"earlier step (use 'save: {name}')"
+                    )
+                arg_values.append(self.vars[name])
+            elif isinstance(item, str) and item.startswith("$$"):
+                arg_values.append(item[1:])  # escaped literal: drop one '$'
+            else:
+                arg_values.append(item)
+        return arg_values, None
+
     async def _handle_bridge_action(self, step: dict[str, Any]) -> StepResult:
-        """bridge_action — call a named method on the bridge."""
+        """bridge_action — call a named method on the bridge.
+
+        Two param forms:
+          * ``args: [...]`` — ordered positional arguments (literals + ``"$saved"``
+            variable refs, same rules as ``bridge_assert``). The bridge JS method is
+            invoked **directly** (``window.__gameTestBridge.<name>(...)``) and its
+            return value is stored in ``StepResult.result`` (so it can be ``save:``d).
+            Use this for methods that take an options object / array or have no Python
+            wrapper — e.g. the Hold & Spin capture + analyser API (``startEventCapture``,
+            ``endEventCapture``, ``spinUntilBonus``, ``captureHoldSpinBonus``,
+            ``filterBonusEvent``).
+          * no ``args`` — extra params are mapped to the BridgeHelper Python wrapper's
+            keyword arguments (camelCase → snake_case), falling back to the generic
+            ``triggerAction`` eval when no wrapper exists.
+        """
         params = step.get("params") or {}
         name = params.get("name", "")
         if not name:
@@ -319,6 +396,25 @@ class StepExecutor:
                 success=False,
                 error="bridge_action requires 'params.name'",
             )
+
+        # Explicit positional-args form — call the bridge JS method directly and
+        # keep the return value. When 'args' is present, other params (besides
+        # 'name') are ignored.
+        if params.get("args") is not None:
+            arg_values, err = self._resolve_args(params["args"])
+            if err is not None:
+                return StepResult(success=False, error=f"bridge_action: {err}")
+            js_args = ", ".join(json.dumps(a) for a in arg_values)
+            expr = f"window.__gameTestBridge.{name}({js_args})"
+            try:
+                result_value = await self._bridge._eval(expr)
+            except Exception as exc:  # noqa: BLE001
+                return StepResult(
+                    success=False,
+                    error=f"bridge_action: calling {name}(...) failed: {exc}",
+                )
+            screenshot_path = await self._capture_screenshot() if step.get("capture") else None
+            return StepResult(success=True, result=result_value, screenshot_path=screenshot_path)
 
         result_value = None
         method = getattr(self._bridge, self._camel_to_snake(name), None)
@@ -348,10 +444,29 @@ class StepExecutor:
         return StepResult(success=True, result=result_value, screenshot_path=screenshot_path)
 
     async def _handle_bridge_assert(self, step: dict[str, Any]) -> StepResult:
-        """bridge_assert — call a bridge getter and compare to expected value."""
+        """bridge_assert — call a bridge method and compare its return to expected.
+
+        Deterministic: the assertion logic lives in the game bridge, not in the
+        test runner. Arguments may reference variables saved by earlier steps.
+
+        params:
+          method (required) — bridge method name (camelCase, e.g. isSpinEnabled,
+                              testFreeSpin).
+          expected (required) — value the method's return is compared against (==).
+          args (optional) — list of arguments in call order. Each element is a
+                            literal, except a string ``"$name"`` which resolves to
+                            the variable saved as *name*. Use ``"$$"`` to escape a
+                            literal leading ``$`` (e.g. ``"$$5"`` → ``"$5"``). A
+                            saved variable can appear at any position.
+
+        With no ``args`` this calls the BridgeHelper Python wrapper (covers all
+        existing getters). When ``args`` is given it calls the bridge JS method
+        directly, so newly game-exposed functions need no Python wrapper.
+        """
         params = step.get("params") or {}
         method_name = params.get("method", "")
         expected = params.get("expected")
+        path = params.get("path")
 
         if not method_name:
             return StepResult(
@@ -359,22 +474,74 @@ class StepExecutor:
                 error="bridge_assert requires 'params.method'",
             )
 
-        method = getattr(self._bridge, self._camel_to_snake(method_name), None)
-        if method is None:
-            return StepResult(
-                success=False,
-                error=f"bridge_assert: method '{method_name}' not found on BridgeHelper",
-            )
+        raw_args = params.get("args")
+        if raw_args is not None:
+            # Resolve each arg, substituting "$name" with the saved variable value.
+            arg_values, err = self._resolve_args(raw_args)
+            if err is not None:
+                return StepResult(success=False, error=f"bridge_assert: {err}")
 
-        actual = await method()
-        passed = actual == expected
-        assert_result = {"method": method_name, "actual": actual, "expected": expected, "passed": passed}
-        logger.debug("bridge_assert %s: actual=%r expected=%r passed=%s", method_name, actual, expected, passed)
+            # Call the bridge JS method directly. Playwright awaits the returned
+            # promise if the bridge function is async.
+            js_args = ", ".join(json.dumps(a) for a in arg_values)
+            expr = f"window.__gameTestBridge.{method_name}({js_args})"
+            try:
+                actual = await self._bridge._eval(expr)
+            except Exception as exc:  # noqa: BLE001
+                return StepResult(
+                    success=False,
+                    error=f"bridge_assert: calling {method_name}(...) failed: {exc}",
+                )
+        else:
+            arg_values = []
+            method = getattr(self._bridge, self._camel_to_snake(method_name), None)
+            if method is None:
+                return StepResult(
+                    success=False,
+                    error=f"bridge_assert: method '{method_name}' not found on BridgeHelper",
+                )
+            actual = await method()
+
+        # Optionally drill into a nested field of the returned value before the
+        # equality check. Lets object-returning bridge functions (e.g.
+        # verifyHoldSpinCoinsHeld → {valid, bonusFound, respinCount, violations})
+        # be asserted on one field — `path: valid, expected: true` — without
+        # pinning non-deterministic siblings like respinCount.
+        compared = actual
+        if path is not None:
+            compared, perr = self._extract_path(actual, str(path))
+            if perr is not None:
+                return StepResult(
+                    success=False,
+                    error=f"bridge_assert: path '{path}' on {method_name}(...) result failed: {perr}",
+                    bridge_assert_result={
+                        "method": method_name, "args": arg_values, "path": path,
+                        "actual_full": actual, "expected": expected, "passed": False,
+                    },
+                )
+
+        passed = compared == expected
+        assert_result = {
+            "method": method_name,
+            "args": arg_values,
+            "actual": compared,
+            "expected": expected,
+            "passed": passed,
+        }
+        if path is not None:
+            assert_result["path"] = path
+            assert_result["actual_full"] = actual
+        logger.debug(
+            "bridge_assert %s(%r)%s: actual=%r expected=%r passed=%s",
+            method_name, arg_values, f".{path}" if path is not None else "",
+            compared, expected, passed,
+        )
 
         if not passed:
+            where = f"{method_name}({arg_values!r})" + (f".{path}" if path is not None else "")
             return StepResult(
                 success=False,
-                error=f"bridge_assert failed: {method_name} returned {actual!r}, expected {expected!r}",
+                error=f"bridge_assert failed: {where} returned {compared!r}, expected {expected!r}",
                 bridge_assert_result=assert_result,
             )
         return StepResult(success=True, bridge_assert_result=assert_result)
@@ -455,6 +622,7 @@ class StepExecutor:
 
         The expression has access to:
           - ``steps`` — dict of previous step results (keyed by step id)
+          - ``vars`` — dict of variables saved via step ``save:`` fields
           - ``bridge`` — the game test bridge (window.__gameTestBridge)
           - ``assert(cond, msg)`` — throws if cond is falsy
           - ``assert_equal(a, b)`` — deep-equal comparison, throws on mismatch
@@ -475,6 +643,7 @@ class StepExecutor:
         js = f"""
         (async () => {{
             const steps = {json.dumps(steps_data)};
+            const vars = {json.dumps(self.vars)};
             const bridge = window.__gameTestBridge;
 
             function assert(cond, msg) {{
@@ -499,15 +668,7 @@ class StepExecutor:
             await self._page.evaluate(js)
             return StepResult(success=True)
         except Exception as exc:  # noqa: BLE001
-            # Extract the meaningful error message from Playwright wrapper
-            msg = str(exc)
-            # Strip Playwright boilerplate, keep the inner Error message
-            if "Error:" in msg:
-                msg = msg[msg.index("Error:") :]
-                # Trim after first newline of stack trace
-                if "\n    at " in msg:
-                    msg = msg[: msg.index("\n    at ")]
-            return StepResult(success=False, error=msg.strip())
+            return StepResult(success=False, error=self._clean_eval_error(str(exc)))
 
     async def _handle_go_offline(self, step: dict[str, Any]) -> StepResult:
         """go_offline — set browser context to offline mode."""
@@ -554,6 +715,157 @@ class StepExecutor:
             return StepResult(success=False, error="wait_ms action requires 'params.ms' > 0")
         await asyncio.sleep(ms / 1000.0)
         return StepResult(success=True)
+
+    async def _handle_bo_paytable_ensure(self, step: dict[str, Any]) -> StepResult:
+        """bo_paytable_ensure — ensure the automation paytable exists on the master game.
+
+        Idempotent setup step (run once in suite setup). Creates the named paytable
+        if missing so it becomes selectable per-agent, and returns its id.
+
+        params:
+          paytable_code (optional, default "AutomationTest") — the paytable name.
+          paytable_ref OR paytable (optional) — initial content for a newly created
+                                      paytable (fixture stem under games/{game}/paytables/,
+                                      or inline dict/list/JSON string). Cloned from the
+                                      game default when omitted.
+          rtp (optional, default "MEDIUM") — HIGH | MEDIUM | LOW (only used on create).
+          game_id, sas_entity_id (optional) — override env BO_GAME_ID/BO_SAS_ENTITY_ID.
+        """
+        if self._bo is None:
+            return StepResult(
+                success=False,
+                error="bo_paytable_ensure unavailable: BO not configured (no BoHelper)",
+            )
+
+        params = step.get("params") or {}
+        code = params.get("paytable_code") or "AutomationTest"
+
+        try:
+            content = None
+            if params.get("paytable_ref") or params.get("paytable") is not None:
+                content = self._bo.resolve_paytable(
+                    ref=params.get("paytable_ref"),
+                    inline=params.get("paytable"),
+                )
+            paytable_id = await self._bo.ensure_paytable(
+                code,
+                paytable_content=content,
+                rtp=params.get("rtp", "MEDIUM"),
+                game_id=params.get("game_id"),
+                sas_entity_id=params.get("sas_entity_id"),
+            )
+        except Exception as exc:  # noqa: BLE001 — surface AuthError/ApiError/ValueError as step error
+            return StepResult(success=False, error=str(exc))
+
+        return StepResult(success=True, result={"paytable_code": code, "paytable_id": paytable_id})
+
+    async def _handle_bo_paytable_select(self, step: dict[str, Any]) -> StepResult:
+        """bo_paytable_select — point the agent's game at a named paytable.
+
+        Setup step — the agent's spins use this paytable until reset.
+
+        params:
+          paytable_code (required) — the paytable name to select (e.g. "AutomationTest").
+          agent_id, currency_id, game_code (optional) — override env BO_AGENT_ID/
+                                      BO_CURRENCY_ID/BO_GAME_CODE.
+        """
+        if self._bo is None:
+            return StepResult(
+                success=False,
+                error="bo_paytable_select unavailable: BO not configured (no BoHelper)",
+            )
+
+        params = step.get("params") or {}
+        code = params.get("paytable_code")
+        if not code:
+            return StepResult(
+                success=False,
+                error="bo_paytable_select requires 'params.paytable_code'",
+            )
+
+        try:
+            resp = await self._bo.select_agent_paytable(
+                code,
+                agent_id=params.get("agent_id"),
+                currency_id=params.get("currency_id"),
+                game_code=params.get("game_code"),
+            )
+        except Exception as exc:  # noqa: BLE001 — surface AuthError/ApiError/ValueError as step error
+            return StepResult(success=False, error=str(exc))
+
+        message = resp.get("message") if isinstance(resp, dict) else None
+        return StepResult(success=True, result=message)
+
+    async def _handle_bo_paytable_update(self, step: dict[str, Any]) -> StepResult:
+        """bo_paytable_update — set the content of a paytable via the back-office API.
+
+        Use this per group of test cases to force the determined result for that
+        group (base game, free spin, …) by rewriting the automation paytable's content.
+
+        params:
+          paytable_code (required) — the paytable's `code` to replace.
+          paytable_ref OR paytable — fixture stem under games/{game}/paytables/, or
+                                      inline dict/list/JSON string.
+          game_id, sas_entity_id (optional) — override env BO_GAME_ID/BO_SAS_ENTITY_ID.
+        """
+        if self._bo is None:
+            return StepResult(
+                success=False,
+                error="bo_paytable_update unavailable: BO not configured (no BoHelper)",
+            )
+
+        params = step.get("params") or {}
+        code = params.get("paytable_code")
+        if not code:
+            return StepResult(
+                success=False,
+                error="bo_paytable_update requires 'params.paytable_code'",
+            )
+
+        try:
+            paytable = self._bo.resolve_paytable(
+                ref=params.get("paytable_ref"),
+                inline=params.get("paytable"),
+            )
+            resp = await self._bo.update_paytable(
+                code,
+                paytable,
+                game_id=params.get("game_id"),
+                sas_entity_id=params.get("sas_entity_id"),
+            )
+        except Exception as exc:  # noqa: BLE001 — surface AuthError/ApiError/ValueError as step error
+            return StepResult(success=False, error=str(exc))
+
+        message = resp.get("message") if isinstance(resp, dict) else None
+        return StepResult(success=True, result=message)
+
+    async def _handle_bo_paytable_reset(self, step: dict[str, Any]) -> StepResult:
+        """bo_paytable_reset — reset the agent's game paytable to the game default.
+
+        Teardown step — undoes bo_paytable_select.
+
+        params:
+          agent_id, currency_id, game_code (optional) — override env BO_AGENT_ID/
+                                      BO_CURRENCY_ID/BO_GAME_CODE.
+        """
+        if self._bo is None:
+            return StepResult(
+                success=False,
+                error="bo_paytable_reset unavailable: BO not configured (no BoHelper)",
+            )
+
+        params = step.get("params") or {}
+        try:
+            resp = await self._bo.reset_agent_paytable(
+                agent_id=params.get("agent_id"),
+                currency_id=params.get("currency_id"),
+                game_code=params.get("game_code"),
+            )
+        except Exception as exc:  # noqa: BLE001 — surface AuthError/ApiError/ValueError as step error
+            return StepResult(success=False, error=str(exc))
+
+        message = resp.get("message") if isinstance(resp, dict) else None
+        return StepResult(success=True, result=message)
 
     # ------------------------------------------------------------------
     # AI image assertion (inline)
@@ -654,7 +966,10 @@ class StepExecutor:
             return f"{name}()"
 
         if action == "bridge_assert":
-            return f"{params.get('method', '?')} == {params.get('expected', '?')!r}"
+            args = params.get("args")
+            arg_str = ", ".join(str(a) for a in args) if isinstance(args, list) else ""
+            call = f"{params.get('method', '?')}({arg_str})"
+            return f"{call} == {params.get('expected', '?')!r}"
 
         if action == "click":
             return params.get("selector", "")
@@ -665,6 +980,21 @@ class StepExecutor:
         if action == "script":
             cmd = params.get("cmd", "")
             return cmd[:80] + "..." if len(cmd) > 80 else cmd
+
+        if action == "bo_paytable_ensure":
+            code = params.get("paytable_code", "AutomationTest")
+            return f"ensure {code}"
+
+        if action == "bo_paytable_select":
+            return f"select {params.get('paytable_code', '?')}"
+
+        if action == "bo_paytable_update":
+            code = params.get("paytable_code", "?")
+            src = params.get("paytable_ref") or ("inline" if params.get("paytable") is not None else "?")
+            return f"code={code} {src}"
+
+        if action == "bo_paytable_reset":
+            return "reset → default"
 
         if action in ("", "assert") and "assert" in step:
             ai = step.get("assert", {}).get("ai", {})
@@ -709,6 +1039,15 @@ class StepExecutor:
         return candidate if candidate.exists() else None
 
     @staticmethod
+    def _clean_eval_error(msg: str) -> str:
+        """Strip Playwright boilerplate from a page.evaluate error, keep the inner message."""
+        if "Error:" in msg:
+            msg = msg[msg.index("Error:"):]
+            if "\n    at " in msg:
+                msg = msg[: msg.index("\n    at ")]
+        return msg.strip()
+
+    @staticmethod
     def _extract_step_number(step_id: str) -> int | None:
         """Extract integer from step id like 'step-02' -> 2."""
         if not step_id:
@@ -717,6 +1056,32 @@ class StepExecutor:
         if len(parts) == 2 and parts[1].isdigit():
             return int(parts[1])
         return None
+
+    @staticmethod
+    def _extract_path(value: Any, path: str) -> tuple[Any, str | None]:
+        """Walk a dot-separated *path* into a nested dict/list *value*.
+
+        ``"valid"`` → ``value["valid"]``; ``"a.b.0"`` → ``value["a"]["b"][0]``.
+        Integer segments index into lists (negative indices allowed). Returns
+        ``(extracted, error)``; *error* is ``None`` on success and a descriptive
+        string when the path cannot be resolved.
+        """
+        current = value
+        for seg in path.split("."):
+            if isinstance(current, dict):
+                if seg not in current:
+                    return None, f"key '{seg}' not in result (keys: {list(current.keys())})"
+                current = current[seg]
+            elif isinstance(current, list):
+                if not seg.lstrip("-").isdigit():
+                    return None, f"segment '{seg}' is not a valid list index"
+                idx = int(seg)
+                if not (-len(current) <= idx < len(current)):
+                    return None, f"index {idx} out of range (len {len(current)})"
+                current = current[idx]
+            else:
+                return None, f"cannot descend into {type(current).__name__} at segment '{seg}'"
+        return current, None
 
     @staticmethod
     def _camel_to_snake(name: str) -> str:

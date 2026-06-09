@@ -190,6 +190,20 @@ def _group_key(ref_assets: list[str]) -> str:
     return ",".join(sorted(ref_assets))
 
 
+def _iter_suite_tests(suite_doc: dict[str, Any]):
+    """Yield every test in the suite — top-level ``tests:`` plus all ``groups[].tests``."""
+    yield from suite_doc.get("tests") or []
+    for group in suite_doc.get("groups") or []:
+        yield from group.get("tests") or []
+
+
+def _iter_suite_runs(suite_doc: dict[str, Any]):
+    """Yield every run — top-level ``runs:`` plus all ``groups[].runs``."""
+    yield from suite_doc.get("runs") or []
+    for group in suite_doc.get("groups") or []:
+        yield from group.get("runs") or []
+
+
 def _extract_video_tests(suite_doc: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """
     Scan suite_doc and return a mapping of group_key -> list of test info dicts.
@@ -198,7 +212,7 @@ def _extract_video_tests(suite_doc: dict[str, Any]) -> dict[str, list[dict[str, 
     """
     groups: dict[str, list[dict[str, Any]]] = {}
 
-    for test in suite_doc.get("tests", []):
+    for test in _iter_suite_tests(suite_doc):
         test_id = test.get("id", "")
         video_steps = []
 
@@ -229,13 +243,18 @@ def _load_asset_paths(
     base_dir: Path,
 ) -> list[Path]:
     """
-    Resolve ref_asset keys to image file paths via the game's symbols.yml manifest.
+    Resolve ref_asset keys to image file paths via the game's assets.yml manifest
+    (legacy name: symbols.yml).
 
     Returns a list of resolved image Paths. Missing assets are logged and skipped.
     """
-    manifest_path = base_dir / "games" / game / "docs" / "assets" / "symbols.yml"
+    asset_dir = base_dir / "games" / game / "docs" / "assets"
+    # Prefer assets.yml; fall back to the legacy symbols.yml.
+    manifest_path = asset_dir / "assets.yml"
     if not manifest_path.exists():
-        logger.warning("Asset manifest not found: %s", manifest_path)
+        manifest_path = asset_dir / "symbols.yml"
+    if not manifest_path.exists():
+        logger.warning("Asset manifest (assets.yml / symbols.yml) not found in: %s", asset_dir)
         return []
 
     import yaml  # lazy — standard lib not available at module level without install
@@ -299,19 +318,32 @@ class VideoAiProcessor:
         suite_doc: dict[str, Any],
         base_dir: Path,
         gemini_video_helper: Any | None = None,
+        run_test_ids: set[str] | None = None,
     ) -> None:
         self._game = game
         self._suite_doc = suite_doc
         self._base_dir = base_dir
         self._gemini = gemini_video_helper
 
-        # group_key -> set of test_ids expected in this group
+        # group_key -> list of test info dicts expected in this group
         self._groups = _extract_video_tests(suite_doc)
+        # Restrict each group's expected tests to those actually being run. Under a
+        # --test / --group filter a ref_assets group is otherwise never completed
+        # (the unselected tests never run), so its batch never dispatches and the
+        # selected tests' video AI stays 'pending' forever.
+        if run_test_ids is not None:
+            self._groups = {
+                k: [t for t in tests if t["test_id"] in run_test_ids]
+                for k, tests in self._groups.items()
+            }
+            self._groups = {k: v for k, v in self._groups.items() if v}
         # group_key -> set of completed test_ids (with their records)
         self._completed: dict[str, dict[str, Any]] = {k: {} for k in self._groups}
         # Asyncio tasks for in-flight batches
         self._tasks: list[asyncio.Task[None]] = []
         self._ready_groups: list[tuple[str, dict[str, Any]]] = []
+        # Completed runs awaiting video AI processing (each run is self-contained).
+        self._ready_runs: list[Any] = []
 
     async def notify_test_complete(self, record: "TestRecord") -> None:
         """
@@ -336,8 +368,12 @@ class VideoAiProcessor:
                     )
                     self._ready_groups.append((key, dict(self._completed[key])))
 
+    async def notify_run_complete(self, record: Any) -> None:
+        """Queue a completed run for video AI processing (runs are self-contained)."""
+        self._ready_runs.append(record)
+
     async def wait_all(self) -> None:
-        """Process all ready groups and await completion."""
+        """Process all ready groups + runs and await completion."""
         # Dispatch now (video files are copied by this point)
         for key, records in self._ready_groups:
             task = asyncio.create_task(
@@ -345,6 +381,10 @@ class VideoAiProcessor:
             )
             self._tasks.append(task)
         self._ready_groups.clear()
+
+        for run_record in self._ready_runs:
+            self._tasks.append(asyncio.create_task(self._process_run(run_record)))
+        self._ready_runs.clear()
 
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
@@ -372,46 +412,11 @@ class VideoAiProcessor:
                 self._update_ai_result(record, "fail", "GeminiVideoHelper not configured")
             return
 
-        # Determine ref_assets from first record's group entry
-        test_list = self._groups.get(group_key, [])
-        if not test_list:
-            return
-        ref_assets = test_list[0]["ref_assets"]
-
-        # Load asset image paths
-        asset_paths = _load_asset_paths(self._game, ref_assets, self._base_dir)
-        if not asset_paths:
-            logger.warning(
-                "No valid asset images for group '%s' — marking tests as fail", group_key
-            )
-            for record in records.values():
-                self._update_ai_result(record, "fail", "No ref_assets found on disk")
-            return
-
-        # Upload shared context once
-        context_id: str | None = None
-        try:
-            context_id = await asyncio.to_thread(
-                self._gemini.create_cached_context, asset_paths
-            )
-            logger.info("Gemini context created: %s", context_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to create Gemini cached context: %s", exc)
-            for record in records.values():
-                self._update_ai_result(record, "fail", f"Gemini context creation failed: {exc}")
-            return
-
-        try:
-            # Process each test in the group
-            for record in records.values():
-                await self._process_test(record, context_id)
-        finally:
-            # Always release context to avoid orphaned cache charges
-            try:
-                await asyncio.to_thread(self._gemini.release_context, context_id)
-                logger.info("Gemini context released: %s", context_id)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to release Gemini context %s: %s", context_id, exc)
+        # Reference assets (the full symbols.yml manifest) are prepended to every
+        # request by the AI helper itself (framework.helpers.symbol_reference), so no
+        # per-group asset upload is needed here. Process each test in the group.
+        for record in records.values():
+            await self._process_test(record, context_id=None)
 
     async def _process_test(self, record: Any, context_id: str) -> None:
         """Trim video for one test and send to Gemini for analysis."""
@@ -441,6 +446,13 @@ class VideoAiProcessor:
 
         video_path = artifact.video_path
 
+        # Accumulate this test's video-AI token usage + price across its asserts, so the
+        # per-test result.html/result.json shows the cost (not only the suite summary).
+        ai_calls = 0
+        ai_in_tokens = 0
+        ai_out_tokens = 0
+        ai_cost = 0.0
+
         for step in video_ai_steps:
             ai_block = step["assert"]["ai"]
             video_trim = ai_block.get("video_trim", {})
@@ -461,7 +473,7 @@ class VideoAiProcessor:
                 continue
 
             start_s, end_s = timestamps
-            trimmed_path = artifact.test_dir / "trimmed.webm"
+            trimmed_path = artifact.test_dir / f"trimmed-{step_id}.webm"
 
             # Trim video
             trim_ok = await asyncio.to_thread(
@@ -492,7 +504,13 @@ class VideoAiProcessor:
                 ai_data = {
                     "passed": False,
                     "reason": gemini_result.reason,
-                    "raw_text": gemini_result.raw_text,
+                    "request": {
+                        "prompt": prompt,
+                        "output_schema": output_schema,
+                        "expected": expected,
+                        "video_trim": {"from_step": from_step, "to_step": to_step, "start_s": start_s, "end_s": end_s},
+                    },
+                    "raw_response": gemini_result.raw_text,
                 }
             else:
                 # Check expected fields
@@ -511,7 +529,26 @@ class VideoAiProcessor:
                     "mismatches": mismatches,
                     "input_tokens": gemini_result.input_tokens,
                     "output_tokens": gemini_result.output_tokens,
+                    "request": {
+                        "prompt": prompt,
+                        "output_schema": output_schema,
+                        "video_trim": {"from_step": from_step, "to_step": to_step, "start_s": start_s, "end_s": end_s},
+                    },
+                    "raw_response": gemini_result.raw_text,
                 }
+
+            # Token usage + estimated price for this assert (a failed-judgment call still bills).
+            call_cost = self._gemini.cost_for_tokens(
+                gemini_result.input_tokens, gemini_result.output_tokens
+            )
+            ai_data["input_tokens"] = gemini_result.input_tokens
+            ai_data["output_tokens"] = gemini_result.output_tokens
+            ai_data["cost_usd"] = round(call_cost, 6)
+            ai_data["model"] = self._gemini.model
+            ai_calls += 1
+            ai_in_tokens += gemini_result.input_tokens
+            ai_out_tokens += gemini_result.output_tokens
+            ai_cost += call_cost
 
             # Persist step AI result JSON
             step_num = self._extract_step_number(step_id)
@@ -537,17 +574,26 @@ class VideoAiProcessor:
 
         # Rewrite result.json with updated AI result
         if artifact:
+            extra: dict[str, Any] = {
+                "error": record.error,
+                "duration_ms": record.duration_ms,
+                "timed_out": record.timed_out,
+                "test_id": record.test_id,
+                "title": record.test_doc.get("title", ""),
+            }
+            if ai_calls > 0:
+                extra.update({
+                    "ai_video_calls": ai_calls,
+                    "ai_input_tokens": ai_in_tokens,
+                    "ai_output_tokens": ai_out_tokens,
+                    "ai_cost_usd": round(ai_cost, 6),
+                    "ai_model": self._gemini.model,
+                })
             artifact.write_result(
                 bridge_result=record.bridge_result,
                 ai_result=record.ai_result,
                 final_verdict=record.final_verdict,
-                extra={
-                    "error": record.error,
-                    "duration_ms": record.duration_ms,
-                    "timed_out": record.timed_out,
-                    "test_id": record.test_id,
-                    "title": record.test_doc.get("title", ""),
-                },
+                extra=extra,
             )
             logger.info(
                 "Video AI result for %s: ai=%s verdict=%s",
@@ -579,6 +625,210 @@ class VideoAiProcessor:
                     "title": record.test_doc.get("title", ""),
                 },
             )
+
+    # ------------------------------------------------------------------
+    # Run processing (one execution, many case verdicts)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _match_expected(
+        data: dict[str, Any], expected: dict[str, Any]
+    ) -> tuple[bool, list[str]]:
+        """Compare an AI output dict against an expected subset; return (passed, mismatches)."""
+        mismatches: list[str] = []
+        for key, exp_val in (expected or {}).items():
+            act_val = data.get(key)
+            if act_val != exp_val:
+                mismatches.append(f"{key}: got {act_val!r}, expected {exp_val!r}")
+        return (len(mismatches) == 0, mismatches)
+
+    @staticmethod
+    def _step_case_bindings(ai_block: dict[str, Any], step: dict[str, Any]) -> dict[str, dict]:
+        """Map each case the step serves to the expected subset it is judged against.
+
+        Uses ``expected_by_case`` when present, else the single ``expected`` applied
+        to every id in the step's ``case`` tag.
+        """
+        ebc = ai_block.get("expected_by_case")
+        if isinstance(ebc, dict):
+            return {cid: (sub if isinstance(sub, dict) else {}) for cid, sub in ebc.items()}
+        expected = ai_block.get("expected", {})
+        tag = step.get("case")
+        if isinstance(tag, str):
+            cids = [tag]
+        elif isinstance(tag, list):
+            cids = [c for c in tag if isinstance(c, str)]
+        else:
+            cids = []
+        return {cid: expected for cid in cids}
+
+    def _set_case_ai(self, record: Any, case_id: str, ai_result: str, error: str | None) -> None:
+        cv = record.cases.get(case_id)
+        if cv is None:
+            return
+        cv.ai_result = ai_result
+        if ai_result == "fail" and error and not cv.error:
+            cv.error = error
+
+    def _write_run_result(
+        self, record: Any, ai_calls: int, ai_in: int, ai_out: int, ai_cost: float
+    ) -> None:
+        # Recompute each case's final verdict now that AI results are known.
+        for cv in record.cases.values():
+            cv.final_verdict = _compute_verdict(cv.bridge_result, cv.ai_result)
+        extra: dict[str, Any] = {
+            "run_id": record.run_id,
+            "title": record.run_doc.get("title", ""),
+            "duration_ms": record.duration_ms,
+            "timed_out": record.timed_out,
+            "error": record.error,
+        }
+        if ai_calls > 0:
+            extra.update({
+                "ai_video_calls": ai_calls,
+                "ai_input_tokens": ai_in,
+                "ai_output_tokens": ai_out,
+                "ai_cost_usd": round(ai_cost, 6),
+                "ai_model": getattr(self._gemini, "model", "unknown"),
+            })
+        if record.artifact:
+            record.artifact.write_run_result(cases=record.cases_as_dicts(), extra=extra)
+
+    def _fail_run_cases_ai(self, record: Any, reason: str) -> None:
+        """Mark every still-pending case's AI as failed (run-global failure)."""
+        for cv in record.cases.values():
+            if cv.ai_result == "pending":
+                cv.ai_result = "fail"
+                if not cv.error:
+                    cv.error = reason
+        self._write_run_result(record, 0, 0, 0, 0.0)
+
+    async def _process_run(self, record: Any) -> None:
+        """Resolve a run's deferred video AI asserts, attributing each to its case(s)."""
+        artifact = record.artifact
+        if artifact is None:
+            return
+
+        timeline_path = artifact.timeline_path
+        if not timeline_path.exists():
+            self._fail_run_cases_ai(record, "timeline.json not found")
+            return
+        try:
+            timeline = json.loads(timeline_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            self._fail_run_cases_ai(record, f"Could not read timeline.json: {exc}")
+            return
+
+        video_steps = [
+            s for s in record.run_doc.get("steps", [])
+            if s.get("assert", {}).get("ai", {}).get("mode") == "video"
+        ]
+        if not video_steps:
+            return
+        if self._gemini is None:
+            self._fail_run_cases_ai(record, "GeminiVideoHelper not configured")
+            return
+
+        # Upload shared ref assets once for the whole run.
+        ref_assets = sorted({
+            a for s in video_steps for a in s["assert"]["ai"].get("ref_assets", [])
+        })
+        asset_paths = _load_asset_paths(self._game, ref_assets, self._base_dir) if ref_assets else []
+        try:
+            context_id = await asyncio.to_thread(self._gemini.create_cached_context, asset_paths)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Run %s: context creation failed (%s); proceeding inline", record.run_id, exc)
+            context_id = "inline"
+
+        video_path = artifact.video_path
+        ai_calls = ai_in = ai_out = 0
+        ai_cost = 0.0
+        try:
+            for step in video_steps:
+                ai_block = step["assert"]["ai"]
+                video_trim = ai_block.get("video_trim", {})
+                prompt = ai_block.get("prompt", "")
+                output_schema = ai_block.get("output_schema", {})
+                step_id = step.get("id", "")
+                bindings = self._step_case_bindings(ai_block, step)
+
+                timestamps = _resolve_trim_timestamps(
+                    timeline, video_trim.get("from_step", ""), video_trim.get("to_step", "")
+                )
+                if timestamps is None:
+                    for cid in bindings:
+                        self._set_case_ai(record, cid, "fail", f"Could not resolve trim for step {step_id}")
+                    continue
+
+                start_s, end_s = timestamps
+                trimmed_path = artifact.test_dir / f"trimmed-{step_id}.webm"
+                trim_ok = await asyncio.to_thread(_trim_video, video_path, trimmed_path, start_s, end_s)
+                if not trim_ok:
+                    for cid in bindings:
+                        self._set_case_ai(record, cid, "fail", f"ffmpeg trimming failed for step {step_id}")
+                    continue
+
+                try:
+                    gemini_result = await asyncio.to_thread(
+                        self._gemini.analyse_video, trimmed_path, context_id, prompt, output_schema
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Run %s video AI failed: %s", record.run_id, exc)
+                    for cid in bindings:
+                        self._set_case_ai(record, cid, "fail", f"AI error: {exc}")
+                    continue
+
+                # Cost accounting (a failed-judgment call still bills).
+                cost_fn = getattr(self._gemini, "cost_for_tokens", None)
+                call_cost = cost_fn(gemini_result.input_tokens, gemini_result.output_tokens) if cost_fn else 0.0
+                ai_calls += 1
+                ai_in += gemini_result.input_tokens
+                ai_out += gemini_result.output_tokens
+                ai_cost += call_cost
+
+                per_case: dict[str, Any] = {}
+                if not gemini_result.success:
+                    for cid in bindings:
+                        self._set_case_ai(record, cid, "fail", gemini_result.reason)
+                        per_case[cid] = {"passed": False, "reason": gemini_result.reason}
+                else:
+                    data = gemini_result.data or {}
+                    for cid, subset in bindings.items():
+                        passed, mismatches = self._match_expected(data, subset)
+                        self._set_case_ai(
+                            record, cid, "pass" if passed else "fail",
+                            "; ".join(mismatches) if mismatches else None,
+                        )
+                        per_case[cid] = {"passed": passed, "mismatches": mismatches}
+
+                # Persist step-N-ai.json (per-case verdicts for this single AI call).
+                step_num = self._extract_step_number(step_id)
+                if step_num is not None:
+                    ai_data = {
+                        "data": gemini_result.data if gemini_result.success else None,
+                        "expected_by_case": bindings,
+                        "per_case": per_case,
+                        "input_tokens": gemini_result.input_tokens,
+                        "output_tokens": gemini_result.output_tokens,
+                        "cost_usd": round(call_cost, 6),
+                        "model": getattr(self._gemini, "model", "unknown"),
+                        "raw_response": gemini_result.raw_text,
+                    }
+                    artifact.ai_result_path(step_num).write_text(
+                        json.dumps(ai_data, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+        finally:
+            try:
+                await asyncio.to_thread(self._gemini.release_context, context_id)
+            except Exception:  # noqa: BLE001
+                pass
+
+        self._write_run_result(record, ai_calls, ai_in, ai_out, ai_cost)
+        logger.info(
+            "Run %s video AI done: %s",
+            record.run_id,
+            {cid: cv.final_verdict for cid, cv in record.cases.items()},
+        )
 
     @staticmethod
     def _extract_step_number(step_id: str) -> int | None:
@@ -662,8 +912,11 @@ async def _reprocess_async(args: argparse.Namespace) -> int:
     logger.info("Found %d pending video AI test(s)", len(pending_tests))
 
     from framework.helpers.gemini_video import GeminiVideoHelper
+    from framework.helpers.symbol_reference import load_symbol_reference
 
-    gemini = GeminiVideoHelper(api_key)
+    # Symbol/UI reference pack — prepended to every request (same as the live runner).
+    symbol_reference = load_symbol_reference(args.game, base_dir)
+    gemini = GeminiVideoHelper(api_key, reference=symbol_reference)
 
     # Build minimal stub records from result.json + timeline.json
     processed = 0
@@ -704,9 +957,9 @@ async def _reprocess_async(args: argparse.Namespace) -> int:
         with suite_path.open("r", encoding="utf-8") as fh:
             suite_doc = yaml.safe_load(fh)
 
-        # Find the test in the suite
+        # Find the test in the suite (flat or grouped)
         test_doc = next(
-            (t for t in suite_doc.get("tests", []) if t.get("id") == test_id),
+            (t for t in _iter_suite_tests(suite_doc) if t.get("id") == test_id),
             None,
         )
         if test_doc is None:
@@ -749,7 +1002,8 @@ async def _reprocess_async(args: argparse.Namespace) -> int:
         stub.duration_ms = result_data.get("duration_ms", 0)  # type: ignore[attr-defined]
         stub.timed_out = result_data.get("timed_out", False)  # type: ignore[attr-defined]
 
-        # Find ref_assets for context upload
+        # Skip tests with no video AI steps. Reference assets are injected globally
+        # by the helper (symbol_reference), so no per-test asset upload is needed.
         video_steps = [
             step for step in test_doc.get("steps", [])
             if step.get("assert", {}).get("ai", {}).get("mode") == "video"
@@ -758,22 +1012,7 @@ async def _reprocess_async(args: argparse.Namespace) -> int:
             logger.info("No video AI steps found in test %s — skipping", test_id)
             continue
 
-        ref_assets = video_steps[0]["assert"]["ai"].get("ref_assets", [])
-        asset_paths = _load_asset_paths(args.game, ref_assets, base_dir)
-
-        if not asset_paths:
-            logger.warning("No asset images for test %s — marking fail", test_id)
-            VideoAiProcessor._update_ai_result(stub, "fail", "No ref_assets found")
-            failed += 1
-            continue
-
-        try:
-            context_id = gemini.create_cached_context(asset_paths)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to create context for %s: %s", test_id, exc)
-            VideoAiProcessor._update_ai_result(stub, "fail", f"Context creation failed: {exc}")
-            failed += 1
-            continue
+        context_id = None
 
         processor = VideoAiProcessor(
             game=args.game,

@@ -1,59 +1,84 @@
-# env.config.yml — Environment configuration template for a game.
-# Copy this file to games/<game>/env.config.yml and fill in real values.
+# env.config.{suffix}.yml — per-environment game config template.
 #
-# The URL resolver script (scripts/get_url.py) reads this file to produce
-# the fully-qualified game URL for a given environment before launching
-# the browser.
-
-environments:
-
-  # -------------------------------------------------------------------------
-  # dev — local or development server
-  # -------------------------------------------------------------------------
-  dev:
-    # url_script: A shell command whose stdout is the game URL.
-    # The framework runs this command and reads its output.
-    # Can perform token fetch, sign requests, read secrets files — anything.
-    # Must exit 0 on success; non-zero exit = URL resolution failure.
-    url_script: "python scripts/get_url.py --env=dev"
-
-    # browser_params: Query-string parameters appended to the resolved URL
-    # when launching Playwright. bridge=1 activates the test bridge API.
-    # debug=1 enables verbose game logging (useful in dev only).
-    browser_params: "?bridge=1&debug=1"
-
-  # -------------------------------------------------------------------------
-  # staging — pre-production environment
-  # -------------------------------------------------------------------------
-  staging:
-    url_script: "python scripts/get_url.py --env=staging"
-    browser_params: "?bridge=1"
-
-  # -------------------------------------------------------------------------
-  # prod — production environment
-  # For read-only smoke tests only; destructive bridge actions are disabled.
-  # -------------------------------------------------------------------------
-  prod:
-    # url: A static URL string. Use this instead of url_script when the URL
-    # does not require dynamic generation (no token, no signed query string).
-    url: "https://games.example.com/zeus/index.html"
-
-    # Empty browser_params means no extra query string appended.
-    browser_params: ""
+# Game config is SPLIT PER ENVIRONMENT: one self-contained file per env, named
+# by the same suffix the runner uses for .env overlays:
+#
+#     --env dev      -> games/<game>/env.config.dev.yml
+#     --env staging  -> games/<game>/env.config.stg.yml
+#     --env prod     -> games/<game>/env.config.prod.yml
+#     --env local    -> games/<game>/env.config.local.yml
+#
+# There is NO `environments:` wrapper — each file IS that one environment's
+# config (resolved by framework/env_files.py game_config_path). Copy this file to
+# games/<game>/env.config.<suffix>.yml per environment and fill in real values.
+#
+# The runner reads this file to produce the fully-qualified game URL before
+# launching the browser, plus the back-office identifiers and detection settings.
 
 # ---------------------------------------------------------------------------
-# detection — symbol detection configuration (shared across all environments)
+# Game URL — provide `url` (static) and/or `url_script` (dynamic).
+# When both are present the runner prefers `url_script`; `url` is a convenient
+# fallback/reference (e.g. a captured launch URL).
+# ---------------------------------------------------------------------------
+
+# url: A static, fully-qualified URL. Use when no token/signature is needed.
+url: "https://dev.example.com/games/my-game/index.html"
+
+# url_script: A shell command whose stdout is the game URL. The runner executes
+# it (token fetch, request signing, secret reads — anything) and reads stdout.
+# Must exit 0 on success; non-zero exit = URL resolution failure.
+url_script: "python games/my-game/script/get_game_url.py --env=dev"
+
+# browser_params: Query string appended to the resolved URL when launching
+# Playwright. `?bridge=1` activates the test bridge API; `debug=1` enables
+# verbose game logging (dev only). Use "" for prod (no bridge).
+browser_params: "?bridge=1&debug=1"
+
+# ---------------------------------------------------------------------------
+# bo — back-office identifiers for the bo_paytable_* test steps (paytable
+# control). Game-scoped, not secret, committed with the game.
+#
+# Omit this whole block for environments that never run bo_paytable_* steps
+# (e.g. prod smoke tests). BO session tokens (BO_TOKEN / BO_REFRESH_TOKEN) and
+# the BO_API_BASE endpoint are NOT here — they live in the per-env .env overlay
+# (.env.dev, .env.stg, ...). See .env.dev.example.
+# ---------------------------------------------------------------------------
+bo:
+  game_id: 63
+  sas_entity_id: 1
+  agent_id: 1
+  currency_id: 18
+  game_code: SL_33_MY_GAME
+
+# ---------------------------------------------------------------------------
+# detection — symbol detection configuration for this environment.
 # ---------------------------------------------------------------------------
 detection:
   # method: phash | gemini | both
   #   phash  — perceptual hashing only (fast, free, best for clean renders)
   #   gemini — Gemini vision only (slower, has API cost)
-  #   both   — run phash first; escalate to Gemini if confidence is low
+  #   both   — run phash first; escalate to Gemini when confidence is low
   method: both
 
   # phash_threshold: Maximum Hamming distance to consider a pHash match.
   # Lower = stricter. Typical range 5–15. Default 10.
   phash_threshold: 10
 
-  # fallback: Detection method to use when pHash confidence is below threshold.
+  # fallback: Detection method used when pHash confidence is below threshold.
   fallback: gemini
+
+# ---------------------------------------------------------------------------
+# Other environments are separate files with the SAME flat shape, e.g.:
+#
+#   # games/my-game/env.config.stg.yml   (loaded for --env staging)
+#   url_script: "python games/my-game/script/get_game_url.py --env=staging"
+#   browser_params: "?bridge=1"
+#   bo: { game_id: 63, sas_entity_id: 1, agent_id: 1, currency_id: 18, game_code: SL_33_MY_GAME }
+#   detection: { method: both, phash_threshold: 10, fallback: gemini }
+#
+#   # games/my-game/env.config.prod.yml  (loaded for --env prod — smoke tests only)
+#   url_script: "python games/my-game/script/get_game_url.py --env=prod"
+#   browser_params: ""        # no bridge in prod
+#   # no bo: block — paytable control is not used against production
+#   detection: { method: both, phash_threshold: 10, fallback: gemini }
+# ---------------------------------------------------------------------------

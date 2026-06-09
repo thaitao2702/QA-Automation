@@ -154,15 +154,40 @@ python -m playwright install chromium
 
 ### Step 2: Configure Environment
 
+Environment variables load in two layers: a shared base `.env`, then a per-environment
+overlay `.env.{suffix}` that overrides it (`dev`→`.env.dev`, `staging`→`.env.stg`,
+`prod`→`.env.prod`, `local`→`.env.local`). The base holds shared secrets; each overlay
+holds that environment's back-office endpoint and BO tokens.
+
 ```bash
-# Copy environment template
+# Base secrets (shared across environments) — e.g. GEMINI_API_KEY
 cp .env.example .env
 
-# Edit .env and set your Gemini API key
-# GEMINI_API_KEY=your-actual-api-key-here
+# Per-environment overlay (only needed for bo_paytable_* steps) — BO tokens/endpoint
+cp .env.dev.example .env.dev      # and/or .env.stg, .env.prod, .env.local
 ```
 
-> **Note:** The Gemini API key is only required for AI assertions (image and video mode). Bridge-only tests work without it.
+Key variables:
+
+| Variable | Lives in | Purpose |
+|----------|----------|---------|
+| `GEMINI_API_KEY` | base `.env` | Required for Gemini AI assertions (image/video) |
+| `AI_PROVIDER` | base `.env` | `gemini` (default), `local`, or `claude` — picks the AI backend for visual assertions |
+| `LOCAL_AI_ENDPOINT` | base `.env` | Used when `AI_PROVIDER=local`; self-hosted `/analyze` endpoint |
+| `CLAUDE_AI_FPS`, `CLAUDE_CLI_PATH`, `CLAUDE_MODEL`, `CLAUDE_CLI_TIMEOUT` | base `.env` | Used when `AI_PROVIDER=claude` (see note below) |
+| `BO_API_BASE`, `BO_TOKEN`, `BO_REFRESH_TOKEN` | overlay `.env.{suffix}` | Back-office endpoint + session tokens for `bo_paytable_*` steps |
+
+> **`claude` provider:** samples the trimmed video into JPEG frames at `CLAUDE_AI_FPS`
+> (default 2) with ffmpeg, writes an `ASSETS.md` of reference symbols, then spawns a
+> `claude -p … --output-format json` sub-agent that reads the assets and frames in order
+> and returns the verdict. Requires the `claude` CLI on `PATH` **and** ffmpeg; uses local
+> Claude Code auth (no API key) and reports `$0` cost. Defaults to the `sonnet` model
+> (override with `CLAUDE_MODEL`). Image asserts use a single screenshot.
+
+> **Note:** The AI key/endpoint is only required for AI assertions (image and video mode);
+> bridge-only tests work without it. The `.env.{suffix}` overlay is only required for tests
+> that use `bo_paytable_*` steps. Game-scoped BO identifiers (`game_id`, `agent_id`, …) are
+> NOT secrets — they live in `games/{game}/env.config.{suffix}.yml` under the `bo:` block.
 
 ### Step 3: Verify ffmpeg
 
@@ -203,7 +228,7 @@ sequenceDiagram
     QA->>SR: python suite_runner.py --game zeus --suite suite-01 --env dev
 
     SR->>SR: Load & validate YAML suite
-    SR->>SR: Resolve game URL from env.config.yml
+    SR->>SR: Resolve game URL from env.config.{suffix}.yml
     SR->>PW: Launch Chromium with video recording
     SR->>SE: Execute suite-level setup steps
 
@@ -291,7 +316,9 @@ games/
         ui/
           spin-button.png
     bridge-api.md             # Bridge API reference (maintained by game dev)
-    env.config.yml            # Per-environment configuration
+    env.config.dev.yml        # dev environment config (one file per environment)
+    env.config.stg.yml        # staging environment config
+    env.config.prod.yml       # prod environment config
     game-knowledge.md         # AI-generated game knowledge (via /init-knowledge)
     .docs-hash.json           # File hashes for change detection
     test-suites/
@@ -305,37 +332,50 @@ games/
 1. **Create the game directory** with the structure above
 2. **Add raw documentation** to `docs/raw/` (game rules, paytable, anything useful)
 3. **Write `bridge-api.md`** documenting the game's test bridge methods
-4. **Create `env.config.yml`** with your environment URLs
+4. **Create `env.config.{suffix}.yml`** per environment (e.g. `env.config.dev.yml`, `env.config.stg.yml`) with that environment's URL/config
 5. **Create `symbols.yml`** manifest listing all game symbols and UI elements
 6. **Add reference images** to `docs/assets/symbols/` and `docs/assets/ui/`
 7. **Run `/init-knowledge`** to generate `game-knowledge.md`
 8. **Write test suites** manually or via `/write-test`
 
-### Environment Configuration (`env.config.yml`)
+### Environment Configuration (`env.config.{suffix}.yml`)
+
+Game config is **split per environment** — one self-contained file per env, named by
+the same suffix as the `.env` overlays (`dev`→`dev`, `staging`→`stg`, `prod`→`prod`,
+`local`→`local`). The runner loads `games/{game}/env.config.{suffix}.yml` for `--env`.
+There is no `environments:` wrapper — the file IS that one environment's config.
 
 ```yaml
-environments:
-  dev:
-    # Option A: Static URL
-    url: "https://dev.example.com/games/my-game"
-    # Option B: Dynamic URL via script
-    url_script: "python scripts/get_url.py --env=dev"
-    # Query params appended to URL (include ?bridge=1 for test bridge)
-    browser_params: "?bridge=1&debug=1"
+# games/my-game/env.config.dev.yml  (loaded for --env dev)
 
-  staging:
-    url_script: "python scripts/get_url.py --env=staging"
-    browser_params: "?bridge=1"
+# Option A: Static URL
+url: "https://dev.example.com/games/my-game"
+# Option B: Dynamic URL via script
+url_script: "python scripts/get_url.py --env=dev"
+# Query params appended to URL (include ?bridge=1 for test bridge)
+browser_params: "?bridge=1&debug=1"
 
-  prod:
-    url_script: "python scripts/get_url.py --env=prod"
-    browser_params: ""
+# Back-office identifiers for bo_paytable_* steps (game-scoped, not secret)
+bo:
+  game_id: 63
+  sas_entity_id: 1
+  agent_id: 1
+  currency_id: 18
+  game_code: SL_33_MY_GAME
 
 # Symbol detection settings
 detection:
   method: both              # "phash" | "gemini" | "both"
   phash_threshold: 10       # Hamming distance threshold (0 = exact match)
   fallback: gemini          # Fallback when phash confidence is low
+```
+
+```yaml
+# games/my-game/env.config.stg.yml  (loaded for --env staging)
+url_script: "python scripts/get_url.py --env=staging"
+browser_params: "?bridge=1"
+bo: { game_id: 63, sas_entity_id: 1, agent_id: 1, currency_id: 18, game_code: SL_33_MY_GAME }
+detection: { method: both, phash_threshold: 10, fallback: gemini }
 ```
 
 ### Asset Manifest (`symbols.yml`)
@@ -437,15 +477,34 @@ tests:
 | `navigate` | `url` (string) | Open URL in browser |
 | `wait_for_state` | `state` (string), `timeout_ms` (int, default 30000) | Poll bridge until app state matches |
 | `bridge_action` | `name` (string), plus extra params | Call a bridge action method |
-| `bridge_assert` | `method` (string), `expected` (any) | Read bridge value and compare |
+| `bridge_assert` | `method` (string), `expected` (any), optional `args` (list) | Call a bridge method and compare its return to `expected`. In `args`, a string `"$name"` resolves to a saved variable |
 | `capture` | — | Take and save a screenshot |
 | `assert` | `bridge` and/or `ai` block | Run bridge and/or AI assertions |
-| `script` | `cmd` (string) | Run a shell command |
+| `script` | `cmd` (string) | Run JavaScript in the browser page (`page.evaluate`) with `steps`, `vars`, `bridge`, `assert`, `assert_equal` injected |
 | `go_offline` | — | Disconnect browser from network |
 | `go_online` | — | Restore browser network |
 | `press_key` | `key` (string, e.g. "Space") | Press keyboard key |
 | `click` | `selector` (string) or `x`/`y` (numbers) | Click element or coordinate |
 | `wait_ms` | `ms` (int) | Fixed delay |
+
+**Saving values (`save:` step field).** Any step may carry a `save: <name>` field, which
+stores that step's result value into a per-test variable (scoped to setup → steps →
+teardown). Pass it to a bridge assertion function later with `bridge_assert` `args: ["$name"]`
+— the bridge owns the comparison, so the verdict is deterministic. Use `"$$"` for a literal
+leading `$`.
+
+```yaml
+- id: step-05
+  action: bridge_action
+  params: { name: getLastPayout }
+  save: payout                         # vars['payout'] = result
+- id: step-06
+  action: bridge_assert
+  params:
+    method: isPayoutInRange            # bridge.isPayoutInRange(payout, 0, 100)
+    args: ["$payout", 0, 100]
+    expected: true
+```
 
 ### Assert Block
 
@@ -529,7 +588,7 @@ python framework/runner/suite_runner.py --game zeus --suite suite-06-freespin --
 |----------|----------|-------------|
 | `--game` | Yes | Game identifier (matches `games/{game}/`) |
 | `--suite` | Yes | Suite file name without `.yml` extension |
-| `--env` | Yes | Environment name from `env.config.yml` |
+| `--env` | Yes | Environment name (`dev`/`staging`/`prod`/`local`); selects `env.config.{suffix}.yml` |
 | `--base-dir` | No | Repository root (auto-detected if omitted) |
 
 ### Exit Codes
@@ -761,7 +820,7 @@ The platform supports three detection modes for identifying game symbols in scre
 4. If pHash and Gemini agree -> return with high confidence
 5. If they disagree -> flag orange, save both results for human review
 
-Configure per-game in `env.config.yml`:
+Configure per-game, per-environment in `env.config.{suffix}.yml`:
 
 ```yaml
 detection:
@@ -948,7 +1007,7 @@ python scripts/get_url.py --game GAME --env ENV
 BridgeMissingError: Game test bridge not registered at window.__gameTestBridge
 ```
 
-**Fix:** Ensure `browser_params` includes `?bridge=1` in `env.config.yml` for your environment.
+**Fix:** Ensure `browser_params` includes `?bridge=1` in `env.config.{suffix}.yml` for your environment.
 
 ### ffmpeg not found
 

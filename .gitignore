@@ -1,8 +1,15 @@
 # Test artifacts — can be large, regenerated on every run
-test-results/
 
-# Local environment secrets
+# Local environment secrets (base + per-environment overlays), but keep templates
 .env
+.env.*
+!.env.*.example
+
+# Cached rotated BO access tokens, per environment (written by framework/helpers/bo.py)
+.bo_token.*.json
+
+# write-test working plan artifacts (regenerated on every /write-test run)
+games/*/test-suites/*.plan.json
 
 # Python cache
 __pycache__/

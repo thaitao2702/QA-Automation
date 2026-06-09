@@ -37,10 +37,86 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Verdict styling shared by the per-test result.html and per-case case-*.html cards.
+_VERDICT_DOT_COLORS = {
+    "green": "#10b981",
+    "orange": "#f97316",
+    "red": "#ef4444",
+    "pending": "#6b7280",
+    "skip": "#9ca3af",
+}
+_VERDICT_LABELS = {
+    "green": "Pass",
+    "orange": "Suspicious",
+    "red": "Fail",
+    "pending": "Pending",
+    "skip": "Skip",
+}
+
+# Shared stylesheet for the report cards (plain string so the CSS braces don't need
+# f-string escaping — interpolate it as ``<style>{_REPORT_CSS}</style>``).
+_REPORT_CSS = """
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; color: #1f2937; background: #f9fafb; }
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 640px; margin: 0 auto; overflow: hidden; }
+  .header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  .verdict-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .verdict-dot .label { color: #fff; font-weight: 700; font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .title-block { flex: 1; }
+  .title-block h1 { font-size: 1.1rem; margin: 0; }
+  .title-block .subtitle { font-size: 0.85rem; color: #6b7280; margin-top: 2px; }
+  .body { padding: 0 20px 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  tr { border-bottom: 1px solid #f3f4f6; }
+  tr:last-child { border-bottom: none; }
+  th { text-align: left; padding: 8px 12px; color: #6b7280; font-weight: 500; width: 140px; vertical-align: top; }
+  td { padding: 8px 12px; word-break: break-word; }
+  .pass { color: #065f46; }
+  .fail { color: #991b1b; }
+  .skip { color: #6b7280; }
+  .pending { color: #374151; }
+  .links { padding: 14px 0 4px; display: flex; gap: 16px; align-items: center; }
+  .links a { color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+  .links a:hover { text-decoration: underline; }
+  .steps { margin-top: 12px; }
+  .steps .steps-label { font-size: 0.8rem; color: #6b7280; font-weight: 600; }
+  .steps .step-chip { display: inline-block; background: #f3f4f6; color: #374151; border-radius: 6px; padding: 2px 8px; margin: 4px 4px 0 0; font-family: monospace; font-size: 0.78rem; }
+"""
+
+
+def _safe_id(value: str) -> str:
+    """Filesystem-safe form of a test/case id for use in a filename."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(value))
+    return safe or "case"
+
+
+def _links_block(replay_file: str, video_file: str) -> str:
+    """A row of links to the replay viewer and the raw video."""
+    return (
+        f'<div class="links">'
+        f'<a href="{_html_escape(replay_file)}">&#9654; Replay</a>'
+        f'<a href="{_html_escape(video_file)}">Video</a>'
+        f'</div>'
+    )
+
+
+def _steps_block(step_ids: list[str]) -> str:
+    """A labelled list of the step ids attributed to a case (empty string if none)."""
+    chips = "".join(
+        f'<span class="step-chip">{_html_escape(str(s))}</span>'
+        for s in step_ids
+        if s
+    )
+    if not chips:
+        return ""
+    return (
+        f'<div class="steps"><span class="steps-label">Steps</span><div>{chips}</div></div>'
+    )
 
 
 class ArtifactContext:
@@ -201,25 +277,116 @@ class ArtifactContext:
         # Also generate a human-readable HTML view of the result
         self._write_result_html(result)
 
+    def write_run_result(
+        self,
+        cases: list[dict[str, Any]],
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Write a multi-verdict ``result.json`` for a RUN (one execution, many cases).
+
+        Marked with ``kind: "run"`` and carrying a ``cases`` array (each case is a
+        dict with id/title/bridge_result/ai_result/final_verdict/error/step_ids).
+        The Reporter expands these into one entry per case.
+
+        Parameters
+        ----------
+        cases:
+            Per-case verdict dicts (see ``RunRecord.cases_as_dicts``).
+        extra:
+            Optional run-level fields (run_id, title, duration_ms, timed_out, error).
+        """
+        result: dict[str, Any] = {"kind": "run", "cases": cases}
+        if extra:
+            result.update(extra)
+        self.result_path.write_text(
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        # No per-run result.html: a run has many verdicts. Each case gets its own
+        # case-{id}.html via write_case_report(); the shared replay.html is the video.
+
+    def write_case_report(
+        self,
+        case: dict[str, Any],
+        *,
+        replay_file: str = "replay.html",
+        video_file: str = "session.webm",
+    ) -> Path:
+        """
+        Write ``case-{id}.html`` — a per-case verdict report linking to the replay.
+
+        For a RUN (one execution, many cases), each case gets its own report card so
+        the summary can link to it. The card shows the case verdict + bridge/AI
+        results + error, a link to the shared replay viewer and raw video, and the
+        list of step ids attributed to the case. ``case`` is one entry from
+        ``RunRecord.cases_as_dicts()`` (id/title/bridge_result/ai_result/
+        final_verdict/error/step_ids). Returns the written path.
+        """
+        verdict = case.get("final_verdict", "skip")
+        dot_color = _VERDICT_DOT_COLORS.get(verdict, "#9ca3af")
+        verdict_label = _VERDICT_LABELS.get(verdict, str(verdict).title())
+        case_id = _html_escape(str(case.get("id", "")))
+        title = _html_escape(str(case.get("title", "")))
+        error = case.get("error")
+
+        rows = ""
+        for key in ("bridge_result", "ai_result"):
+            if key in case:
+                rows += self._result_html_row(key, case[key])
+
+        error_banner = ""
+        if error:
+            error_banner = (
+                f'<div style="background:#fee2e2;border:1px solid #fca5a5;'
+                f'border-radius:6px;padding:12px;margin-bottom:16px;'
+                f'font-family:monospace;font-size:0.85rem;color:#991b1b;">'
+                f"{_html_escape(str(error))}</div>"
+            )
+
+        links = _links_block(replay_file, video_file)
+        steps = _steps_block(case.get("step_ids") or [])
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case — {case_id}</title>
+<style>{_REPORT_CSS}</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="verdict-dot" style="background:{dot_color};">
+      <span class="label">{_html_escape(verdict_label)}</span>
+    </div>
+    <div class="title-block">
+      <h1>{case_id}</h1>
+      <div class="subtitle">{title}</div>
+    </div>
+  </div>
+  <div class="body">
+    {error_banner}
+    <table>
+      {rows}
+    </table>
+    {links}
+    {steps}
+  </div>
+</div>
+</body>
+</html>
+"""
+        out_path = self.test_dir / f"case-{_safe_id(case.get('id', ''))}.html"
+        out_path.write_text(html, encoding="utf-8")
+        logger.debug("Saved case report: %s", out_path)
+        return out_path
+
     def _write_result_html(self, result: dict[str, Any]) -> None:
         """Generate ``result.html`` — a human-readable view of result.json."""
         verdict = result.get("final_verdict", "skip")
-        verdict_dot_colors = {
-            "green": "#10b981",
-            "orange": "#f97316",
-            "red": "#ef4444",
-            "pending": "#6b7280",
-            "skip": "#9ca3af",
-        }
-        verdict_labels = {
-            "green": "Pass",
-            "orange": "Suspicious",
-            "red": "Fail",
-            "pending": "Pending",
-            "skip": "Skip",
-        }
-        dot_color = verdict_dot_colors.get(verdict, "#9ca3af")
-        verdict_label = verdict_labels.get(verdict, verdict.title())
+        dot_color = _VERDICT_DOT_COLORS.get(verdict, "#9ca3af")
+        verdict_label = _VERDICT_LABELS.get(verdict, verdict.title())
 
         test_id = _html_escape(str(result.get("test_id", "")))
         title = _html_escape(str(result.get("title", "")))
@@ -239,6 +406,22 @@ class ArtifactContext:
             if key in result:
                 rendered.add(key)
                 rows += self._result_html_row(key, result[key])
+        # AI video cost — token usage + estimated price as one readable row.
+        if result.get("ai_video_calls"):
+            rendered.update(
+                ("ai_video_calls", "ai_input_tokens", "ai_output_tokens", "ai_cost_usd", "ai_model")
+            )
+            calls = result.get("ai_video_calls", 0)
+            in_tok = result.get("ai_input_tokens", 0) or 0
+            out_tok = result.get("ai_output_tokens", 0) or 0
+            cost = result.get("ai_cost_usd", 0.0) or 0.0
+            model = result.get("ai_model", "")
+            model_str = f" &middot; {_html_escape(str(model))}" if model else ""
+            ai_cost_display = (
+                f"{calls} video call{'s' if calls != 1 else ''}{model_str} &middot; "
+                f"{in_tok:,} in / {out_tok:,} out tokens &middot; ${cost:.6f}"
+            )
+            rows += f"<tr><th>AI Cost</th><td>{ai_cost_display}</td></tr>\n"
         # Render any remaining fields
         for key, val in result.items():
             if key not in rendered:
@@ -266,26 +449,7 @@ class ArtifactContext:
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Result — {test_id}</title>
-<style>
-  body {{ font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; color: #1f2937; background: #f9fafb; }}
-  .card {{ background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 640px; margin: 0 auto; overflow: hidden; }}
-  .header {{ padding: 16px 20px; display: flex; align-items: center; gap: 12px; }}
-  .verdict-dot {{ width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }}
-  .verdict-dot .label {{ color: #fff; font-weight: 700; font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.03em; }}
-  .title-block {{ flex: 1; }}
-  .title-block h1 {{ font-size: 1.1rem; margin: 0; }}
-  .title-block .subtitle {{ font-size: 0.85rem; color: #6b7280; margin-top: 2px; }}
-  .body {{ padding: 0 20px 20px; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.875rem; }}
-  tr {{ border-bottom: 1px solid #f3f4f6; }}
-  tr:last-child {{ border-bottom: none; }}
-  th {{ text-align: left; padding: 8px 12px; color: #6b7280; font-weight: 500; width: 140px; vertical-align: top; }}
-  td {{ padding: 8px 12px; word-break: break-word; }}
-  .pass {{ color: #065f46; }}
-  .fail {{ color: #991b1b; }}
-  .skip {{ color: #6b7280; }}
-  .pending {{ color: #374151; }}
-</style>
+<style>{_REPORT_CSS}</style>
 </head>
 <body>
 <div class="card">
@@ -303,6 +467,7 @@ class ArtifactContext:
     <table>
       {rows}
     </table>
+    {_links_block("replay.html", "session.webm")}
   </div>
 </div>
 </body>

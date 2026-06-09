@@ -289,3 +289,67 @@ class TestPathAccessors:
     def test_ai_result_path_for_step(self, tmp_path: Path) -> None:
         ctx = _make_context(tmp_path)
         assert ctx.ai_result_path(2) == ctx.test_dir / "step-02-ai.json"
+
+
+# ---------------------------------------------------------------------------
+# Per-case report (write_case_report) + result.html replay links
+# ---------------------------------------------------------------------------
+
+
+class TestWriteCaseReport:
+    def _case(self, **over: object) -> dict:
+        case = {
+            "id": "ZZ-30",
+            "title": "Trigger FS with 3 coins",
+            "bridge_result": "pass",
+            "ai_result": "pass",
+            "final_verdict": "green",
+            "error": None,
+            "step_ids": ["step-02", "step-07"],
+        }
+        case.update(over)
+        return case
+
+    def test_writes_case_file_named_by_id(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="run-1")
+        out = ctx.write_case_report(self._case())
+        assert out == ctx.test_dir / "case-ZZ-30.html"
+        assert out.exists()
+
+    def test_sanitises_unsafe_id_in_filename(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="run-1")
+        out = ctx.write_case_report(self._case(id="ZZ/30 x"))
+        assert out.name == "case-ZZ_30_x.html"
+
+    def test_report_links_to_replay_and_video(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="run-1")
+        html = ctx.write_case_report(self._case()).read_text(encoding="utf-8")
+        assert 'href="replay.html"' in html
+        assert 'href="session.webm"' in html
+
+    def test_report_shows_verdict_and_steps(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="run-1")
+        html = ctx.write_case_report(self._case()).read_text(encoding="utf-8")
+        assert ">Pass<" in html          # verdict label for green
+        assert "ZZ-30" in html
+        assert "step-02" in html and "step-07" in html
+
+    def test_report_renders_error_banner(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="run-1")
+        html = ctx.write_case_report(
+            self._case(final_verdict="red", bridge_result="fail", error="boom <x>")
+        ).read_text(encoding="utf-8")
+        assert ">Fail<" in html
+        assert "boom &lt;x&gt;" in html  # html-escaped
+
+
+class TestResultHtmlReplayLink:
+    def test_result_html_links_to_replay(self, tmp_path: Path) -> None:
+        ctx = _make_context(tmp_path, test_id="ZZ-01")
+        ctx.write_result(
+            "pass", "pass", "green",
+            extra={"test_id": "ZZ-01", "title": "t", "duration_ms": 100},
+        )
+        html = (ctx.test_dir / "result.html").read_text(encoding="utf-8")
+        assert 'href="replay.html"' in html
+        assert 'href="session.webm"' in html

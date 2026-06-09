@@ -51,6 +51,10 @@ SUPPORTED_ACTIONS: frozenset[str] = frozenset(
         "press_key",
         "click",
         "wait_ms",
+        "bo_paytable_ensure",
+        "bo_paytable_select",
+        "bo_paytable_update",
+        "bo_paytable_reset",
     }
 )
 
@@ -138,8 +142,17 @@ def _require_field(
 # ---------------------------------------------------------------------------
 
 
-def _validate_assert_ai(ai: Any, path: str, collector: _Collector) -> None:
-    """Validate the assert.ai sub-block."""
+def _validate_assert_ai(
+    ai: Any,
+    path: str,
+    collector: _Collector,
+    run_case_ids: set[str] | None = None,
+) -> None:
+    """Validate the assert.ai sub-block.
+
+    In a run (``run_case_ids`` not None) an AI assert may bind its output to cases
+    with ``expected_by_case`` instead of a single ``expected`` block.
+    """
     if not isinstance(ai, dict):
         collector.add(path, f"assert.ai must be a mapping, got {type(ai).__name__}")
         return
@@ -156,9 +169,50 @@ def _validate_assert_ai(ai: Any, path: str, collector: _Collector) -> None:
         )
         return
 
+    # In a run, `expected_by_case` substitutes for the single `expected` block.
+    uses_expected_by_case = run_case_ids is not None and "expected_by_case" in ai
+
     # Validate mode-specific required fields
     for req_field in AI_MODE_REQUIRED_FIELDS[mode]:
+        if req_field == "expected" and uses_expected_by_case:
+            continue
         _require_field(ai, req_field, path, collector)
+
+    # expected_by_case: runs-only, partitions the AI output across cases
+    if "expected_by_case" in ai:
+        if run_case_ids is None:
+            collector.add(
+                f"{path}.expected_by_case",
+                "'expected_by_case' is only valid in a run's assert (use 'expected' in tests)",
+            )
+        else:
+            _validate_expected_by_case(ai, path, collector, run_case_ids)
+
+
+def _validate_expected_by_case(
+    ai: dict, path: str, collector: _Collector, run_case_ids: set[str]
+) -> None:
+    """Validate ``assert.ai.expected_by_case`` — a {case_id: expected subset} mapping."""
+    ebc = ai["expected_by_case"]
+    p = f"{path}.expected_by_case"
+    if not isinstance(ebc, dict):
+        collector.add(p, f"expected_by_case must be a mapping, got {type(ebc).__name__}")
+        return
+    if "expected" in ai:
+        collector.add(p, "use either 'expected' or 'expected_by_case', not both")
+    if not ebc:
+        collector.add(p, "expected_by_case must not be empty")
+    output_schema = ai.get("output_schema")
+    schema_keys = set(output_schema) if isinstance(output_schema, dict) else set()
+    for cid, subset in ebc.items():
+        if cid not in run_case_ids:
+            collector.add(f"{p}.{cid}", f"case '{cid}' is not declared in this run's cases")
+        if not isinstance(subset, dict):
+            collector.add(f"{p}.{cid}", f"expected subset must be a mapping, got {type(subset).__name__}")
+            continue
+        for key in subset:
+            if schema_keys and key not in schema_keys:
+                collector.add(f"{p}.{cid}.{key}", f"field '{key}' is not in output_schema")
 
 
 def _validate_assert_bridge(bridge: Any, path: str, collector: _Collector) -> None:
@@ -171,7 +225,12 @@ def _validate_assert_bridge(bridge: Any, path: str, collector: _Collector) -> No
     _require_field(bridge, "expected", path, collector)
 
 
-def _validate_assert_block(assert_block: Any, path: str, collector: _Collector) -> None:
+def _validate_assert_block(
+    assert_block: Any,
+    path: str,
+    collector: _Collector,
+    run_case_ids: set[str] | None = None,
+) -> None:
     """Validate a top-level assert block (requires at least bridge or ai)."""
     if not isinstance(assert_block, dict):
         collector.add(path, f"assert block must be a mapping, got {type(assert_block).__name__}")
@@ -188,11 +247,20 @@ def _validate_assert_block(assert_block: Any, path: str, collector: _Collector) 
         _validate_assert_bridge(assert_block["bridge"], f"{path}.bridge", collector)
 
     if has_ai:
-        _validate_assert_ai(assert_block["ai"], f"{path}.ai", collector)
+        _validate_assert_ai(assert_block["ai"], f"{path}.ai", collector, run_case_ids)
 
 
-def _validate_step(step: Any, path: str, collector: _Collector) -> None:
-    """Validate a single step object."""
+def _validate_step(
+    step: Any,
+    path: str,
+    collector: _Collector,
+    run_case_ids: set[str] | None = None,
+) -> None:
+    """Validate a single step object.
+
+    When ``run_case_ids`` is provided the step belongs to a run, so an optional
+    ``case`` tag (str | list[str]) is validated against the run's declared cases.
+    """
     if not isinstance(step, dict):
         collector.add(path, f"step must be a mapping, got {type(step).__name__}")
         return
@@ -200,10 +268,14 @@ def _validate_step(step: Any, path: str, collector: _Collector) -> None:
     # id is required
     _require_field(step, "id", path, collector, str)
 
+    # Optional 'save': capture this step's result into a named variable.
+    if "save" in step and not isinstance(step["save"], str):
+        collector.add(f"{path}.save", "expected str (variable name) for 'save'")
+
     # Every step must have an action (except pure assert steps which may omit it)
     if "assert" in step:
         # This step is an assertion step; action field is optional
-        _validate_assert_block(step["assert"], f"{path}.assert", collector)
+        _validate_assert_block(step["assert"], f"{path}.assert", collector, run_case_ids)
     else:
         if not _require_field(step, "action", path, collector, str):
             return
@@ -219,6 +291,36 @@ def _validate_step(step: Any, path: str, collector: _Collector) -> None:
         # assert steps embedded in action steps (action: assert with assert block)
         if action == "assert" and "assert" not in step:
             collector.add(path, "step with action 'assert' must have an 'assert' block")
+
+    # Run-only: validate the 'case' tag binding this step to test cases.
+    if run_case_ids is not None and "case" in step:
+        _validate_step_case_tag(step, path, collector, run_case_ids)
+
+
+def _validate_step_case_tag(
+    step: dict, path: str, collector: _Collector, run_case_ids: set[str]
+) -> None:
+    """Validate a run step's ``case`` tag (a case id or list of ids)."""
+    case_val = step["case"]
+    if isinstance(case_val, str):
+        case_list = [case_val]
+    elif isinstance(case_val, list) and all(isinstance(c, str) for c in case_val):
+        case_list = case_val
+    else:
+        collector.add(f"{path}.case", "'case' must be a string or list of strings")
+        return
+
+    # Only assert-bearing steps may carry a case tag.
+    is_assert = "assert" in step or step.get("action") in ("assert", "bridge_assert")
+    if not is_assert:
+        collector.add(
+            f"{path}.case",
+            "'case' may only tag assert steps (an 'assert' block, or action 'assert'/'bridge_assert')",
+        )
+
+    for cid in case_list:
+        if cid not in run_case_ids:
+            collector.add(f"{path}.case", f"case '{cid}' is not declared in this run's cases")
 
 
 def _validate_steps_list(steps: Any, path: str, collector: _Collector) -> None:
@@ -272,6 +374,177 @@ def _validate_test(test: Any, path: str, collector: _Collector) -> None:
 
     if "teardown" in test:
         _validate_step_sequence(test["teardown"], "teardown", f"{path}.teardown", collector)
+
+
+# ---------------------------------------------------------------------------
+# Run validator (one execution, many test-case verdicts)
+# ---------------------------------------------------------------------------
+
+
+def _validate_case(case: Any, path: str, collector: _Collector) -> str | None:
+    """Validate a single case definition; return its id (or None if invalid)."""
+    if not isinstance(case, dict):
+        collector.add(path, f"case must be a mapping, got {type(case).__name__}")
+        return None
+    _require_field(case, "id", path, collector, str)
+    _require_field(case, "title", path, collector, str)
+    if "description" in case and not isinstance(case["description"], str):
+        collector.add(f"{path}.description", "expected str")
+    return case["id"] if isinstance(case.get("id"), str) else None
+
+
+def _step_covered_cases(step: Any, case_ids: set[str]) -> set[str]:
+    """Return the declared case ids a step asserts (via ``case`` or ``expected_by_case``)."""
+    covered: set[str] = set()
+    if not isinstance(step, dict):
+        return covered
+    tag = step.get("case")
+    if isinstance(tag, str):
+        covered.add(tag)
+    elif isinstance(tag, list):
+        covered.update(c for c in tag if isinstance(c, str))
+    assert_block = step.get("assert")
+    if isinstance(assert_block, dict):
+        ai = assert_block.get("ai")
+        if isinstance(ai, dict) and isinstance(ai.get("expected_by_case"), dict):
+            covered.update(c for c in ai["expected_by_case"] if isinstance(c, str))
+    return covered & case_ids
+
+
+def _validate_run(run: Any, path: str, collector: _Collector, all_ids: list[str]) -> None:
+    """Validate a single run (one execution producing verdicts for many cases).
+
+    ``all_ids`` accumulates the run id and every case id for suite-wide uniqueness.
+    """
+    if not isinstance(run, dict):
+        collector.add(path, f"run must be a mapping, got {type(run).__name__}")
+        return
+
+    _require_field(run, "id", path, collector, str)
+    if "title" in run and not isinstance(run["title"], str):
+        collector.add(f"{path}.title", "expected str")
+
+    # cases (required, non-empty)
+    case_ids: set[str] = set()
+    declared_case_ids: list[str] = []
+    if _require_field(run, "cases", path, collector, list):
+        if len(run["cases"]) == 0:
+            collector.add(f"{path}.cases", "run 'cases' must not be empty")
+        for idx, case in enumerate(run["cases"]):
+            cid = _validate_case(case, f"{path}.cases[{idx}]", collector)
+            if cid is not None:
+                case_ids.add(cid)
+                declared_case_ids.append(cid)
+        _check_duplicates(declared_case_ids, "case id", f"{path}.cases", collector)
+
+    # Run id + case ids join the suite-wide namespace (must not collide with tests).
+    if isinstance(run.get("id"), str):
+        all_ids.append(run["id"])
+    all_ids.extend(declared_case_ids)
+
+    # Optional run-level setup / teardown
+    if "setup" in run:
+        _validate_step_sequence(run["setup"], "setup", f"{path}.setup", collector)
+    if "teardown" in run:
+        _validate_step_sequence(run["teardown"], "teardown", f"{path}.teardown", collector)
+
+    # steps (required, non-empty) — validated with run case context
+    if not _require_field(run, "steps", path, collector, list):
+        return
+    if len(run["steps"]) == 0:
+        collector.add(f"{path}.steps", "run 'steps' must not be empty")
+        return
+
+    covered: set[str] = set()
+    for idx, step in enumerate(run["steps"]):
+        _validate_step(step, f"{path}.steps[{idx}]", collector, run_case_ids=case_ids)
+        covered |= _step_covered_cases(step, case_ids)
+
+    # Every declared case must be asserted by at least one step.
+    for cid in declared_case_ids:
+        if cid not in covered:
+            collector.add(
+                path,
+                f"case '{cid}' has no asserts tagged to it (use a step 'case:' or 'expected_by_case')",
+            )
+
+
+def _validate_runs_list(
+    runs: Any, path: str, collector: _Collector, all_ids: list[str]
+) -> None:
+    """Validate a 'runs' list (top-level or inside a group)."""
+    if not isinstance(runs, list):
+        collector.add(path, f"'runs' must be a list, got {type(runs).__name__}")
+        return
+    if len(runs) == 0:
+        collector.add(path, "'runs' list must not be empty")
+        return
+    for idx, run in enumerate(runs):
+        _validate_run(run, f"{path}[{idx}]", collector, all_ids)
+
+
+# ---------------------------------------------------------------------------
+# Group validator
+# ---------------------------------------------------------------------------
+
+
+def _validate_group(
+    group: Any, path: str, collector: _Collector, all_ids: list[str]
+) -> None:
+    """Validate a single test group (a paytable/setup-sharing cluster of tests/runs).
+
+    A group runs its optional ``setup`` once before, and ``teardown`` once after,
+    the tests/runs it contains. ``all_ids`` accumulates every test id, run id and
+    case id seen for suite-wide duplicate detection.
+    """
+    if not isinstance(group, dict):
+        collector.add(path, f"group must be a mapping, got {type(group).__name__}")
+        return
+
+    _require_field(group, "id", path, collector, str)
+
+    if "title" in group and not isinstance(group["title"], str):
+        collector.add(f"{path}.title", "expected str")
+
+    # Optional group-level setup / teardown (same shape as suite/test sequences)
+    if "setup" in group:
+        _validate_step_sequence(group["setup"], "setup", f"{path}.setup", collector)
+    if "teardown" in group:
+        _validate_step_sequence(group["teardown"], "teardown", f"{path}.teardown", collector)
+
+    has_tests = "tests" in group
+    has_runs = "runs" in group
+    if not has_tests and not has_runs:
+        collector.add(path, "group must define 'tests' and/or 'runs'")
+        return
+
+    if has_tests:
+        if not isinstance(group["tests"], list):
+            collector.add(f"{path}.tests", f"group 'tests' must be a list, got {type(group['tests']).__name__}")
+        elif len(group["tests"]) == 0:
+            collector.add(f"{path}.tests", "group 'tests' must not be empty")
+        else:
+            for idx, test in enumerate(group["tests"]):
+                _validate_test(test, f"{path}.tests[{idx}]", collector)
+                if isinstance(test, dict) and isinstance(test.get("id"), str):
+                    all_ids.append(test["id"])
+
+    if has_runs:
+        _validate_runs_list(group["runs"], f"{path}.runs", collector, all_ids)
+
+
+def _check_duplicates(
+    ids: list[str], label: str, path: str, collector: _Collector
+) -> None:
+    """Flag any id that appears more than once (test ids must be unique to be runnable via --test)."""
+    seen: set[str] = set()
+    dups: set[str] = set()
+    for i in ids:
+        if i in seen:
+            dups.add(i)
+        seen.add(i)
+    for d in sorted(dups):
+        collector.add(path, f"duplicate {label}: {d!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -337,16 +610,50 @@ def validate_suite(doc: Any, source: str = "<unknown>") -> list[ValidationError]
     if "teardown" in doc:
         _validate_step_sequence(doc["teardown"], "teardown", "$.teardown", collector)
 
-    # Tests array is required
-    if not _require_field(doc, "tests", "$", collector, list):
+    # A suite must define at least one of 'tests', 'groups', or 'runs'.
+    has_tests = "tests" in doc
+    has_groups = "groups" in doc
+    has_runs = "runs" in doc
+    if not has_tests and not has_groups and not has_runs:
+        collector.add("$", "suite must define 'tests', 'groups', and/or 'runs'")
         return collector.errors()
 
-    tests = doc["tests"]
-    if len(tests) == 0:
-        collector.add("$.tests", "'tests' list must not be empty")
-        return collector.errors()
+    # Shared id namespace: test ids + run ids + case ids must all be unique
+    # suite-wide so --test can select one unambiguously.
+    all_ids: list[str] = []
 
-    for idx, test in enumerate(tests):
-        _validate_test(test, f"$.tests[{idx}]", collector)
+    # Top-level (ungrouped) tests
+    if has_tests:
+        if not isinstance(doc["tests"], list):
+            collector.add("$.tests", f"'tests' must be a list, got {type(doc['tests']).__name__}")
+        elif len(doc["tests"]) == 0 and not has_groups and not has_runs:
+            collector.add("$.tests", "'tests' list must not be empty")
+        else:
+            for idx, test in enumerate(doc["tests"]):
+                _validate_test(test, f"$.tests[{idx}]", collector)
+                if isinstance(test, dict) and isinstance(test.get("id"), str):
+                    all_ids.append(test["id"])
+
+    # Top-level (ungrouped) runs
+    if has_runs:
+        _validate_runs_list(doc["runs"], "$.runs", collector, all_ids)
+
+    # Groups (each with optional setup/teardown around its tests/runs)
+    if has_groups:
+        groups = doc["groups"]
+        if not isinstance(groups, list):
+            collector.add("$.groups", f"'groups' must be a list, got {type(groups).__name__}")
+        elif len(groups) == 0:
+            collector.add("$.groups", "'groups' list must not be empty")
+        else:
+            group_ids: list[str] = []
+            for idx, group in enumerate(groups):
+                _validate_group(group, f"$.groups[{idx}]", collector, all_ids)
+                if isinstance(group, dict) and isinstance(group.get("id"), str):
+                    group_ids.append(group["id"])
+            _check_duplicates(group_ids, "group id", "$.groups", collector)
+
+    # Every test/run/case id must be unique suite-wide.
+    _check_duplicates(all_ids, "id", "$", collector)
 
     return collector.errors()

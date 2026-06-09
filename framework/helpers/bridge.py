@@ -193,6 +193,19 @@ class BridgeHelper:
         """Emulate user pressing space during the big win celebration popup."""
         await self._eval(f"{_BRIDGE}.skipBigWin()")
 
+    async def skip_total_win(self) -> None:
+        """Emulate user acknowledging the Hold&Spin end-of-bonus total-win popup.
+
+        Self-asserting (like ``skip_big_win``): throws ``skipTotalWin() not
+        applicable: no_totalwin`` if no total-win popup is showing. Fires the
+        popup's skip handler fire-and-forget, so the caller should immediately
+        ``wait_for_idle()`` to land back in the base game. This is what actually
+        runs the bonus-result → transitionToBaseGame handler — a plain
+        ``dismiss_popups`` hides the popup without resuming the game. See the
+        required post-bonus sequence in bridge-api.md §4.
+        """
+        await self._eval(f"{_BRIDGE}.skipTotalWin()")
+
     async def open_dev_mode(self) -> None:
         """Emulate user clicking the dev mode button (requires env=dev in URL)."""
         await self._eval(f"{_BRIDGE}.openDevMode()")
@@ -443,3 +456,29 @@ class BridgeHelper:
         """
         await self.spin()
         await self.wait_for_idle(timeout_ms=timeout_ms)
+
+    async def wait_for_ui_settle(self, delay_ms: int = 1000) -> None:
+        """
+        Wait for UI animations to catch up after game state reaches IDLE.
+
+        The bridge state transitions to IDLE before UI animations complete
+        (win payline highlight, spin button restore, etc.). This helper
+        calls the game's waitForUISettle() which delays by *delay_ms*.
+        """
+        await self.page.evaluate(f"() => {_BRIDGE}.waitForUISettle({delay_ms})")
+
+    async def wait_for_total_win_popup(self, timeout_ms: int | None = None) -> None:
+        """Wait for the Hold&Spin end-of-bonus total-win popup to appear.
+
+        When a Hold&Spin bonus ends the game parks in ``result`` showing a
+        total-win popup and will NOT reach idle until it is acknowledged — so
+        ``wait_for_idle()`` alone DEADLOCKS against the popup. The correct
+        post-bonus sequence is ``wait_for_total_win_popup()`` →
+        ``skip_total_win()`` → ``wait_for_idle()`` (bridge-api.md §4). The bridge
+        polls ``isShowingTotalWin`` and rejects with the current AppState on
+        timeout (bridge default 60s).
+        """
+        if timeout_ms is not None:
+            await self._eval(f"{_BRIDGE}.waitForTotalWinPopup({timeout_ms})")
+        else:
+            await self._eval(f"{_BRIDGE}.waitForTotalWinPopup()")

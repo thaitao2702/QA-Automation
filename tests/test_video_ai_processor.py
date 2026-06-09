@@ -25,6 +25,7 @@ from framework.runner.video_ai_processor import (
     VideoAiProcessor,
     _group_key,
     _extract_video_tests,
+    _iter_suite_runs,
     _resolve_trim_timestamps,
     _trim_video,
 )
@@ -373,3 +374,124 @@ class TestUpdateAiResult:
         VideoAiProcessor._update_ai_result(record, "fail", "Gemini down")
 
         assert record.final_verdict == "red"
+
+
+# ---------------------------------------------------------------------------
+# Runs — per-case AI attribution (one AI call, many case verdicts)
+# ---------------------------------------------------------------------------
+
+
+def _gemini_ok(data: dict, in_tok: int = 100, out_tok: int = 10) -> MagicMock:
+    g = MagicMock()
+    g.create_cached_context = MagicMock(return_value="ctx")
+    g.release_context = MagicMock(return_value=None)
+    g.model = "gemini-3-flash-preview"
+    g.cost_for_tokens = MagicMock(return_value=0.001)
+    result = MagicMock()
+    result.success = True
+    result.data = data
+    result.reason = None
+    result.input_tokens = in_tok
+    result.output_tokens = out_tok
+    result.raw_text = json.dumps(data)
+    g.analyse_video = MagicMock(return_value=result)
+    return g
+
+
+class TestMatchExpected:
+    def test_all_match(self) -> None:
+        ok, mm = VideoAiProcessor._match_expected({"a": 1, "b": True}, {"a": 1})
+        assert ok is True and mm == []
+
+    def test_mismatch_listed(self) -> None:
+        ok, mm = VideoAiProcessor._match_expected({"a": 2}, {"a": 1})
+        assert ok is False and "a" in mm[0]
+
+
+class TestIterSuiteRuns:
+    def test_top_level_and_group_runs(self) -> None:
+        suite = {
+            "runs": [{"id": "r1"}],
+            "groups": [{"id": "g", "runs": [{"id": "r2"}]}],
+        }
+        ids = {r["id"] for r in _iter_suite_runs(suite)}
+        assert ids == {"r1", "r2"}
+
+
+class TestProcessRunPerCase:
+    def _make_run_record(self, tmp_path: Path):
+        from framework.runner.suite_runner import RunRecord
+        from framework.helpers.artifact import ArtifactContext
+
+        run_doc = {
+            "id": "fs-run",
+            "title": "bonus",
+            "cases": [
+                {"id": "ZZ-32", "title": "coins held"},
+                {"id": "ZZ-33", "title": "only non-coin spin"},
+            ],
+            "steps": [
+                {
+                    "id": "step-05",
+                    "assert": {
+                        "ai": {
+                            "mode": "video",
+                            "video_trim": {"from_step": "step-01", "to_step": "step-04"},
+                            "prompt": "report",
+                            "output_schema": {
+                                "coins_held": {"type": "boolean"},
+                                "only_noncoin_cells_spin": {"type": "boolean"},
+                            },
+                            "expected_by_case": {
+                                "ZZ-32": {"coins_held": True},
+                                "ZZ-33": {"only_noncoin_cells_spin": True},
+                            },
+                        }
+                    },
+                },
+            ],
+        }
+        rec = RunRecord(run_doc, 0)
+        artifact = ArtifactContext(run_dir=tmp_path, test_id="fs-run")
+        artifact.test_dir.mkdir(parents=True, exist_ok=True)
+        artifact.timeline_path.write_text(json.dumps({"steps": [], "video_event_offset": 0.0}), encoding="utf-8")
+        rec.artifact = artifact
+        # both cases start pending (they have a video assert)
+        for cv in rec.cases.values():
+            cv.ai_result = "pending"
+            cv.ai_pending_steps = [run_doc["steps"][0]]
+        return rec
+
+    def test_one_call_partitions_across_cases(self, tmp_path: Path) -> None:
+        rec = self._make_run_record(tmp_path)
+        # AI says coins held (ZZ-32 ✓) but non-coin-only is False (ZZ-33 ✗)
+        gemini = _gemini_ok({"coins_held": True, "only_noncoin_cells_spin": False})
+        proc = VideoAiProcessor("zeus", {"runs": [rec.run_doc]}, tmp_path, gemini_video_helper=gemini)
+
+        with patch("framework.runner.video_ai_processor._trim_video", return_value=True), \
+             patch("framework.runner.video_ai_processor._resolve_trim_timestamps", return_value=(0.0, 1.0)):
+            asyncio.run(proc._process_run(rec))
+
+        assert rec.cases["ZZ-32"].ai_result == "pass"
+        assert rec.cases["ZZ-33"].ai_result == "fail"
+        # ONE Gemini call served both cases
+        assert gemini.analyse_video.call_count == 1
+        # final verdicts recomputed (bridge skip + ai pass -> green; + ai fail -> orange)
+        assert rec.cases["ZZ-32"].final_verdict == "green"
+        assert rec.cases["ZZ-33"].final_verdict == "orange"
+        # result.json written with kind=run
+        data = json.loads((rec.artifact.test_dir / "result.json").read_text())
+        assert data["kind"] == "run"
+        assert {c["id"] for c in data["cases"]} == {"ZZ-32", "ZZ-33"}
+
+    def test_missing_timeline_fails_all_cases(self, tmp_path: Path) -> None:
+        rec = self._make_run_record(tmp_path)
+        rec.artifact.timeline_path.unlink()  # remove timeline
+        gemini = _gemini_ok({"coins_held": True})
+        proc = VideoAiProcessor("zeus", {"runs": [rec.run_doc]}, tmp_path, gemini_video_helper=gemini)
+
+        asyncio.run(proc._process_run(rec))
+
+        assert rec.cases["ZZ-32"].ai_result == "fail"
+        assert rec.cases["ZZ-33"].ai_result == "fail"
+        gemini.analyse_video.assert_not_called()

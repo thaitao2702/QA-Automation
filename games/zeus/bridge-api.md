@@ -65,7 +65,43 @@ LoadingScene.onStartClicked()
 
 ---
 
-### 2.1 `spin()`
+### 1.2 `dismissPopups()`
+
+Dismisses all currently visible popups. Returns an array of dismissed popup names.
+
+| | |
+|-|-|
+| **Returns** | `string[]` — names of popups that were dismissed |
+| **Popup names** | `'promo'`, `'notification'`, `'buyBonus'`, `'auto'`, `'settings'`, `'bigWin'`, `'totalWin'`, `'devMode'`, `'disconnect'` |
+
+Covers all popup types that can block the game:
+- **Promo popups** — new promo started, promo receive, promo countdown, promo list
+- **Notification** — error messages, session timeout, disconnect alerts
+- **Buy bonus / Auto** — purchase and auto-spin configuration popups
+- **Settings / Info / History** — tabbed settings popup
+- **Big win / Total win** — celebration popups
+- **Dev mode** — developer tools panel
+- **Disconnect** — connection lost overlay
+
+---
+
+### 1.3 `isPopupVisible()`
+
+Returns `true` if any popup is currently blocking the game.
+
+| | |
+|-|-|
+| **Returns** | `boolean` |
+
+Useful for test assertions and waiting:
+```javascript
+// Wait for all popups to close before proceeding
+await page.waitForFunction(() => !window.__gameTestBridge.isPopupVisible());
+```
+
+---
+
+### 2.1 `spin(timeoutMs?: number)`
 
 Emulates user touching the spin button.
 
@@ -73,6 +109,7 @@ Emulates user touching the spin button.
 |-|-|
 | **Emulates** | Touch `nodeSpinButton` (TOUCH_START → TOUCH_END) |
 | **Precondition** | AppState = `idle`, no promo popup showing |
+| **Parameter** | `timeoutMs` — max wait for IDLE (default `60000`). Increase for spins that trigger bonus rounds. |
 | **Returns** | `Promise<void>` — resolves when state returns to `idle` |
 
 **Code path:**
@@ -84,7 +121,18 @@ GameplayScene.onSpinClicked()
         → SlotGameApplication.spin(request) [SignalR 'bet' event]
 ```
 
-**State flow:** `idle` → `betting` → (server response) → `result` → (handler chain: spin animation → win lines → big win → transitions) → `idle`
+**State flow (normal spin):** `idle` → `betting` → (server response) → `result` → (handler chain: spin animation → win lines → big win → transitions) → `idle`
+
+**State flow (triggers Hold&Spin bonus):** `idle` → `betting` → `result` → `START_BONUS` → `IN_BONUS` → ... re-spins ... → `END_BONUS` → `idle` (can take 30-50s)
+
+**Timeout guidance:**
+```javascript
+// Normal spin — default 60s is sufficient
+await bridge.spin();
+
+// Spin that may trigger Hold&Spin bonus — use longer timeout
+await bridge.spin(120_000);
+```
 
 > **Source:** `GameplayScene.ts:868-908`, `GameController.ts:451-468`
 
@@ -200,22 +248,59 @@ Emulates user selecting a package in the auto popup and clicking confirm.
 | | |
 |-|-|
 | **Emulates** | Select package → click confirm in `AutoPopup` |
-| **Precondition** | AppState = `idle` |
+| **Precondition** | AppState = `idle`, auto popup open (call `openAutoPopup()` first) |
 | **Packages** | `10, 20, 30, 50, Infinity` |
 
 **Code path:**
 ```
-AutoPopup.onConfirmClicked()
-  → GameplayScene.onConfirmAuto(count, stopByWin)
-    → GameController.onConfirmAuto(count, stopByWin)
-      → GameLogic.numberAutoSpin = count
-      → GameLogic.isStopByWin = stopByWin
-      → if (count > 0 && idle) → spin()  [immediately triggers first spin]
+AutoPopup.onConfirmClicked()       [bridge sets packageAuto & toggleStopByWin, then calls this]
+  → close()                        [hides popup, fires telemetry]
+  → onConfirm(count, stopByWin)
+    → GameplayScene.onConfirmAuto(count, stopByWin)
+      → GameController.onConfirmAuto(count, stopByWin)
+        → GameLogic.numberAutoSpin = count
+        → GameLogic.isStopByWin = stopByWin
+        → if (count > 0 && idle) → spin()  [immediately triggers first spin]
 ```
 
 **Stop-by-win behavior:** If enabled AND a spin has payout > 0 → auto-spin stops.
 
-> **Source:** `GameplayScene.ts:993-998`, `GameController.ts:503-511`, `AutoPopup.ts:79-83`
+**Auto-spin state flow — no IDLE between spins:**
+```
+IDLE → spin() → BETTING → (server) → RESULT → maybeHandleNextSpin()
+                                                  ↓
+                                        numberAutoSpin > 0?
+                                       YES → spin() → BETTING → RESULT → ... (loop)
+                                       NO  → transitionTo(IDLE)  ← only once, at the end
+```
+
+The game **does not transition to IDLE between auto-spins**. The cycle is `BETTING → RESULT → BETTING → RESULT → ...` until `numberAutoSpin` reaches 0. `waitForIdle()` resolves only after the **last** auto-spin completes.
+
+**Observing individual spin results during auto-spin:**
+
+Use event collection to capture each spin result:
+```javascript
+await page.evaluate(() => window.__gameTestBridge.startEventCollection());
+await page.evaluate(() => {
+    window.__gameTestBridge.openAutoPopup();
+    window.__gameTestBridge.startAutoSpin(10, false);
+});
+await page.evaluate(() => window.__gameTestBridge.waitForIdle());
+const events = await page.evaluate(() => window.__gameTestBridge.drainEvents());
+
+// Each spin produces a spin_result event
+const spinResults = events.filter(e => e.type === 'spin_result');
+// spinResults.length === 10
+// Each: { reels, paylines, payout, stake, typeWin, freeSpinInfo, coinPositions }
+
+// Balance changes are also captured per-spin
+const balanceChanges = events.filter(e => e.type === 'balance_change');
+// Each: { balance, previous }
+
+await page.evaluate(() => window.__gameTestBridge.stopEventCollection());
+```
+
+> **Source:** `GameplayScene.ts:993-998`, `GameController.ts:427-437,503-511`, `AutoPopup.ts:79-83`
 
 ---
 
@@ -354,19 +439,29 @@ GameplayScene.onSettingClicked()
 
 ### 2.14 `openInfo()`
 
-Emulates user clicking the info/paytable button.
+Emulates user clicking the info/paytable button. Opens the SettingPopup on the **paytable/game info tab** (page index 2).
 
 | | |
 |-|-|
 | **Emulates** | Click `infoButton` |
+| **Note** | Settings, History, Info, and Game Limit share the same `SettingPopup` — this opens it to the paytable tab |
 
 **Code path:**
 ```
 GameplayScene.onInfoClicked()
-  → SettingPopup.open(TypePopup.GENERAL_INFO)
+  → openSettingPopup(TypePopup.GENERAL_INFO)
+    → SettingPopup.open(GENERAL_INFO)   [_indexPage = 2 → paytable tab]
 ```
 
-> **Source:** `GameplayScene.ts:1080-1085`
+**SettingPopup tabs:**
+| TypePopup | Page | Content |
+|-----------|------|---------|
+| `SETTING` | 0 | Turbo, sound, music toggles |
+| `HISTORY` | 1 | Bet history list |
+| `GENERAL_INFO` | 2 | **Paytable / game rules** |
+| `GAME_LIMIT` | 3 | Game limits |
+
+> **Source:** `GameplayScene.ts:1090-1094`, `SettingPopup.ts:129-157`
 
 ---
 
@@ -477,24 +572,53 @@ GameplayScene.onDevModeClicked()
 
 ### 2.20 `setDevModeResult(grid: number[][])`
 
-Emulates user configuring a 3x3 result grid in DevModeComponent.
+Injects a 3x3 reel result for the **next** spin via DevModeManager. Can be called multiple times to queue results for consecutive spins (e.g. auto-spin).
 
 | | |
 |-|-|
 | **Emulates** | Configure 3x3 grid in dev mode panel and save |
-| **Parameter** | `grid` — 3x3 array of symbol IDs (see Section 7) |
+| **Parameter** | `grid` — 3×3 array of symbol IDs, indexed as `grid[col][row]`. Column 0 = left reel, row 0 = top. (See Section 7 for symbol IDs) |
+| **Precondition** | URL contains `env=dev` |
 
 **Code path:**
 ```
-DevModeManager.add(key, reelData)
-  → stored in DevModeManager.data Map
-  → next spin: SlotGameApplication.spin() checks DevMode data
-    → if exists: returns injected result instead of server call
+DevModeManager.add()
+  → creates entry "{roundId}-0" with random BetResult
+DevModeManager.edit(key, reelData)
+  → overwrites grid with your values
+  → handleEditData(key):
+    ├─ if coins >= 3 → setDataBonus() → generates full bonus sequence
+    │   entries: "{roundId}-0" (START_BONUS), "{roundId}-1" (first re-spin), ...
+    └─ else → calculatePayLines() + calculateBalance() (normal spin)
 ```
 
-**Note:** This is the only action that "fakes" state, but it uses the same mechanism real developers use through the DevMode UI.
+**Consumption:** Each `spin()` call takes the **first** Map entry, uses it as the result (no server call, 300ms fake delay), then deletes it. When the Map is empty, spins fall back to real server calls.
 
-> **Source:** `DevModeManager.ts`, `SlotGameApplication.ts:186-194`
+**Queuing multiple results for auto-spin:**
+```javascript
+// Each call adds a separate round to the queue
+bridge.setDevModeResult([[1,3,4], [5,6,7], [8,1,3]]);    // spin 1: normal
+bridge.setDevModeResult([[9,9,9], [1,1,1], [3,3,3]]);    // spin 2: all wilds
+bridge.setDevModeResult([[13,13,1],[13,1,1], [3,3,3]]);   // spin 3: 4 coins → bonus
+// bonus re-spin entries ("3-1", "3-2", ...) are auto-generated
+
+// Map order: "1-0", "2-0", "3-0", "3-1", "3-2", ...
+// Auto-spin consumes entries in order
+bridge.openAutoPopup();
+bridge.startAutoSpin(10, false);
+// Spins 1-3 (+ bonus re-spins) use dev mode results
+// Remaining spins hit the real server
+```
+
+**Bonus auto-generation:** When the injected grid has 3+ COIN symbols (id 13), `handleEditData()` automatically generates the full Hold&Spin bonus sequence:
+- Entry `"{roundId}-0"` → `START_BONUS` (the triggering spin)
+- Entry `"{roundId}-1"` → first re-spin (non-coin positions cleared to -1)
+- Entry `"{roundId}-2+"` → recursive re-spins with 70% chance of adding a new coin each time
+- Bonus ends when `freespins = 0` or grid reaches 9 coins
+
+**Balance note:** DevMode results are client-side only — balance changes are calculated locally. Balance may desync when returning to real server spins.
+
+> **Source:** `DevModeManager.ts`, `SlotGameApplication.ts:186-198`
 
 ---
 
@@ -524,7 +648,7 @@ GameplayScene.onTrophyButtonClicked()
 | Method | Returns | Source |
 |--------|---------|--------|
 | `getAppState()` | `string` — `'idle'`, `'betting'`, `'result'`, `'error'`, etc. | `ApplicationStateManager.getCurrentState()` |
-| `getSpinState()` | `string` — `'NORMAL'`, `'START_BONUS'`, `'IN_BONUS'`, `'END_BONUS'`, `'PROMO'` | `GameLogic.spinResult.state` |
+| `getSpinState()` | `string` — `'NORMAL'`, `'START_BONUS'`, `'IN_BONUS'`, `'END_BONUS'`, `'START_GAME'`, `'PROMO'` (enum name, not numeric) | `SpinState[spinResult.state]` |
 | `getBalance()` | `number` — current player balance | `GameLogic.balance` |
 | `getBetAmount()` | `number` — current bet amount | `GameLogic.currentBetAmount` |
 | `getBetIndex()` | `number` — index into denominations array | `GameLogic.currentIndexBet` |
@@ -590,7 +714,16 @@ These return what the player actually sees on screen — the formatted label tex
 |--------|----------|
 | `waitForState(state: string, timeoutMs?: number)` | Resolves when AppState matches the target. Rejects on timeout (default 30s). Uses `ApplicationStateManager.onStateChanged` callback. |
 | `waitForIdle(timeoutMs?: number)` | Shorthand for `waitForState('idle')`. Most commonly used after actions. |
-| `waitForSpinComplete(timeoutMs?: number)` | Calls `spin()` then `waitForIdle()`. Single call for the most common test operation. |
+| `waitForSpinComplete(timeoutMs?: number)` | Calls `spin(timeoutMs)`. Default 60s. Single call for the most common test operation. |
+
+**Important — `waitForIdle()` during auto-spin and Hold&Spin:**
+
+The game does **not** transition to IDLE between consecutive spins in these modes:
+- **Auto-spin:** `BETTING → RESULT → BETTING → RESULT → ...` — IDLE only after the last spin
+- **Hold&Spin bonus:** `BETTING → RESULT → BETTING → RESULT → ...` — IDLE only after bonus ends
+- **Free spins (pending):** same continuous loop
+
+`waitForIdle()` will resolve only when the entire sequence completes. To observe individual spins within these modes, use event collection (Section 5).
 
 ---
 

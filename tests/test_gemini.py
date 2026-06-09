@@ -41,6 +41,7 @@ def _make_mock_response(
     mock_resp.text = text
     mock_resp.usage_metadata.prompt_token_count = input_tokens
     mock_resp.usage_metadata.candidates_token_count = output_tokens
+    mock_resp.usage_metadata.thoughts_token_count = 0
     return mock_resp
 
 
@@ -309,7 +310,7 @@ class TestCostCalculation:
     def test_cost_is_nonzero_after_real_token_counts(self, tmp_path: Path) -> None:
         helper = _make_helper()
         img = _make_image_path(tmp_path)
-        # Gemini 2.5 Flash pricing: ~$0.075 per 1M input tokens (<=200k context)
+        # Gemini 2.5 Flash pricing: $0.30 per 1M input, $2.50 per 1M output
         mock_resp = _make_mock_response('{"x": 1}', input_tokens=100_000, output_tokens=1_000)
 
         with patch.object(helper, "_call_api", return_value=mock_resp):

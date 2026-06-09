@@ -1,8 +1,0 @@
-{
-  "bridge_result": "pass",
-  "ai_result": "fail",
-  "final_verdict": "orange",
-  "error": "AI image assert failed: turbo_off_second: got False, expected True",
-  "duration_ms": 2423,
-  "timed_out": false
-}

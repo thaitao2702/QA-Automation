@@ -1,0 +1,25 @@
+{
+  "passed": false,
+  "data": {
+    "multiple_spins_occurred": false,
+    "win_displayed_after_spin": false,
+    "auto_stopped_after_win": false,
+    "returned_to_idle": false,
+    "confidence": "high"
+  },
+  "expected": {
+    "multiple_spins_occurred": true,
+    "win_displayed_after_spin": true,
+    "auto_stopped_after_win": true,
+    "returned_to_idle": true,
+    "confidence": "high"
+  },
+  "mismatches": [
+    "multiple_spins_occurred: got False, expected True",
+    "win_displayed_after_spin: got False, expected True",
+    "auto_stopped_after_win: got False, expected True",
+    "returned_to_idle: got False, expected True"
+  ],
+  "input_tokens": 4189,
+  "output_tokens": 613
+}

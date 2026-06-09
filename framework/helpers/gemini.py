@@ -28,9 +28,9 @@ GeminiResult
 
 Pricing
 -------
-Gemini 2.5 Flash (as of 2026):
-  Input:  $0.075 per 1M tokens  (context <= 200k tokens)
-  Output: $0.30  per 1M tokens
+Gemini 2.5 Flash:
+  Input:  $0.30 per 1M tokens
+  Output: $2.50 per 1M tokens
 """
 
 from __future__ import annotations
@@ -44,13 +44,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Gemini 2.5 Flash pricing (USD per token)
-# ---------------------------------------------------------------------------
-_INPUT_COST_PER_TOKEN: float = 0.075 / 1_000_000   # $0.075 / 1M
-_OUTPUT_COST_PER_TOKEN: float = 0.30 / 1_000_000   # $0.30  / 1M
+from framework.helpers.gemini_pricing import get_pricing
 
-_MODEL_NAME = "gemini-2.5-flash"
+_DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 @dataclass
@@ -82,17 +78,29 @@ def _strip_markdown_fence(text: str) -> str:
 
 class GeminiImageHelper:
     """
-    Gemini 2.5 Flash image analysis with structured output and cost tracking.
+    Gemini image analysis with structured output and cost tracking.
 
     Parameters
     ----------
     api_key:
-        Gemini API key. Use the ``GEMINI_API_KEY`` environment variable in
-        production; pass directly only in tests.
+        Gemini API key.
+    model:
+        Model identifier (e.g., ``'gemini-2.5-flash'``). Defaults to env
+        ``GEMINI_IMAGE_MODEL`` or ``'gemini-2.5-flash'``.
     """
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str | None = None,
+        reference: Any | None = None,
+    ) -> None:
         self.api_key = api_key
+        self._model = model or _DEFAULT_MODEL
+        self._pricing = get_pricing(self._model)
+        # SymbolReference (framework.helpers.symbol_reference) — its labeled images
+        # are prepended to EVERY request so the model has ground-truth context.
+        self._reference = reference
         self._total_input_tokens: int = 0
         self._total_output_tokens: int = 0
         self._call_count: int = 0
@@ -118,10 +126,10 @@ class GeminiImageHelper:
 
     @property
     def estimated_cost_usd(self) -> float:
-        """Estimated USD cost based on accumulated token counts."""
+        """Estimated USD cost based on accumulated token counts and model pricing."""
         return (
-            self._total_input_tokens * _INPUT_COST_PER_TOKEN
-            + self._total_output_tokens * _OUTPUT_COST_PER_TOKEN
+            self._total_input_tokens * self._pricing.input_per_token
+            + self._total_output_tokens * self._pricing.output_per_token
         )
 
     # ------------------------------------------------------------------
@@ -182,6 +190,7 @@ class GeminiImageHelper:
             }
         """
         return {
+            "model": self._model,
             "gemini_image_calls": self._call_count,
             "gemini_input_tokens": self._total_input_tokens,
             "gemini_output_tokens": self._total_output_tokens,
@@ -223,18 +232,55 @@ class GeminiImageHelper:
             for p in extra_images:
                 images.append(Image.open(p))
 
+        # Build an example response so the model returns flat values, not schema objects
+        example = {}
+        for key, spec in output_schema.items():
+            typ = spec.get("type", "string") if isinstance(spec, dict) else "string"
+            if typ == "boolean":
+                example[key] = True
+            elif typ == "string":
+                enum = spec.get("enum") if isinstance(spec, dict) else None
+                example[key] = enum[0] if enum else "example"
+            elif typ in ("number", "integer"):
+                example[key] = 0
+            else:
+                example[key] = None
+
         schema_hint = (
             f"Respond ONLY with valid JSON matching this schema: {json.dumps(output_schema)}. "
-            f"Do not include any other text."
+            f"Do not include any other text. "
+            f"Example response format: {json.dumps(example)}"
         )
         full_prompt = f"{prompt}\n\n{schema_hint}"
 
-        contents: list[Any] = list(images) + [full_prompt]
+        # Prepend the symbol/UI reference pack (labeled ground-truth images) so the
+        # model can identify what it sees in the screenshot(s) that follow.
+        contents: list[Any] = self._reference_parts(Image)
+        contents.extend(images)
+        contents.append(full_prompt)
         response = client.models.generate_content(
-            model=_MODEL_NAME,
+            model=self._model,
             contents=contents,
         )
         return response
+
+    def _reference_parts(self, image_cls: Any) -> list[Any]:
+        """Build [header, label, image, ...] reference parts; [] if no reference."""
+        ref = self._reference
+        if ref is None or getattr(ref, "is_empty", True):
+            return []
+        parts: list[Any] = [ref.header]
+        for img_path, label in ref.items:
+            try:
+                parts.append(label)
+                parts.append(image_cls.open(img_path))
+            except Exception as exc:  # noqa: BLE001 — a bad ref image must not break the assert
+                logger.warning("Skipping reference asset %s: %s", img_path, exc)
+                parts.pop()  # drop the label we just appended
+        parts.append(
+            "--- END REFERENCE ASSETS. Now analyse the screenshot(s) below against the task. ---"
+        )
+        return parts
 
     # ------------------------------------------------------------------
     # Response parsing
@@ -248,7 +294,9 @@ class GeminiImageHelper:
         try:
             usage = response.usage_metadata
             input_tokens = getattr(usage, "prompt_token_count", 0) or 0
-            output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            candidates_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            thoughts_tokens = getattr(usage, "thoughts_token_count", 0) or 0
+            output_tokens = candidates_tokens + thoughts_tokens
         except AttributeError:
             logger.debug("Token usage metadata not available in response")
 

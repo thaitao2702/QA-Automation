@@ -22,9 +22,13 @@ VideoResult
 
 Pricing
 -------
-Gemini 2.5 Flash:
-  Input:  $0.075 per 1M tokens (context <= 200k)
-  Output: $0.30  per 1M tokens
+Gemini 3 Flash Preview (used for video — lower token/frame cost):
+  Input:  $0.50 per 1M tokens
+  Output: $3.00 per 1M tokens
+
+Video token cost per frame (1 frame/second):
+  Gemini 3 Flash: 70 tokens/frame (low/medium resolution)
+  Gemini 2.5 Flash: 256 tokens/frame (medium resolution)
 """
 
 from __future__ import annotations
@@ -39,14 +43,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Pricing (USD per token)
-# ---------------------------------------------------------------------------
-_INPUT_COST_PER_TOKEN: float = 0.075 / 1_000_000
-_OUTPUT_COST_PER_TOKEN: float = 0.30 / 1_000_000
+from framework.helpers.gemini_pricing import get_pricing
 
-_MODEL_NAME = "gemini-2.5-flash"
-_MEDIA_RESOLUTION = "MEDIUM"
+_DEFAULT_MODEL = "gemini-3-flash-preview"
+_DEFAULT_RESOLUTION = "MEDIUM"
 
 
 @dataclass
@@ -83,8 +83,20 @@ class GeminiVideoHelper:
         Gemini API key.
     """
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str | None = None,
+        resolution: str | None = None,
+        reference: Any | None = None,
+    ) -> None:
         self.api_key = api_key
+        self._model = model or _DEFAULT_MODEL
+        self._resolution = (resolution or _DEFAULT_RESOLUTION).upper()
+        self._pricing = get_pricing(self._model)
+        # SymbolReference (framework.helpers.symbol_reference) — its labeled images
+        # are prepended to EVERY request so the model has ground-truth context.
+        self._reference = reference
         self._total_input_tokens: int = 0
         self._total_output_tokens: int = 0
         self._video_call_count: int = 0
@@ -104,8 +116,20 @@ class GeminiVideoHelper:
     @property
     def estimated_cost_usd(self) -> float:
         return (
-            self._total_input_tokens * _INPUT_COST_PER_TOKEN
-            + self._total_output_tokens * _OUTPUT_COST_PER_TOKEN
+            self._total_input_tokens * self._pricing.input_per_token
+            + self._total_output_tokens * self._pricing.output_per_token
+        )
+
+    @property
+    def model(self) -> str:
+        """The video model id (e.g. ``gemini-3-flash-preview``)."""
+        return self._model
+
+    def cost_for_tokens(self, input_tokens: int, output_tokens: int) -> float:
+        """USD cost of a single call with the given token counts (same pricing as the cumulative estimate)."""
+        return (
+            input_tokens * self._pricing.input_per_token
+            + output_tokens * self._pricing.output_per_token
         )
 
     # ------------------------------------------------------------------
@@ -175,6 +199,8 @@ class GeminiVideoHelper:
     def cost_summary(self) -> dict[str, Any]:
         """Return a cost summary dict compatible with ``summary.json``."""
         return {
+            "model": self._model,
+            "resolution": self._resolution,
             "gemini_video_calls": self._video_call_count,
             "gemini_input_tokens": self._total_input_tokens,
             "gemini_output_tokens": self._total_output_tokens,
@@ -225,18 +251,36 @@ class GeminiVideoHelper:
         video_file = self._upload_and_wait(client, video_path)
 
         # Build contents: video + optional ref images + prompt
+        # Build an example response so the model returns flat values, not schema objects
+        example = {}
+        for key, spec in output_schema.items():
+            typ = spec.get("type", "string") if isinstance(spec, dict) else "string"
+            if typ == "boolean":
+                example[key] = True
+            elif typ == "string":
+                enum = spec.get("enum") if isinstance(spec, dict) else None
+                example[key] = enum[0] if enum else "example"
+            elif typ in ("number", "integer"):
+                example[key] = 0
+            else:
+                example[key] = None
+
         schema_hint = (
             f"Respond ONLY with valid JSON matching this schema: {json.dumps(output_schema)}. "
-            f"Do not include any other text."
+            f"Do not include any other text. "
+            f"Example response format: {json.dumps(example)}"
         )
         full_prompt = f"{prompt}\n\n{schema_hint}"
 
-        contents: list[Any] = [video_file]
+        from PIL import Image
 
-        # Add reference images if provided
+        # Prepend the symbol/UI reference pack (labeled ground-truth images) BEFORE
+        # the video, so the model can identify what it sees in the video that follows.
+        contents: list[Any] = self._reference_parts(Image)
+        contents.append(video_file)
+
+        # Add per-call reference images if provided (e.g. comparison frames)
         if ref_images:
-            from PIL import Image
-
             for img_path in ref_images:
                 if img_path.exists():
                     contents.append(Image.open(img_path))
@@ -245,13 +289,31 @@ class GeminiVideoHelper:
 
         # Call Gemini with media resolution config
         response = client.models.generate_content(
-            model=_MODEL_NAME,
+            model=self._model,
             contents=contents,
             config=types.GenerateContentConfig(
-                media_resolution=resolution_map[_MEDIA_RESOLUTION],
+                media_resolution=resolution_map[self._resolution],
             ),
         )
         return response
+
+    def _reference_parts(self, image_cls: Any) -> list[Any]:
+        """Build [header, label, image, ...] reference parts; [] if no reference."""
+        ref = self._reference
+        if ref is None or getattr(ref, "is_empty", True):
+            return []
+        parts: list[Any] = [ref.header]
+        for img_path, label in ref.items:
+            try:
+                parts.append(label)
+                parts.append(image_cls.open(img_path))
+            except Exception as exc:  # noqa: BLE001 — a bad ref image must not break the assert
+                logger.warning("Skipping reference asset %s: %s", img_path, exc)
+                parts.pop()  # drop the label we just appended
+        parts.append(
+            "--- END REFERENCE ASSETS. Now analyse the VIDEO below against the task. ---"
+        )
+        return parts
 
     # ------------------------------------------------------------------
     # Response parsing
@@ -264,7 +326,9 @@ class GeminiVideoHelper:
         try:
             usage = response.usage_metadata
             input_tokens = getattr(usage, "prompt_token_count", 0) or 0
-            output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            candidates_tokens = getattr(usage, "candidates_token_count", 0) or 0
+            thoughts_tokens = getattr(usage, "thoughts_token_count", 0) or 0
+            output_tokens = candidates_tokens + thoughts_tokens
         except AttributeError:
             pass
 

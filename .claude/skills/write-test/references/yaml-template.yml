@@ -119,7 +119,7 @@ tests:
 #
 # 1. Only include approved tests (skipped tests excluded)
 # 2. Use exact bridge method names from bridge-api.md
-# 3. Use exact symbol/UI keys from symbols.yml
+# 3. Use exact symbol/UI keys from assets.yml
 # 4. Every test has its own setup and teardown blocks
 # 5. Steps use sequential IDs: step-01, step-02, step-03, ...
 # 6. Assertions: bridge-only, ai-only, or dual (both blocks)

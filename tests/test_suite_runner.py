@@ -37,12 +37,17 @@ import pytest
 import yaml
 
 from framework.runner.suite_runner import (
+    CaseVerdict,
+    RunRecord,
     SuiteRunner,
     TestRecord,
+    _attribute_step_to_cases,
     _check_stop_conditions,
     _compute_verdict,
+    _finalize_case_verdicts,
     _resolve_game_url,
     _run_steps,
+    _step_case_ids,
 )
 
 
@@ -931,3 +936,317 @@ class TestSuiteRunnerConstruction:
     def test_records_empty_initially(self, tmp_path: Path) -> None:
         runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
         assert runner._records == []
+
+
+# ---------------------------------------------------------------------------
+# runs: — one execution, many case verdicts
+# ---------------------------------------------------------------------------
+
+
+def _result(success: bool = True, ai_pending: bool = False, error: str | None = None):
+    from framework.runner.step_executor import StepResult
+
+    return StepResult(success=success, error=error, ai_pending=ai_pending)
+
+
+def _run_doc(cases: list[tuple[str, str]]) -> dict:
+    return {
+        "id": "run-01",
+        "title": "demo run",
+        "cases": [{"id": cid, "title": title} for cid, title in cases],
+        "steps": [],
+    }
+
+
+class TestStepCaseIds:
+    def test_string_tag(self) -> None:
+        assert _step_case_ids({"id": "s", "case": "ZZ-30"}) == ["ZZ-30"]
+
+    def test_list_tag(self) -> None:
+        assert _step_case_ids({"id": "s", "case": ["ZZ-32", "ZZ-33"]}) == ["ZZ-32", "ZZ-33"]
+
+    def test_expected_by_case_keys(self) -> None:
+        step = {"id": "s", "assert": {"ai": {"expected_by_case": {"ZZ-30": {}, "ZZ-35": {}}}}}
+        assert set(_step_case_ids(step)) == {"ZZ-30", "ZZ-35"}
+
+    def test_untagged_step(self) -> None:
+        assert _step_case_ids({"id": "s", "action": "bridge_action"}) == []
+
+
+class TestCaseVerdictAggregation:
+    def test_bridge_pass_is_green(self) -> None:
+        rec = RunRecord(_run_doc([("ZZ-30", "t")]), 0)
+        _attribute_step_to_cases(rec, {"id": "s1", "case": "ZZ-30"}, _result(success=True))
+        _finalize_case_verdicts(rec, None)
+        cv = rec.cases["ZZ-30"]
+        assert cv.bridge_result == "pass"
+        assert cv.ai_result == "skip"
+        assert cv.final_verdict == "green"
+
+    def test_bridge_fail_only_is_orange(self) -> None:
+        # bridge fail + ai skip -> orange (suspicious); red requires both to fail,
+        # matching the framework's existing _compute_verdict semantics.
+        rec = RunRecord(_run_doc([("ZZ-30", "t")]), 0)
+        _attribute_step_to_cases(rec, {"id": "s1", "case": "ZZ-30"}, _result(success=False, error="mismatch"))
+        _finalize_case_verdicts(rec, None)
+        cv = rec.cases["ZZ-30"]
+        assert cv.bridge_result == "fail"
+        assert cv.final_verdict == "orange"
+        assert cv.error == "mismatch"
+
+    def test_shared_assert_feeds_two_cases(self) -> None:
+        rec = RunRecord(_run_doc([("ZZ-32", "t"), ("ZZ-33", "t")]), 0)
+        _attribute_step_to_cases(rec, {"id": "s1", "case": ["ZZ-32", "ZZ-33"]}, _result(success=True))
+        _finalize_case_verdicts(rec, None)
+        assert rec.cases["ZZ-32"].final_verdict == "green"
+        assert rec.cases["ZZ-33"].final_verdict == "green"
+        assert rec.cases["ZZ-32"].step_ids == ["s1"]
+        assert rec.cases["ZZ-33"].step_ids == ["s1"]
+
+    def test_ai_step_marks_pending(self) -> None:
+        rec = RunRecord(_run_doc([("ZZ-35", "t")]), 0)
+        step = {"id": "s1", "case": "ZZ-35", "assert": {"ai": {"mode": "video"}}}
+        _attribute_step_to_cases(rec, step, _result(success=True, ai_pending=True))
+        _finalize_case_verdicts(rec, None)
+        cv = rec.cases["ZZ-35"]
+        assert cv.ai_result == "pending"
+        assert cv.final_verdict == "pending"
+        assert cv.ai_pending_steps == [step]
+
+    def test_case_with_no_assert_is_skip(self) -> None:
+        rec = RunRecord(_run_doc([("ZZ-30", "t")]), 0)
+        _finalize_case_verdicts(rec, None)
+        cv = rec.cases["ZZ-30"]
+        assert cv.bridge_result == "skip"
+        assert cv.final_verdict in ("skip", "green")  # skip+skip -> skip
+
+    def test_expected_by_case_only_attributes(self) -> None:
+        # An AI step with expected_by_case but no `case:` tag still binds to cases.
+        rec = RunRecord(_run_doc([("ZZ-30", "t"), ("ZZ-32", "t")]), 0)
+        step = {"id": "s1", "assert": {"ai": {"mode": "video", "expected_by_case": {"ZZ-30": {}, "ZZ-32": {}}}}}
+        _attribute_step_to_cases(rec, step, _result(success=True, ai_pending=True))
+        _finalize_case_verdicts(rec, None)
+        assert rec.cases["ZZ-30"].ai_result == "pending"
+        assert rec.cases["ZZ-32"].ai_result == "pending"
+
+    def test_untagged_failure_is_run_fatal(self) -> None:
+        rec = RunRecord(_run_doc([("ZZ-30", "t"), ("ZZ-32", "t")]), 0)
+        # a tagged assert passed...
+        _attribute_step_to_cases(rec, {"id": "s1", "case": "ZZ-30"}, _result(success=True))
+        # ...but a plain step failed → the run can't be trusted
+        _attribute_step_to_cases(rec, {"id": "s0", "action": "wait_for_state"}, _result(success=False, error="never idle"))
+        assert rec.untagged_failure is True
+        run_fatal = rec.untagged_first_error if rec.untagged_failure else None
+        _finalize_case_verdicts(rec, run_fatal)
+        assert rec.cases["ZZ-30"].final_verdict == "red"
+        assert rec.cases["ZZ-32"].final_verdict == "red"
+        assert "never idle" in (rec.cases["ZZ-30"].error or "")
+
+    def test_worst_verdict_rollup(self) -> None:
+        rec = RunRecord(_run_doc([("a", "t"), ("b", "t")]), 0)
+        rec.cases["a"].final_verdict = "green"
+        rec.cases["b"].final_verdict = "red"
+        assert rec.worst_verdict == "red"
+        assert rec.final_verdict == "red"
+
+    def test_test_id_compat_property(self) -> None:
+        rec = RunRecord(_run_doc([("a", "t")]), 0)
+        assert rec.test_id == "run-01"
+        assert rec.test_doc["id"] == "run-01"
+
+
+class TestBuildSummaryRunFlattening:
+    def test_run_flattens_to_per_case_entries(self, tmp_path: Path) -> None:
+        from framework.helpers.artifact import ArtifactContext
+
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        runner._suite_doc = {"suite": "S", "tests": []}
+
+        rec = RunRecord(_run_doc([("ZZ-30", "Trigger"), ("ZZ-32", "Held"), ("ZZ-33", "NonCoin")]), 0)
+        rec.artifact = ArtifactContext(run_dir=tmp_path / "run", test_id="run-01")
+        rec.duration_ms = 1234
+        rec.cases["ZZ-30"].bridge_result = "pass"; rec.cases["ZZ-30"].final_verdict = "green"
+        rec.cases["ZZ-32"].bridge_result = "pass"; rec.cases["ZZ-32"].final_verdict = "green"
+        rec.cases["ZZ-33"].bridge_result = "fail"; rec.cases["ZZ-33"].final_verdict = "red"
+        rec.cases["ZZ-33"].error = "coins moved"
+        runner._records = [rec]
+
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason=None, gemini_image=None, gemini_video=None
+        )
+
+        assert summary["total"] == 3
+        assert summary["counts"]["green"] == 2
+        assert summary["counts"]["red"] == 1
+        ids = {t["test_id"]: t for t in summary["tests"]}
+        assert set(ids) == {"ZZ-30", "ZZ-32", "ZZ-33"}
+        # all share the run's artifact dir and carry run_id
+        assert all(t["run_id"] == "run-01" for t in summary["tests"])
+        shared = {t["artifact_dir"] for t in summary["tests"]}
+        assert len(shared) == 1
+        assert ids["ZZ-33"]["error"] == "coins moved"
+        assert ids["ZZ-30"]["duration_ms"] == 1234
+
+    def test_mixed_tests_and_runs(self, tmp_path: Path) -> None:
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        runner._suite_doc = {"suite": "S", "tests": []}
+        test_rec = _make_record("T-01", verdict="green")
+        run_rec = RunRecord(_run_doc([("C-1", "t"), ("C-2", "t")]), 0)
+        run_rec.cases["C-1"].final_verdict = "green"
+        run_rec.cases["C-2"].final_verdict = "orange"
+        runner._records = [test_rec, run_rec]
+
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason=None, gemini_image=None, gemini_video=None
+        )
+        # 1 test + 2 cases = 3 summary entries
+        assert summary["total"] == 3
+        assert summary["counts"]["green"] == 2
+        assert summary["counts"]["orange"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Fail-fast on setup failure (_mark_skipped)
+# ---------------------------------------------------------------------------
+
+
+class TestMarkSkipped:
+    def test_skipped_test_is_red_no_artifact(self, tmp_path: Path) -> None:
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        doc = {"id": "ZZ-01", "title": "t", "steps": []}
+        rec = runner._mark_skipped(doc, 0, "group 'g' setup failed: boom", is_run=False)
+        assert isinstance(rec, TestRecord)
+        assert rec.final_verdict == "red"
+        assert rec.bridge_result == "fail"
+        assert rec.ai_result == "skip"
+        assert rec.error == "group 'g' setup failed: boom"
+        assert rec.artifact is None
+        assert runner._records == [rec]
+
+    def test_skipped_run_marks_all_cases_red(self, tmp_path: Path) -> None:
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        rec = runner._mark_skipped(
+            _run_doc([("C-1", "t"), ("C-2", "t")]), 0, "suite setup failed: boom", is_run=True
+        )
+        assert isinstance(rec, RunRecord)
+        assert rec.error == "suite setup failed: boom"
+        assert rec.artifact is None
+        assert all(cv.final_verdict == "red" for cv in rec.cases.values())
+        assert all(cv.error == "suite setup failed: boom" for cv in rec.cases.values())
+        assert rec.worst_verdict == "red"
+
+    def test_skipped_records_counted_red_in_summary(self, tmp_path: Path) -> None:
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        runner._suite_doc = {"suite": "S", "tests": []}
+        runner._mark_skipped({"id": "ZZ-01", "title": "t", "steps": []}, 0, "setup failed", is_run=False)
+        runner._mark_skipped(_run_doc([("C-1", "t"), ("C-2", "t")]), 1, "setup failed", is_run=True)
+
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason="suite setup failed", gemini_image=None, gemini_video=None
+        )
+        # 1 skipped test + 2 skipped run-cases = 3 red entries, artifact_dir None
+        assert summary["total"] == 3
+        assert summary["counts"]["red"] == 3
+        assert all(t["artifact_dir"] is None for t in summary["tests"])
+        assert summary["stop_reason"] == "suite setup failed"
+
+
+# ---------------------------------------------------------------------------
+# Per-case report files + summary navigation links
+# ---------------------------------------------------------------------------
+
+
+class TestReportLinks:
+    def _runner(self, tmp_path: Path, records: list) -> SuiteRunner:
+        runner = SuiteRunner("zeus", "suite-01", "dev", base_dir=tmp_path)
+        runner._suite_doc = _minimal_valid_suite()
+        runner._records = records
+        return runner
+
+    def test_single_test_report_and_replay_paths(self, tmp_path: Path) -> None:
+        from framework.helpers.artifact import ArtifactContext
+        rec = _make_record("ZZ-42", verdict="green")
+        rec.artifact = ArtifactContext(run_dir=tmp_path / "run", test_id="ZZ-42")
+        runner = self._runner(tmp_path, [rec])
+
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason=None,
+            gemini_image=None, gemini_video=None,
+        )
+        entry = summary["tests"][0]
+        assert entry["report"] == "ZZ-42/result.html"
+        assert entry["replay"] == "ZZ-42/replay.html"
+
+    def test_run_cases_get_per_case_report_paths(self, tmp_path: Path) -> None:
+        from framework.helpers.artifact import ArtifactContext
+        run_doc = {
+            "id": "run-1",
+            "title": "One bonus",
+            "cases": [{"id": "ZZ-30", "title": "c30"}, {"id": "ZZ-32", "title": "c32"}],
+        }
+        rr = RunRecord(run_doc, 0)
+        rr.artifact = ArtifactContext(run_dir=tmp_path / "run", test_id="run-1")
+        for cv in rr.cases.values():
+            cv.bridge_result = cv.ai_result = "pass"
+            cv.final_verdict = "green"
+        runner = self._runner(tmp_path, [rr])
+
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason=None,
+            gemini_image=None, gemini_video=None,
+        )
+        reports = {t["test_id"]: t["report"] for t in summary["tests"]}
+        assert reports["ZZ-30"] == "run-1/case-ZZ-30.html"
+        assert reports["ZZ-32"] == "run-1/case-ZZ-32.html"
+        assert all(t["replay"] == "run-1/replay.html" for t in summary["tests"])
+
+    def test_report_none_without_artifact(self, tmp_path: Path) -> None:
+        rec = _make_record("ZZ-01", verdict="green")  # no artifact set
+        runner = self._runner(tmp_path, [rec])
+        import time
+        summary = runner._build_summary(
+            suite_start=time.time(), stop_reason=None,
+            gemini_image=None, gemini_video=None,
+        )
+        assert summary["tests"][0]["report"] is None
+
+    def test_summary_html_links_id_to_report(self, tmp_path: Path) -> None:
+        from framework.runner.suite_runner import _write_summary_html
+        summary = {
+            "suite": "S", "game": "zeus", "env": "dev", "run_date": "2026-04-12",
+            "duration_ms": 1000, "total": 1, "counts": {"green": 1},
+            "stop_reason": None, "costs": {},
+            "tests": [{
+                "test_id": "ZZ-42", "title": "t", "bridge_result": "pass",
+                "ai_result": "pass", "final_verdict": "green", "duration_ms": 1000,
+                "error": None, "timed_out": False,
+                "report": "ZZ-42/result.html", "replay": "ZZ-42/replay.html",
+            }],
+        }
+        out = tmp_path / "summary.html"
+        _write_summary_html(summary, out)
+        html = out.read_text(encoding="utf-8")
+        assert '<a href="ZZ-42/result.html">ZZ-42</a>' in html
+
+    def test_summary_html_plain_id_without_report(self, tmp_path: Path) -> None:
+        from framework.runner.suite_runner import _write_summary_html
+        summary = {
+            "suite": "S", "game": "zeus", "env": "dev", "run_date": "2026-04-12",
+            "duration_ms": 1000, "total": 1, "counts": {"green": 1},
+            "stop_reason": None, "costs": {},
+            "tests": [{
+                "test_id": "ZZ-99", "title": "t", "bridge_result": "pass",
+                "ai_result": "pass", "final_verdict": "green", "duration_ms": 1000,
+                "error": None, "timed_out": False, "report": None, "replay": None,
+            }],
+        }
+        out = tmp_path / "summary.html"
+        _write_summary_html(summary, out)
+        html = out.read_text(encoding="utf-8")
+        assert "ZZ-99" in html
+        assert "<a href=" not in html  # no link when no report

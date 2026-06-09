@@ -9,30 +9,41 @@ description: |
   Executes a YAML test suite against a game environment via the
   suite_runner.py subprocess, then parses summary.json to present
   color-coded verdicts (green/orange/red/pending), dual-validator
-  sub-verdict decomposition, Gemini API cost accounting, per-failure
-  artifact paths, and pattern-matched diagnostic next steps.
+  sub-verdict decomposition, Gemini API cost accounting, and
+  per-failure artifact paths. When failures occur, it runs an
+  evidence-based investigation -- reading AI-response JSON, events/
+  timeline, screenshots, the suite YAML, and game-knowledge.md -- to
+  give grounded suggestions (wrong expectation, fragile step, infra,
+  or possible game bug).
 
   Use when the user says "run tests," "execute the suite," "run
   the test suite," "check if tests pass," "test [game] on [env],"
   or "run suite-01" -- even if they don't say "run-test."
-  Also triggers for "re-run the tests," "what failed?", and
-  "run it again on staging."
+  Also triggers for "re-run the tests," "what failed?", "why did it
+  fail?", "investigate the failure," "what's wrong with the test,"
+  and "run it again on staging."
 
   Do NOT use for writing or editing tests (use /write-test).
   Do NOT use for onboarding a game (use /init-knowledge).
   Do NOT use for updating knowledge (use /update-knowledge).
 ```
 
-**Usage:** `/run-test --game=<game-name> --suite=<suite-name> --env=<environment>`
+**Usage:** `/run-test --game=<game-name> --suite=<suite-name> --env=<environment> [--test=<id>] [--group=<id>]`
 
 **Flags:**
 - `--game` (required) — game identifier (e.g., `zeus`)
 - `--suite` (required) — suite filename stem (e.g., `suite-01-core`)
 - `--env` (required) — environment name (e.g., `dev`, `staging`, `prod`)
+- `--test` (optional) — run only the given test id(s), comma-separated (e.g. `ZZ-15` or `ZZ-15,ZZ-16`). The enclosing **group's setup/teardown still runs** around the selected test(s), so a test that depends on its group's paytable is set up correctly. IF the id is a **case** inside a `runs:` block (one execution → many cases), the whole run executes **once** and only that case's verdict is reported. Default: run all tests.
+- `--group` (optional) — run only the given group id(s), comma-separated (e.g. `freespin`). Default: run all groups.
 
 **Standalone CLI (no skill, identical execution):**
 ```bash
 python framework/runner/suite_runner.py --game zeus --suite suite-01-core --env dev
+# run a single test case (its group setup/teardown still runs):
+python framework/runner/suite_runner.py --game zeus --suite suite-06 --env dev --test ZZ-15
+# run a whole group:
+python framework/runner/suite_runner.py --game zeus --suite suite-06 --env dev --group freespin
 ```
 The skill adds result presentation only — execution is identical.
 
@@ -41,16 +52,16 @@ The skill adds result presentation only — execution is identical.
 ## Expert Vocabulary Payload
 
 **Test Execution & Orchestration:**
-suite runner (suite_runner.py), subprocess invocation, exit code handling, pre-flight validation, environment configuration (env.config.yml), test timeout (test_timeout_ms), suite timeout (suite_timeout_ms), stop conditions (fail_fast, max_consecutive_failures, max_total_failures)
+suite runner (suite_runner.py), subprocess invocation, exit code handling, pre-flight validation, per-environment configuration (env.config.{suffix}.yml), test timeout (test_timeout_ms), suite timeout (suite_timeout_ms), stop conditions (fail_fast, max_consecutive_failures, max_total_failures)
 
 **Result Processing & Verdicts:**
 summary.json, final_verdict, verdict classification (green/orange/red/pending/skip), dual-validator disagreement, sub-verdict decomposition (bridge_result + ai_result), cost accounting (gemini_image_calls, gemini_video_calls, estimated_cost_usd), stop_reason
 
 **Artifact Management:**
-results directory (`test-results/{game}/{env}/{date}-{suite}/`), per-test artifact directory, step screenshots (step-N.png), AI response JSON (step-N-ai.json), replay file (replay.html), relative path convention (always relative to qa-platform root)
+results directory (`test-results/{game}/{env}/{suite}-{DD-MM-YYYY-HHMM}/`), per-test artifact directory, step screenshots (step-N.png), AI response JSON (step-N-ai.json), replay file (replay.html), relative path convention (always relative to qa-platform root)
 
 **Failure Diagnosis:**
-failure pattern matching, bridge/AI verdict cross-referencing, timeout detection (timed_out flag), pending AI processing, bridge API regression, timing issue diagnosis
+evidence-based investigation, artifact correlation (result.json + step-N-ai.json + events.jsonl + screenshots), expectation-vs-documentation cross-check (game-knowledge.md), fragile-step detection, confidence-ranked hypotheses, possible game-bug flagging, failure pattern matching, bridge/AI verdict cross-referencing, timeout detection (timed_out flag), pending AI processing, timing issue diagnosis
 
 ---
 
@@ -81,10 +92,10 @@ failure pattern matching, bridge/AI verdict cross-referencing, timeout detection
 **Why it's dangerous:** QA sees outdated verdicts and makes decisions based on stale data.
 **Resolution:** Always read summary.json from the directory matching today's date and the current suite name. IF the user re-runs: read the new summary, not the cached one.
 
-### 6. Premature Diagnosis
-**Detection:** Stating the root cause of a failure ("the bridge API is broken") instead of pointing to specific artifacts for QA to investigate.
-**Why it's dangerous:** The skill doesn't have enough context to diagnose game logic bugs. Confident wrong diagnoses send QA down the wrong path.
-**Resolution:** Use the failure pattern table to suggest investigation steps and artifact locations. Never assert a root cause — suggest where to look.
+### 6. Ungrounded Diagnosis
+**Detection:** Stating a cause without having read the artifact that supports it, or asserting a definite **game bug** from indirect signals.
+**Why it's dangerous:** A confident wrong cause sends QA down the wrong path.
+**Resolution:** Diagnose only AFTER reading the evidence (Step 6). Cite the exact artifact each claim rests on and rank by confidence (high/medium/low). Test-side causes (wrong expectation, fragile step, mis-scoped AI prompt) may be stated when backed by cited evidence and paired with a concrete fix. A possible game bug must be presented as a flagged hypothesis for QA — never as fact.
 
 ---
 
@@ -92,26 +103,33 @@ failure pattern matching, bridge/AI verdict cross-referencing, timeout detection
 
 ### Step 1 — Validate Inputs (Pre-flight)
 
-1. Read `games/{game}/env.config.yml`.
-   - IF file does not exist: output `"games/{game}/env.config.yml not found. Run /init-knowledge --game={game} first."` and STOP.
-2. Check that `{env}` appears under the `environments:` key.
-   - IF environment not found: output `"Environment '{env}' not defined in env.config.yml. Available: {list}."` and STOP.
+1. Read the per-environment game config `games/{game}/env.config.{suffix}.yml`
+   (the suffix maps the env name: `dev`→`dev`, `staging`→`stg`, `prod`→`prod`,
+   `local`→`local`; so `--env staging` → `env.config.stg.yml`). Each file is
+   self-contained — it holds only that one environment's config (no
+   `environments:` wrapper).
+   - IF the file for `{env}` does not exist: output `"games/{game}/env.config.{suffix}.yml not found. Run /init-knowledge --game={game} first, or check the --env value."` and STOP.
 3. Check that `games/{game}/test-suites/{suite}.yml` exists.
    - IF missing: output `"Suite not found: games/{game}/test-suites/{suite}.yml. Run /write-test --game={game} --suite={suite} first."` and STOP.
 
 ### Step 2 — Invoke Suite Runner
 
-4. Run the subprocess:
+4. Run the subprocess (append `--test`/`--group` only if the user provided them):
    ```bash
-   python framework/runner/suite_runner.py --game {game} --suite {suite} --env {env}
+   python framework/runner/suite_runner.py --game {game} --suite {suite} --env {env} [--test {ids}] [--group {ids}]
    ```
+   When the user asks to run a single test case (e.g. "run ZZ-15 from suite-06"), pass
+   `--test ZZ-15`. The runner automatically also runs that test's group setup/teardown,
+   so the test's paytable/precondition is established — do NOT try to run the group
+   setup separately. IF `ZZ-15` is a **case** within a `runs:` entry (one execution, many
+   cases), the runner runs the entire run once and reports only that case's verdict.
 5. Display while running:
    ```
-   Running {suite} for {game} on {env}...
+   Running {suite} for {game} on {env}{ , test {ids} / group {ids} if filtered }...
    (this may take several minutes -- video AI processing runs after all tests complete)
    ```
 6. IF subprocess exits with non-zero code, classify the error:
-   - IF stderr contains `env.config.yml not found` or `Environment '...' not in env.config.yml`: report config error.
+   - IF stderr contains `Game config not found` or `env.config.` ... `not found`: report config error (missing per-environment game config file).
    - IF stderr contains `Suite file not found`: report missing suite file.
    - IF stderr contains `Suite validation failed`: show validation errors verbatim.
    - OTHERWISE: show full stdout and stderr:
@@ -128,13 +146,19 @@ failure pattern matching, bridge/AI verdict cross-referencing, timeout detection
 
 ### Step 3 — Read Summary
 
-8. After exit code 0, read `test-results/{game}/{env}/{YYYY-MM-DD}-{suite}/summary.json` (where `YYYY-MM-DD` is today's date).
-9. IF summary.json not found:
+8. After exit code 0, locate `summary.json`. The runner prints its path on the final log
+   lines as `Summary written: {path}` — use that. It is written **last** (after all video/
+   image AI), so its presence means the run actually finished. The run directory is
+   `test-results/{game}/{env}/{suite}-{DD-MM-YYYY-HHMM}/`, stamped with the run's **start
+   time** — do NOT reconstruct it from the date alone (you don't know the minute). Read the
+   path from the `Summary written:` line, or pick the newest `{suite}-*` directory under
+   `test-results/{game}/{env}/`. Refer to this directory's name as `{run_dir}` below.
+9. IF summary.json not found (no `Summary written:` line, and no matching directory):
    ```
-   Suite runner reported success but summary.json was not found at:
-     test-results/{game}/{env}/{today}-{suite}/summary.json
+   Suite runner reported success but summary.json was not found under:
+     test-results/{game}/{env}/{suite}-*
 
-   Check the runner logs above for details.
+   Check the runner logs above (look for the "Summary written:" line).
    ```
    STOP.
 
@@ -149,7 +173,7 @@ failure pattern matching, bridge/AI verdict cross-referencing, timeout detection
 --------------------------------------------------
 {N} green  {N} orange  {N} red  {N} pending
 Cost: {gemini_image_calls} image calls, {gemini_video_calls} video calls, ~${estimated_cost_usd:.4f}
-Artifacts: test-results/{game}/{env}/{date}-{suite}/
+Artifacts: test-results/{game}/{env}/{run_dir}/
 ```
 
 11. Per-test row format by verdict:
@@ -188,8 +212,8 @@ Artifacts: test-results/{game}/{env}/{date}-{suite}/
   error:  {error or "none"}
   duration: {duration_ms}ms{" (TIMED OUT)" if timed_out}
 
-  Screenshots: test-results/{game}/{env}/{date}-{suite}/{test_id}/
-  Replay:      test-results/{game}/{env}/{date}-{suite}/{test_id}/replay.html
+  Screenshots: test-results/{game}/{env}/{run_dir}/{test_id}/
+  Replay:      test-results/{game}/{env}/{run_dir}/{test_id}/replay.html
 
   Suggested next steps:
   {pattern-matched suggestion from table below}
@@ -205,36 +229,86 @@ Artifacts: test-results/{game}/{env}/{date}-{suite}/
 | timed_out=true | Test exceeded timeout. Check if game loaded (screenshot step-01.png). Consider increasing `test_timeout_ms` in suite YAML. |
 | ai_result=pending | Video AI processing still running or failed silently. Re-run suite or check `video_ai_processor` logs. |
 
-### Step 6 — Overall Next Steps
+### Step 6 — Investigate and Diagnose Failures (evidence-based)
 
-17. Output the appropriate summary based on verdict distribution:
+Run this whenever the finished run has **red or orange** results (skip if all green / pending-only). The goal: read the actual artifacts and context, then tell the user *what went wrong* and *what to do* — the expectation may be wrong, a step may be fragile, the AI assert may be mis-scoped, it may be infra, or it may be a real game bug. Stay **read-only** (anti-pattern #1): suggest changes via `/write-test`, never edit the suite here.
 
-- **All green:**
+17. **Bare review, then ask permission to investigate.** Steps 4–5 already gave the bare review (dashboard + per-failure artifact pointers) — that stands on its own. Do NOT start reading artifacts yet. First ask the user whether to investigate:
+
+    ```
+    {N} red / {N} orange need attention: {failing test ids}.
+    Want me to investigate? I'll read the AI responses, events, screenshots, the test YAML,
+    and game-knowledge.md to suggest what went wrong -- test expectation, fragile step, infra,
+    or possible game bug. [yes / no]
+    ```
+
+    **STOP and wait for the user.** Run items 18–20 ONLY if they agree. EXCEPTION: if the user already asked to investigate (e.g. invoked with "why did it fail?" / "investigate the failures"), skip the question and go straight to item 18. If they decline, skip to Step 7.
+
+18. **Gather evidence** for each red/orange test *before forming any opinion* — this is what makes the diagnosis grounded rather than a guess (anti-pattern #6). Read what's relevant:
+    - `{run_dir}/{test_id}/result.json` — bridge/ai/final verdict, `error`, `duration_ms`, `timed_out`.
+    - `{run_dir}/{test_id}/step-N-ai.json` — the AI's structured output (expected vs actual) and its reasoning, for AI disagreements.
+    - `{run_dir}/{test_id}/events.jsonl` + `timeline.json` — the bridge event stream and per-step timings (reveals races and what the bridge actually saw).
+    - `{run_dir}/{test_id}/step-N.jpg` — view the screenshot at the failing step (you are multimodal — actually look at it).
+    - The runner stdout/stderr captured in Step 2 — the live error/traceback.
+    - The failing test in `games/{game}/test-suites/{suite}.yml` — its steps, asserts, and expected values.
+    - `games/{game}/docs/final/game-knowledge.md` (+ `docs/final/paytable.md`, and the relevant `shared-mechanisms/*.md`) — to check whether the test's expected value matches the **documented** game behaviour.
+
+19. **Correlate the evidence into a most-likely cause.** Cross-reference bridge vs AI vs screenshot vs events vs documented behaviour, then map to a category and form a hypothesis with a confidence level:
+
+    | Signal | Likely cause | Suggested fix |
+    |--------|--------------|---------------|
+    | YAML expected value ≠ behaviour documented in game-knowledge.md (bridge=fail) | Wrong test expectation | Correct the assert's expected value to the documented/observed one. |
+    | bridge=pass, ai=fail; AI JSON judged the wrong phase or read a fast-changing value | Fragile AI assert (scope / transient read) | Scope the AI prompt to the right phase; move exact/transient values to a bridge assert. |
+    | bridge=fail, ai=pass; screenshot shows the correct end state | Early/fragile bridge read or timing race | Wait for the proper state (`wait_for_state` / `waitForIdle`) before asserting; avoid arbitrary sleeps. |
+    | timed_out=true; step-01 screenshot shows game not loaded/stuck | Load or timing failure | Confirm game load + bridge registration; raise `test_timeout_ms` only if the step is legitimately slow. |
+    | error has `<bridge not registered>` / `Unauthorized` / token | Infra, not test logic | Refresh the env/BO token; confirm `?bridge=1` reaches READY. |
+    | bridge=fail AND screenshot/events confirm wrong behaviour | Possible real game bug | Flag for QA with the evidence — present it, do not assert it. |
+    | ai_result=pending | Video AI didn't finish | Re-run, or check `video_ai_processor` logs; not a test failure per se. |
+
+    Common **fragile-step signatures** (usually "the step needs to change," not "the game is broken"): arbitrary sleeps instead of waiting for a state; asserting a value mid-animation that the bridge resolves; AI prompts not scoped to the bonus/phase; `script`/`cmd` shortcuts; popups not cleared in teardown.
+
+20. **Present the diagnosis** for each red/orange test, citing the exact artifact each claim rests on:
+
+    ```
+    === Investigation: {test_id} ({verdict}) ===
+    Evidence:
+      - result.json: bridge={bridge}, ai={ai}, error={error}
+      - step-N-ai.json: expected {X}, got {Y} -- "{AI reasoning excerpt}"   (if AI involved)
+      - screenshot step-N.jpg: {what you actually see at the failing step}
+      - game-knowledge.md: {documented behaviour for this mechanic, if relevant}
+
+    Most likely cause: {category} ({confidence: high|medium|low})
+      because: {the specific evidence above that supports it}
+
+    Suggested fix: {concrete action}.
+      - IF the expectation/step/prompt needs changing: say exactly what to change, then
+        /write-test --game={game} --suite={suite} --raw="{the change}".
+      - IF infra: state the infra fix (token / bridge / env).
+      - IF a possible game bug: flag for QA with the evidence -- do not assert it.
+
+    What would confirm it: {a check or re-run that would prove/disprove the hypothesis}
+    ```
+    Order failures most-actionable first. IF the evidence is genuinely insufficient, say so and name the artifact that would help — never invent a cause.
+
+### Step 7 — Closing
+
+21. Close out based on the run (red/orange next steps are owned by Step 6 — don't repeat generic advice here):
+
+- **All green** (Step 6 was skipped):
   ```
   All tests passed. Run /write-test --game={game} --suite=<next-suite> to continue coverage.
-  ```
-
-- **Any orange:**
-  ```
-  {N} test(s) need human review (orange verdict).
-  Review artifact screenshots and AI response JSON listed above.
-  If game behavior is correct, the AI prompt or expected output may need adjustment.
-  Update with /write-test --game={game} --suite={suite} --raw="..."
-  ```
-
-- **Any red:**
-  ```
-  {N} test(s) failed (red verdict).
-  Fix failures listed above before expanding test coverage.
-  Common causes: bridge method returning wrong value, game state bug, or test setup issue.
   ```
 
 - **Any pending:**
   ```
   {N} test(s) have pending AI results (video processing incomplete).
-  Re-run /run-test --game={game} --suite={suite} --env={env} after processing completes,
+  Re-run /run-test --game={game} --suite={suite} --env={env} after it completes,
   or check runner logs for video_ai_processor status.
   ```
+
+- **Red / orange:** the per-failure suggestions from Step 6 are the next steps. IF the user
+  declined the investigation, point them to the Step 5 artifact paths and offer to investigate
+  later — do not re-emit generic advice.
 
 ---
 
@@ -249,7 +323,7 @@ Artifacts: test-results/{game}/{env}/{date}-{suite}/
 The bridge API is broken. The re-spin count should be 3 but the bridge returned 0.
 This is a game bug.
 ```
-Premature diagnosis (anti-pattern #6). Asserts root cause without evidence. "The bridge API is broken" could be wrong — it might be a test setup issue, a timing race, or a legitimate game behavior change.
+Ungrounded diagnosis (anti-pattern #6). Asserts root cause without reading any artifact. "The bridge API is broken" could be wrong — it might be a test setup issue, a timing race, or a legitimate game behavior change. Step 6 fixes this by reading the evidence first, then suggesting a cause with cited support.
 
 **GOOD:**
 ```
@@ -259,8 +333,8 @@ Premature diagnosis (anti-pattern #6). Asserts root cause without evidence. "The
   error:  none
   duration: 4200ms
 
-  Screenshots: test-results/zeus/dev/2026-04-10-suite-01/ZZ-05/
-  Replay:      test-results/zeus/dev/2026-04-10-suite-01/ZZ-05/replay.html
+  Screenshots: test-results/zeus/dev/suite-01-10-04-2026-1432/ZZ-05/
+  Replay:      test-results/zeus/dev/suite-01-10-04-2026-1432/ZZ-05/replay.html
 
   Suggested next steps:
   Check bridge assertion: getHoldAndSpinState returned 0 respins. Review screenshot
@@ -315,8 +389,8 @@ Vague. No artifact paths. "Probably" is hedging. QA doesn't know where to look.
   error:  none
   duration: 6100ms
 
-  Screenshots: test-results/zeus/dev/2026-04-10-suite-02/ZZ-08/
-  Replay:      test-results/zeus/dev/2026-04-10-suite-02/ZZ-08/replay.html
+  Screenshots: test-results/zeus/dev/suite-02-10-04-2026-1505/ZZ-08/
+  Replay:      test-results/zeus/dev/suite-02-10-04-2026-1505/ZZ-08/replay.html
 
   Suggested next steps:
   AI disagreed with bridge. Review step-02-ai.json in artifact directory
@@ -337,6 +411,9 @@ Points to the exact JSON file with the AI's reasoning. Suggests two likely cause
 - "Test [game] on staging"
 - "Re-run the tests"
 - "What failed in the last run?"
+- "Why did [test] fail?"
+- "Investigate the failures and tell me what's wrong"
+- "Is this a test problem or a game bug?"
 - "Run it again on [env]"
 - "How many tests passed?"
 - "Show me the test results"

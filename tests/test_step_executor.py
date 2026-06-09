@@ -552,6 +552,327 @@ class TestAssertStep:
 
 
 # ---------------------------------------------------------------------------
+# save: capture step result into a variable
+# ---------------------------------------------------------------------------
+
+
+def _run(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
+class TestSaveVariable:
+    def test_save_stores_bridge_action_result(self, tmp_path: Path) -> None:
+        executor, bridge, *_ = _make_executor(
+            tmp_path, bridge_overrides={"get_last_payout": AsyncMock(return_value=12.5)}
+        )
+        step = {
+            "id": "step-05",
+            "action": "bridge_action",
+            "params": {"name": "getLastPayout"},
+            "save": "payout",
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+        assert executor.vars["payout"] == 12.5
+
+    def test_saved_value_recorded_in_timeline(self, tmp_path: Path) -> None:
+        executor, *_ = _make_executor(
+            tmp_path, bridge_overrides={"get_balance": AsyncMock(return_value=1000)}
+        )
+        step = {
+            "id": "step-01",
+            "action": "bridge_action",
+            "params": {"name": "getBalance"},
+            "save": "balance_before",
+        }
+        _run(executor.execute(step))
+        assert executor.timeline[0]["saved"] == {"balance_before": 1000}
+
+    def test_save_skipped_when_step_fails(self, tmp_path: Path) -> None:
+        executor, *_ = _make_executor(tmp_path)
+        # bridge_action with no name fails → nothing saved
+        step = {"id": "step-01", "action": "bridge_action", "params": {}, "save": "x"}
+        result = _run(executor.execute(step))
+        assert result.success is False
+        assert "x" not in executor.vars
+
+
+# ---------------------------------------------------------------------------
+# bridge_assert with a saved variable / args (deterministic, bridge-owned logic)
+# ---------------------------------------------------------------------------
+
+
+class TestBridgeAssertWithVar:
+    def test_single_var_ref_in_args(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["declaredVar"] = 7
+        bridge._eval = AsyncMock(return_value=True)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "testFreeSpin", "args": ["$declaredVar"], "expected": True},
+        }
+        result = _run(executor.execute(step))
+
+        assert result.success is True
+        expr = bridge._eval.call_args.args[0]
+        assert expr == "window.__gameTestBridge.testFreeSpin(7)"
+        assert result.bridge_assert_result["args"] == [7]
+
+    def test_var_ref_at_any_position(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["payout"] = 5
+        executor.vars["grid"] = [[1, 2], [3, 4]]
+        bridge._eval = AsyncMock(return_value=True)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {
+                "method": "fn",
+                "args": ["$grid", 0, "$payout", "zeus"],
+                "expected": True,
+            },
+        }
+        _run(executor.execute(step))
+
+        expr = bridge._eval.call_args.args[0]
+        assert expr == 'window.__gameTestBridge.fn([[1, 2], [3, 4]], 0, 5, "zeus")'
+
+    def test_fails_on_mismatch(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["declaredVar"] = 7
+        bridge._eval = AsyncMock(return_value=False)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "testFreeSpin", "args": ["$declaredVar"], "expected": True},
+        }
+        result = _run(executor.execute(step))
+
+        assert result.success is False
+        assert "bridge_assert failed" in (result.error or "")
+        assert "testFreeSpin" in (result.error or "")
+
+    def test_missing_saved_var_fails(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value=True)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "testFreeSpin", "args": ["$neverSaved"], "expected": True},
+        }
+        result = _run(executor.execute(step))
+
+        assert result.success is False
+        assert "neverSaved" in (result.error or "")
+        bridge._eval.assert_not_called()
+
+    def test_dollar_escape_is_literal(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value=True)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "fn", "args": ["$$5.00"], "expected": True},
+        }
+        _run(executor.execute(step))
+
+        expr = bridge._eval.call_args.args[0]
+        assert expr == 'window.__gameTestBridge.fn("$5.00")'
+
+    def test_args_must_be_list(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value=True)
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "fn", "args": "notalist", "expected": True},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is False
+        assert "must be a list" in (result.error or "")
+
+    def test_no_args_uses_python_wrapper(self, tmp_path: Path) -> None:
+        # Backward compat: args-less bridge_assert calls the Python wrapper, not _eval.
+        executor, bridge, _, _ = _make_executor(
+            tmp_path, bridge_overrides={"is_spin_enabled": AsyncMock(return_value=True)}
+        )
+        bridge._eval = AsyncMock(return_value="UNUSED")
+
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "isSpinEnabled", "expected": True},
+        }
+        result = _run(executor.execute(step))
+
+        assert result.success is True
+        bridge._eval.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# bridge_action with an explicit args list (direct JS call, savable result)
+# ---------------------------------------------------------------------------
+
+
+class TestBridgeActionArgs:
+    def test_args_calls_bridge_eval_directly(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value=None)
+        step = {
+            "id": "step-01",
+            "action": "bridge_action",
+            "params": {"name": "startEventCapture", "args": ["bonus"]},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+        expr = bridge._eval.call_args.args[0]
+        assert expr == 'window.__gameTestBridge.startEventCapture("bonus")'
+
+    def test_args_result_is_saved(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        events = [{"type": "spin_result", "data": {"spinState": "START_BONUS"}}]
+        bridge._eval = AsyncMock(return_value=events)
+        step = {
+            "id": "step-03",
+            "action": "bridge_action",
+            "params": {"name": "endEventCapture", "args": ["bonus"]},
+            "save": "events",
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+        assert executor.vars["events"] == events
+
+    def test_args_resolves_saved_var(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["events"] = [1, 2, 3]
+        bridge._eval = AsyncMock(return_value=[1, 2, 3])
+        step = {
+            "id": "step-04",
+            "action": "bridge_action",
+            "params": {"name": "filterBonusEvent", "args": ["$events"]},
+        }
+        _run(executor.execute(step))
+        expr = bridge._eval.call_args.args[0]
+        assert expr == "window.__gameTestBridge.filterBonusEvent([1, 2, 3])"
+
+    def test_args_object_arg_serialised(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value={"matched": True, "spins": 1})
+        step = {
+            "id": "step-02",
+            "action": "bridge_action",
+            "params": {"name": "spinUntilBonus", "args": [{"maxSpins": 60}]},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+        expr = bridge._eval.call_args.args[0]
+        assert expr == 'window.__gameTestBridge.spinUntilBonus({"maxSpins": 60})'
+
+    def test_args_missing_var_fails_without_eval(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value=None)
+        step = {
+            "id": "step-01",
+            "action": "bridge_action",
+            "params": {"name": "filterBonusEvent", "args": ["$nope"]},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is False
+        assert "nope" in (result.error or "")
+        bridge._eval.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# bridge_assert with a path into an object-returning bridge function
+# ---------------------------------------------------------------------------
+
+
+class TestBridgeAssertPath:
+    def test_path_extracts_field_pass(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["events"] = [{"type": "spin_result"}]
+        bridge._eval = AsyncMock(
+            return_value={"valid": True, "bonusFound": True, "respinCount": 4, "violations": []}
+        )
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {
+                "method": "verifyHoldSpinCoinsHeld",
+                "args": ["$events"],
+                "path": "valid",
+                "expected": True,
+            },
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+        assert result.bridge_assert_result["actual"] is True
+        assert result.bridge_assert_result["path"] == "valid"
+
+    def test_path_extracts_field_fail(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        executor.vars["events"] = []
+        bridge._eval = AsyncMock(return_value={"valid": False, "violations": [{"detail": "x"}]})
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {
+                "method": "verifyHoldSpinFreespinCountDown",
+                "args": ["$events"],
+                "path": "valid",
+                "expected": True,
+            },
+        }
+        result = _run(executor.execute(step))
+        assert result.success is False
+        assert "verifyHoldSpinFreespinCountDown" in (result.error or "")
+        assert ".valid" in (result.error or "")
+
+    def test_path_nested_and_list_index(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value={"a": {"b": [10, 20, 30]}})
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "fn", "args": [], "path": "a.b.1", "expected": 20},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+
+    def test_path_missing_key_fails_clearly(self, tmp_path: Path) -> None:
+        executor, bridge, _, _ = _make_executor(tmp_path)
+        bridge._eval = AsyncMock(return_value={"valid": True})
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "fn", "args": [], "path": "nope", "expected": True},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is False
+        assert "path 'nope'" in (result.error or "")
+
+    def test_path_works_with_python_wrapper(self, tmp_path: Path) -> None:
+        executor, *_ = _make_executor(
+            tmp_path,
+            bridge_overrides={"get_snapshot": AsyncMock(return_value={"isOnBonusGame": True})},
+        )
+        step = {
+            "id": "step-06",
+            "action": "bridge_assert",
+            "params": {"method": "getSnapshot", "path": "isOnBonusGame", "expected": True},
+        }
+        result = _run(executor.execute(step))
+        assert result.success is True
+
+
+# ---------------------------------------------------------------------------
 # camelCase to snake_case conversion
 # ---------------------------------------------------------------------------
 

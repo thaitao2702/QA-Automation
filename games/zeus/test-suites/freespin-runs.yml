@@ -1,0 +1,217 @@
+# Free Spin (Hold & Spin) — RUNS format demo for Zeus
+# Source: games/zeus/test-suites/freespin.yml (ZZ-30, ZZ-32, ZZ-33, ZZ-35)
+#
+# These four cases all share ONE execution: trigger the bonus with 3 coins under
+# the fs-trigger3-countdown paytable, play it out (counter 3->2->1->0, no new
+# coin), capture the bonus event stream, and run the three Hold & Spin invariant
+# analysers. They differ only in WHAT they assert. In freespin.yml they are four
+# separate tests that each replay the bonus (4x). Here they are ONE `runs:` entry
+# that plays the bonus once and emits a verdict per case:
+#
+#   ZZ-30  free spins == 3 at entry          (bridge, authoritative) + AI confirms 3 coins locked
+#   ZZ-32  coins held fixed                   (bridge analyser) + full-bonus AI
+#   ZZ-33  only non-coin cells re-spin        (bridge analyser) + full-bonus AI
+#   ZZ-35  counter counts down to 0           (bridge analyser) + full-bonus AI
+#
+# The three analysers are shared invariants → each is tagged to all four cases.
+# AI: ONE full-bonus clip is partitioned across all four cases via expected_by_case
+# (one model call, four case verdicts).
+#
+# NOTE on the entry counter: the game auto-spins the instant the bonus begins, so the
+# re-spin counter flickers 3 -> 2 within a few frames. The AI cannot reliably read that
+# transient value, so the exact entry count is owned by the bridge (step-02,
+# getFreeSpinsRemaining == 3) and the AI only confirms the durable facts (entered bonus,
+# 3 coins locked, coins held, non-coin cells spin, counter trends to 0).
+
+suite: "Free Spin (Hold & Spin) — runs demo (ZZ-30/32/33/35 in one bonus)"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 120000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: setup-01
+    description: "Ensure the automation paytable exists on the master game"
+    action: bo_paytable_ensure
+    params: { paytable_code: AutomationTest }
+  - id: setup-02
+    description: "Point this agent's game at the automation paytable"
+    action: bo_paytable_select
+    params: { paytable_code: AutomationTest }
+  - id: setup-03
+    description: "Open the game (URL + ?bridge=1 resolved from env config)"
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: setup-04
+    description: "Wait for the bridge to register at READY"
+    action: wait_for_state
+    params: { state: ready, timeout_ms: 30000 }
+  - id: setup-05
+    description: "Click Start and wait for the gameplay scene to be fully ready"
+    action: bridge_action
+    params: { name: startGame, args: [] }
+
+teardown:
+  - id: teardown-01
+    description: "Restore the agent's game to its default paytable"
+    action: bo_paytable_reset
+
+groups:
+
+  # =========================================================================
+  # GROUP: fs-trigger3-countdown — 3-coin trigger, respins count down (no new coin)
+  # =========================================================================
+  - id: fs-trigger3-countdown
+    title: "3-coin trigger, respins count down (no new coin)"
+    setup:
+      - id: gsetup-01
+        description: "Force 3-coin trigger + count-down respins for this group"
+        action: bo_paytable_update
+        params: { paytable_code: AutomationTest, paytable_ref: fs-trigger3-countdown }
+    teardown: []
+
+    runs:
+      - id: fs-3coin-countdown-run
+        title: "One bonus → ZZ-30, ZZ-32, ZZ-33, ZZ-35"
+        cases:
+          - { id: ZZ-30, title: "Trigger FS with 3 coins -> 3 free spins granted" }
+          - { id: ZZ-32, title: "Coins held fixed across all re-spins" }
+          - { id: ZZ-33, title: "Only non-coin cells re-spin (coin cells stay)" }
+          - { id: ZZ-35, title: "No new coin -> spin until FS runs out" }
+        setup:
+          - id: setup-01
+            description: "Start an independent capture buffer for this bonus"
+            action: bridge_action
+            params: { name: startEventCapture, args: ["bonus"] }
+        steps:
+          - id: step-01
+            description: "Spin until bonus; pauses at START_BONUS (counter = 3)"
+            action: bridge_action
+            params: { name: spinUntilBonus, args: [{ maxSpins: 5 }] }
+
+          # ZZ-30 — free spins remaining is 3 at the bonus-entry pause (race-safe).
+          # Read immediately after spinUntilBonus halts at START_BONUS — no fixed
+          # wait (a wait lets the bonus auto-play, so the counter would read < 3).
+          - id: step-02
+            description: "ZZ-30: at the bonus-entry pause, free spins remaining is 3"
+            case: ZZ-30
+            assert:
+              bridge:
+                method: getFreeSpinsRemaining
+                expected: 3
+
+          - id: step-03
+            description: "Let the bonus play out; wait for the end-of-bonus total-win popup"
+            action: bridge_action
+            params: { name: waitForTotalWinPopup, args: [] }
+          - id: step-04
+            description: "Return to base-game idle (counter has counted 3->2->1->0)"
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+          - id: step-05
+            description: "Stop the capture; keep the raw event stream"
+            action: bridge_action
+            params: { name: endEventCapture, args: ["bonus"] }
+            save: raw
+          - id: step-06
+            description: "Slice the START_BONUS..END_BONUS episode"
+            action: bridge_action
+            params: { name: filterBonusEvent, args: ["$raw"] }
+            save: events
+
+          # --- shared invariant analysers — each proves all four cases ---
+          - id: step-07
+            description: "Invariant: coins stay locked across respins (ZZ-32/33 headline)"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params:
+              method: verifyHoldSpinCoinsHeld
+              args: ["$events"]
+              path: valid
+              expected: true
+          - id: step-08
+            description: "Invariant: a new coin resets the counter to 3 (vacuous here, kept per §3.9)"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params:
+              method: verifyHoldSpinFreespinResetOnNewCoin
+              args: ["$events"]
+              path: valid
+              expected: true
+          - id: step-09
+            description: "Invariant: no new coin decrements counter 3->2->1->0 (ZZ-35 headline)"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params:
+              method: verifyHoldSpinFreespinCountDown
+              args: ["$events"]
+              path: valid
+              expected: true
+
+          # --- ONE video AI call over the FULL bonus → all four cases ---
+          # The full-bonus clip (step-01 → step-04) shows the bonus entry at its
+          # start, so ZZ-30's "3 coins, counter 3 at entry" is read from the same
+          # call as ZZ-32/33/35 — one trim, one model call, four case verdicts.
+          - id: step-10
+            description: "AI (full bonus): entry (3 coins locked), coins held, only non-coin cells spin, counter trends to 0 (exact entry count is bridge-owned, not AI-read)"
+            assert:
+              ai:
+                mode: video
+                video_trim: { from_step: step-01, to_step: step-04 }
+                ref_assets: [coin, free_spin_counter, hold_spin_overlay]
+                prompt: >
+                  IMPORTANT — the clip has TWO phases. It STARTS with one or more ordinary
+                  base-game spins (the whole reel set spins freely, nothing is locked); then
+                  the Hold & Spin BONUS is triggered and begins. You can recognise the bonus
+                  by the Hold & Spin overlay, the gold coins that become LOCKED on the grid,
+                  and the re-spin counter. IGNORE the base-game spins entirely. EVERY answer
+                  below is about the Hold & Spin BONUS phase ONLY (from the moment it begins to
+                  the moment it ends) — never about the base-game spins before it. If a coin
+                  appears unlocked or symbols tumble freely, that is the pre-bonus base game,
+                  not a violation.
+
+                  Now, judging the BONUS phase only: (0) At the moment the bonus BEGINS:
+                  entered_bonus: did the game enter the Hold & Spin bonus screen? coin_count:
+                  how many gold coins are locked on the 3x3 grid (they stay locked for the whole
+                  bonus, so count them across the bonus phase — do NOT try to read the
+                  fast-changing re-spin counter value). (1) coins_stay_locked: within the bonus,
+                  do the gold coins stay locked in the exact same grid positions for every
+                  re-spin? coins_moved_or_lost: within the bonus, did any locked coin move to
+                  another cell or disappear? (2) only_noncoin_cells_spin: during each bonus
+                  re-spin, do ONLY the cells without a coin spin/animate while coin cells stay
+                  completely still? coin_cell_respun: during the bonus, did any coin cell
+                  re-spin? (3) counted_down_to_zero: over the course of the bonus, does the
+                  re-spin counter trend downward and reach 0 before the bonus ends? ever_reset:
+                  during the bonus, did the counter ever jump back up to 3?
+                output_schema:
+                  entered_bonus: { type: boolean }
+                  coin_count: { type: number }
+                  coins_stay_locked: { type: boolean }
+                  coins_moved_or_lost: { type: boolean }
+                  only_noncoin_cells_spin: { type: boolean }
+                  coin_cell_respun: { type: boolean }
+                  counted_down_to_zero: { type: boolean }
+                  ever_reset: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected_by_case:
+                  ZZ-30: { entered_bonus: true, coin_count: 3, confidence: high }
+                  ZZ-32: { coins_stay_locked: true, coins_moved_or_lost: false, confidence: high }
+                  ZZ-33: { only_noncoin_cells_spin: true, coin_cell_respun: false, confidence: high }
+                  ZZ-35: { counted_down_to_zero: true, ever_reset: false, confidence: high }
+        teardown:
+          - id: teardown-01
+            description: "Acknowledge any total-win popup"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            description: "Return to clean idle baseline"
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }

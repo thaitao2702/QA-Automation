@@ -1,0 +1,98 @@
+{
+  "video_start_time": 1776157043.2873473,
+  "event_collection_start_time": 1776157075.8742542,
+  "video_event_offset": 0.0,
+  "steps": [
+    {
+      "id": "setup-01",
+      "action": "bridge_action",
+      "description": "Enable turbo",
+      "start_ms": 0,
+      "end_ms": 4
+    },
+    {
+      "id": "setup-02",
+      "action": "script",
+      "description": "Inject 2 no-win grids then 1 winning grid (3x Wild top row on spin 3)",
+      "start_ms": 8,
+      "end_ms": 14
+    },
+    {
+      "id": "step-01",
+      "action": "bridge_action",
+      "description": "Open auto popup",
+      "start_ms": 22,
+      "end_ms": 26
+    },
+    {
+      "id": "step-02",
+      "action": "bridge_action",
+      "description": "Start auto with stopByWin=true",
+      "start_ms": 30,
+      "end_ms": 35
+    },
+    {
+      "id": "step-03",
+      "action": "wait_for_state",
+      "description": "Wait for auto to stop (spin 3 wins → stopByWin triggers)",
+      "start_ms": 39,
+      "end_ms": 63316
+    },
+    {
+      "id": "step-04",
+      "action": "bridge_assert",
+      "description": "Verify auto stopped",
+      "start_ms": 63320,
+      "end_ms": 63322
+    },
+    {
+      "id": "step-05",
+      "action": "bridge_action",
+      "description": "Capture payout from last spin",
+      "start_ms": 63324,
+      "end_ms": 63326
+    },
+    {
+      "id": "step-06",
+      "action": "bridge_action",
+      "description": "Capture remaining auto spins",
+      "start_ms": 63329,
+      "end_ms": 63333
+    },
+    {
+      "id": "step-07",
+      "action": "script",
+      "description": "Verify stopByWin triggered: payout > 0 and stopped early (remaining = 7)",
+      "start_ms": 63336,
+      "end_ms": 63338
+    },
+    {
+      "id": "step-08",
+      "action": "bridge_assert",
+      "description": "Verify spin re-enabled",
+      "start_ms": 63341,
+      "end_ms": 63343
+    },
+    {
+      "id": "step-09",
+      "action": "assert",
+      "description": "AI video: verify auto-spin sequence with stopByWin",
+      "start_ms": 63346,
+      "end_ms": 63346
+    },
+    {
+      "id": "teardown-01",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 63350,
+      "end_ms": 63352
+    },
+    {
+      "id": "teardown-02",
+      "action": "bridge_action",
+      "description": "",
+      "start_ms": 63355,
+      "end_ms": 63356
+    }
+  ]
+}
