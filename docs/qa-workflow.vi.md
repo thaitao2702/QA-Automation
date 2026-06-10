@@ -59,6 +59,31 @@ mỗi bộ test bạn viết.
 
 ---
 
+## Chuẩn bị — cài đặt Python (một lần)
+
+Cài các thư viện Python (dùng Python hệ thống của bạn — sau đó không cần activate virtualenv):
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Cài binary trình duyệt cho Playwright (một lần):
+
+```bash
+python -m playwright install chromium
+```
+
+Kiểm tra mọi import hoạt động:
+
+```bash
+python -c "import playwright, google.genai, google.generativeai, requests, dotenv, yaml, PIL, imagehash, openpyxl, pdfplumber, csv; from playwright.async_api import async_playwright; print('All imports OK')"
+```
+
+Vậy là xong — không cần bước activate cho các lần chạy sau. (`ffmpeg` cũng phải có trên PATH; đây
+là dependency hệ thống, không phải gói pip.)
+
+---
+
 ## Giai đoạn 1 — Thu thập tài liệu game (`docs/raw/`)
 
 Mọi thứ nền tảng biết về một game đều bắt đầu từ tài liệu nguồn thô mà bạn đặt vào:

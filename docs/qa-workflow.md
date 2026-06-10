@@ -59,6 +59,32 @@ Steps 6–7 repeat for every suite you write.
 
 ---
 
+## Prerequisites — set up Python (one-time)
+
+Install the Python dependencies (uses your system Python — no virtualenv activation needed
+afterwards):
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Install the Playwright browser binary (once):
+
+```bash
+python -m playwright install chromium
+```
+
+Verify all imports resolve:
+
+```bash
+python -c "import playwright, google.genai, google.generativeai, requests, dotenv, yaml, PIL, imagehash, openpyxl, pdfplumber, csv; from playwright.async_api import async_playwright; print('All imports OK')"
+```
+
+That's it — no activation step needed for any future run. (`ffmpeg` must also be on your PATH; it
+is a system dependency, not a pip package.)
+
+---
+
 ## Stage 1 — Gather the game documentation (`docs/raw/`)
 
 Everything the platform knows about a game starts as raw source material you place in:
