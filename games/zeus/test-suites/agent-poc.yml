@@ -1,0 +1,135 @@
+# =============================================================================
+# Zeus — Claude-vision control POC
+# =============================================================================
+# Demonstrates driving the game with Claude + Playwright INSTEAD of the bridge:
+# the `agent_action` steps screenshot the canvas, ask a Claude Code CLI sub-agent
+# for the next tap, and click it — no DOM, no bridge method for the control.
+#
+# Hybrid: the bridge is still used for reliable SETUP (start the game) and for
+# EXACT verification (getBetIndex) — proving the agent's vision-driven clicks
+# actually moved the real game state. Pure-UI flow: no result injection needed.
+#
+# Run:
+#   python framework/runner/suite_runner.py --game zeus --suite agent-poc --env dev
+# =============================================================================
+
+suite: "Agent Control POC (Claude vision + Playwright)"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: false
+  test_timeout_ms: 180000
+  suite_timeout_ms: 300000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: global-setup-01
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: global-setup-02
+    action: wait_for_state
+    params: { state: "ready", timeout_ms: 30000 }
+  - id: global-setup-03
+    action: bridge_action
+    params: { name: "startGame" }
+
+teardown: []
+
+tests:
+
+  # =========================================================================
+  # AGENT-01 — Increase/Decrease bet by sight (vision control, bridge verifies)
+  # =========================================================================
+  - id: AGENT-01
+    title: "Agent adjusts bet by sight"
+    description: "Claude taps the +/- bet buttons by looking at the screen; the bridge confirms the exact bet index moved."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Confirm starting at min bet (index 0)"
+        action: bridge_assert
+        params: { method: getBetIndex, expected: 0 }
+      - id: step-02
+        description: "Screenshot before"
+        action: capture
+      - id: step-03
+        description: "Agent: increase the bet by one step"
+        action: agent_action
+        params:
+          goal: >
+            Increase the bet amount by exactly one step. On the bottom control bar
+            there is a bet value with an increase (+) button to its right and a
+            decrease (-) button to its left. Tap the increase (+) button once, then
+            report done.
+          max_steps: 4
+      - id: step-04
+        description: "Bridge verifies the agent's tap moved the bet up to index 1"
+        action: bridge_assert
+        params: { method: getBetIndex, expected: 1 }
+      - id: step-05
+        description: "Screenshot after increase"
+        action: capture
+      - id: step-06
+        description: "Agent: decrease the bet back by one step"
+        action: agent_action
+        params:
+          goal: >
+            Decrease the bet amount by exactly one step. Tap the decrease (-) button
+            (to the left of the bet value on the bottom bar) once, then report done.
+          max_steps: 4
+      - id: step-07
+        description: "Bridge verifies bet returned to index 0"
+        action: bridge_assert
+        params: { method: getBetIndex, expected: 0 }
+      - id: step-08
+        description: "Screenshot after decrease"
+        action: capture
+    teardown: []
+
+  # =========================================================================
+  # AGENT-02 — Open the auto-spin popup by sight, then close it
+  # =========================================================================
+  - id: AGENT-02
+    title: "Agent opens the auto-spin popup"
+    description: "Claude finds and taps the auto button; an AI image assert confirms the popup is visible."
+    setup: []
+    steps:
+      - id: step-01
+        description: "Agent: open the auto-spin popup"
+        action: agent_action
+        params:
+          goal: >
+            Open the auto-spin settings popup. Find the AUTO button on the bottom
+            control bar (it usually shows a circular-arrow / 'AUTO' icon) and tap it
+            once so the auto-spin options popup appears, then report done.
+          max_steps: 5
+      - id: step-02
+        description: "Screenshot of the popup"
+        action: capture
+      - id: step-03
+        description: "AI confirms the auto-spin popup is open"
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: step-02
+            prompt: "Is an auto-spin / auto-play settings popup open on screen (e.g. showing selectable spin counts like 10, 20, 50 and a start/confirm button)?"
+            output_schema:
+              popup_visible: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { popup_visible: true, confidence: high }
+    teardown:
+      - id: teardown-01
+        description: "Reload to close the popup (per project teardown convention)"
+        action: navigate
+        params: { url_script: "get_game_url" }
+      - id: teardown-02
+        action: wait_for_state
+        params: { state: "ready", timeout_ms: 30000 }
+      - id: teardown-03
+        action: bridge_action
+        params: { name: "startGame" }

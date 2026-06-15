@@ -1,18 +1,26 @@
 # QA Platform — Python 3.12+ dependencies
 # Install with: pip install -r requirements.txt
-# Note: ffmpeg is a system-level dependency (not a Python package).
-#       Install via: https://ffmpeg.org/download.html or your OS package manager.
+# System-level deps (NOT pip packages):
+#   - ffmpeg: video trimming + frame sampling. https://ffmpeg.org/download.html
+#   - Playwright browser binaries: run `playwright install chromium` after install.
 
 # Browser automation
 playwright>=1.44.0
 
-# Google Generative AI (Gemini 2.5 Flash)
+# Google Gemini — NEW unified SDK.
+# Used by the main AI assertion path: framework/helpers/gemini.py and
+# gemini_video.py do `from google import genai`.
+google-genai>=1.0.0
+
+# Google Gemini — legacy SDK.
+# Used by the standalone detection package: framework/detection/gemini_detect.py
+# does `import google.generativeai as genai`.
 google-generativeai>=0.7.0
 
 # HTTP client for the local AI provider (AI_PROVIDER=local) and game URL scripts
 requests>=2.31.0
 
-# Perceptual image hashing
+# Perceptual image hashing (framework/detection/phash.py)
 imagehash>=4.3.1
 Pillow>=10.3.0
 
@@ -21,6 +29,15 @@ PyYAML>=6.0.1
 
 # Environment variable loading from .env files
 python-dotenv>=1.0.1
+
+# --- Input-document ingestion (games/{game}/docs/raw + test-case spreadsheets) ---
+# Excel .xlsx: read/dump test cases and paytables to text for the skills.
+openpyxl>=3.1.0
+# PDF text + tables: paytable / game docs (tables preserved better than pypdf).
+pdfplumber>=0.11.0
+# CSV needs no package (Python stdlib `csv`).
+# pandas is optional — uncomment for tabular convenience over csv/xlsx.
+# pandas>=2.2.0
 
 # Async test support
 pytest-asyncio>=0.23.0

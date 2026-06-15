@@ -150,7 +150,7 @@ ui_elements:
     file: ui/hold-spin-overlay.jpg
     name: "Hold and Spin Overlay"
     type: ui
-    description: "Full-screen overlay activated during the Hold and Spin bonus round. Shows locked coin positions on a 3x3 grid and the re-spin countdown."
+    description: "Full-screen overlay activated during the Hold and Spin bonus round. Shows locked coin positions on a 3x3 grid and the re-spin countdown. Number of freespin left display in the spin button instead of spin icon. There is a row of slots or dots right below the reels, with remaining spins highlighted in blue and consumed spins dimmed or darkened"
 
   bonus_result_popup:
     file: ui/bonus-result-popup.jpg

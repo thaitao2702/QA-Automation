@@ -324,6 +324,10 @@ class VideoAiProcessor:
         self._suite_doc = suite_doc
         self._base_dir = base_dir
         self._gemini = gemini_video_helper
+        # The video helper's default (suite-wide, full) reference pack. A test/run with a
+        # scoped `assets:` selection carries its own `record.reference`, which we point the
+        # helper at before analysing that clip (otherwise this full pack is used).
+        self._full_reference = getattr(gemini_video_helper, "_reference", None)
 
         # group_key -> list of test info dicts expected in this group
         self._groups = _extract_video_tests(suite_doc)
@@ -344,6 +348,13 @@ class VideoAiProcessor:
         self._ready_groups: list[tuple[str, dict[str, Any]]] = []
         # Completed runs awaiting video AI processing (each run is self-contained).
         self._ready_runs: list[Any] = []
+
+    def _apply_reference(self, record: Any) -> None:
+        """Point the video helper at this record's scoped reference (or the full pack)."""
+        if self._gemini is None or not hasattr(self._gemini, "_reference"):
+            return
+        scoped = getattr(record, "reference", None)
+        self._gemini._reference = scoped if scoped is not None else self._full_reference
 
     async def notify_test_complete(self, record: "TestRecord") -> None:
         """
@@ -452,6 +463,9 @@ class VideoAiProcessor:
         ai_in_tokens = 0
         ai_out_tokens = 0
         ai_cost = 0.0
+
+        # Scope the helper's reference pack to this test's `assets:` (if any).
+        self._apply_reference(record)
 
         for step in video_ai_steps:
             ai_block = step["assert"]["ai"]
@@ -743,6 +757,8 @@ class VideoAiProcessor:
         video_path = artifact.video_path
         ai_calls = ai_in = ai_out = 0
         ai_cost = 0.0
+        # Scope the helper's reference pack to this run's `assets:` (if any).
+        self._apply_reference(record)
         try:
             for step in video_steps:
                 ai_block = step["assert"]["ai"]

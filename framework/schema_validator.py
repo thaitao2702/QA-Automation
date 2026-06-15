@@ -50,6 +50,8 @@ SUPPORTED_ACTIONS: frozenset[str] = frozenset(
         "go_online",
         "press_key",
         "click",
+        "agent_action",
+        "agent_assert",
         "wait_ms",
         "bo_paytable_ensure",
         "bo_paytable_select",
@@ -272,10 +274,17 @@ def _validate_step(
     if "save" in step and not isinstance(step["save"], str):
         collector.add(f"{path}.save", "expected str (variable name) for 'save'")
 
-    # Every step must have an action (except pure assert steps which may omit it)
+    # Every step must have an action, an assert block, or a human-readable
+    # sugar field (do: -> agent_action, check: -> agent_assert).
     if "assert" in step:
         # This step is an assertion step; action field is optional
         _validate_assert_block(step["assert"], f"{path}.assert", collector, run_case_ids)
+    elif "do" in step and "action" not in step:
+        if not isinstance(step["do"], str):
+            collector.add(f"{path}.do", "expected str (a natural-language action for 'do:')")
+    elif "check" in step and "action" not in step:
+        if not isinstance(step["check"], str):
+            collector.add(f"{path}.check", "expected str (a natural-language claim for 'check:')")
     else:
         if not _require_field(step, "action", path, collector, str):
             return
@@ -311,11 +320,16 @@ def _validate_step_case_tag(
         return
 
     # Only assert-bearing steps may carry a case tag.
-    is_assert = "assert" in step or step.get("action") in ("assert", "bridge_assert")
+    is_assert = (
+        "assert" in step
+        or "check" in step
+        or step.get("action") in ("assert", "bridge_assert", "agent_assert")
+    )
     if not is_assert:
         collector.add(
             f"{path}.case",
-            "'case' may only tag assert steps (an 'assert' block, or action 'assert'/'bridge_assert')",
+            "'case' may only tag assert steps (an 'assert' block, 'check:', or action "
+            "'assert'/'bridge_assert'/'agent_assert')",
         )
 
     for cid in case_list:
@@ -354,6 +368,21 @@ def _validate_step_sequence(
 # ---------------------------------------------------------------------------
 
 
+def _validate_assets(container: Any, path: str, collector: _Collector) -> None:
+    """Validate an optional ``assets:`` field — a list of asset-category names.
+
+    Scopes which categories from the game's assets.yml are loaded (inline, with
+    descriptions) into the AI prompts for this test/run/group. Category names are
+    not resolved here (unknown names are skipped + logged at load time), mirroring
+    how missing asset files are handled.
+    """
+    if not isinstance(container, dict) or "assets" not in container:
+        return
+    assets = container["assets"]
+    if not isinstance(assets, list) or not all(isinstance(a, str) for a in assets):
+        collector.add(f"{path}.assets", "expected a list of asset-category names (strings)")
+
+
 def _validate_test(test: Any, path: str, collector: _Collector) -> None:
     """Validate a single test entry."""
     if not isinstance(test, dict):
@@ -374,6 +403,8 @@ def _validate_test(test: Any, path: str, collector: _Collector) -> None:
 
     if "teardown" in test:
         _validate_step_sequence(test["teardown"], "teardown", f"{path}.teardown", collector)
+
+    _validate_assets(test, path, collector)
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +479,8 @@ def _validate_run(run: Any, path: str, collector: _Collector, all_ids: list[str]
     if "teardown" in run:
         _validate_step_sequence(run["teardown"], "teardown", f"{path}.teardown", collector)
 
+    _validate_assets(run, path, collector)
+
     # steps (required, non-empty) — validated with run case context
     if not _require_field(run, "steps", path, collector, list):
         return
@@ -511,6 +544,8 @@ def _validate_group(
         _validate_step_sequence(group["setup"], "setup", f"{path}.setup", collector)
     if "teardown" in group:
         _validate_step_sequence(group["teardown"], "teardown", f"{path}.teardown", collector)
+
+    _validate_assets(group, path, collector)
 
     has_tests = "tests" in group
     has_runs = "runs" in group

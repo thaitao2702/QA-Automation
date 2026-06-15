@@ -96,6 +96,10 @@ class TestRecord:
         self.artifact: ArtifactContext | None = None
         self.video_start_time: float = 0.0
         self.event_collection_start: float = 0.0
+        # Executor start (before this test's own setup). The video clip + its
+        # video_event_offset anchor here so the timeline steps align, and a
+        # test-level setup block is included in the clip (not trimmed out).
+        self.test_start: float = 0.0
         self.timeline_steps: list[dict[str, Any]] = []
 
 
@@ -154,6 +158,10 @@ class RunRecord:
         self.artifact: ArtifactContext | None = None
         self.video_start_time: float = 0.0
         self.event_collection_start: float = 0.0
+        # Executor start (before this test's own setup). The video clip + its
+        # video_event_offset anchor here so the timeline steps align, and a
+        # test-level setup block is included in the clip (not trimmed out).
+        self.test_start: float = 0.0
         self.timeline_steps: list[dict[str, Any]] = []
         self.untagged_failure: bool = False
         self.untagged_first_error: str | None = None
@@ -480,6 +488,32 @@ def _compute_verdict(bridge_result: str, ai_result: str) -> str:
     return "green"
 
 
+def _shift_events_jsonl(path: Path, shift_s: float) -> None:
+    """Add ``shift_s`` seconds to every event's ``t`` in an ``events.jsonl`` file.
+
+    Re-bases a clip's event stream onto the clip's first video frame so the replay
+    console times equal video playback time directly (zero offset). No-op when the
+    file is missing or the shift is negligible. Lines that are not valid JSON or
+    carry no numeric ``t`` are passed through unchanged.
+    """
+    if not path.exists() or abs(shift_s) < 1e-6:
+        return
+    out_lines: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            out_lines.append(line)
+            continue
+        if isinstance(ev.get("t"), (int, float)):
+            ev["t"] = round(ev["t"] + shift_s, 3)
+        out_lines.append(json.dumps(ev, ensure_ascii=False))
+    path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+
+
 # ---------------------------------------------------------------------------
 # Step sequence runner
 # ---------------------------------------------------------------------------
@@ -611,8 +645,14 @@ class SuiteRunner:
 
         # Build the symbol/UI reference pack ONCE from the game's assets.yml (or legacy symbols.yml). Its
         # labeled ground-truth images are prepended to every AI image/video request.
-        from framework.helpers.symbol_reference import load_symbol_reference
+        from framework.helpers.symbol_reference import (
+            ScopedReferenceCache,
+            effective_assets,
+            load_symbol_reference,
+        )
         symbol_reference = load_symbol_reference(self.game, self.base_dir)
+        # Per-test/group scoped reference packs, built lazily from `assets:` selections.
+        ref_cache = ScopedReferenceCache(self.game, self.base_dir)
 
         gemini_video_helper: Any | None = None
         gemini_image: Any | None = None  # holds a local helper when provider=local
@@ -753,9 +793,12 @@ class SuiteRunner:
                 return ok, err
 
             # Nested per-test runner — timeout handling + result writing.
-            async def _execute_test(test_doc: dict[str, Any], idx: int) -> TestRecord:
+            async def _execute_test(
+                test_doc: dict[str, Any], idx: int, reference: Any = None
+            ) -> TestRecord:
                 record = TestRecord(test_doc, idx)
                 record.video_start_time = video_start_time
+                record.reference = reference
                 try:
                     await asyncio.wait_for(
                         self._run_one_test(
@@ -767,6 +810,7 @@ class SuiteRunner:
                             gemini_image=gemini_image,
                             run_dir=run_dir,
                             bo=bo,
+                            reference=reference,
                         ),
                         timeout=test_timeout_ms / 1000.0,
                     )
@@ -812,9 +856,12 @@ class SuiteRunner:
                 return record
 
             # Nested per-run runner — one execution, many case verdicts.
-            async def _execute_run(run_doc: dict[str, Any], idx: int) -> RunRecord:
+            async def _execute_run(
+                run_doc: dict[str, Any], idx: int, reference: Any = None
+            ) -> RunRecord:
                 record = RunRecord(run_doc, idx)
                 record.video_start_time = video_start_time
+                record.reference = reference
                 try:
                     await asyncio.wait_for(
                         self._run_one_run(
@@ -826,6 +873,7 @@ class SuiteRunner:
                             gemini_image=gemini_image,
                             run_dir=run_dir,
                             bo=bo,
+                            reference=reference,
                         ),
                         timeout=test_timeout_ms / 1000.0,
                     )
@@ -940,7 +988,9 @@ class SuiteRunner:
 
                 stop_reason = None
                 for test_doc in selected:
-                    record = await _execute_test(test_doc, global_idx)
+                    _eff = effective_assets(group, test_doc)
+                    _ref = ref_cache.scoped(_eff) if _eff is not None else None
+                    record = await _execute_test(test_doc, global_idx, _ref)
                     global_idx += 1
                     stop_reason = _check_stop_conditions(
                         stop_conditions, self._records, record.final_verdict
@@ -952,7 +1002,9 @@ class SuiteRunner:
                 # Runs (one execution, many case verdicts) after the group's tests
                 if not stop_reason:
                     for run_doc in selected_runs:
-                        record = await _execute_run(run_doc, global_idx)
+                        _eff = effective_assets(group, run_doc)
+                        _ref = ref_cache.scoped(_eff) if _eff is not None else None
+                        record = await _execute_run(run_doc, global_idx, _ref)
                         global_idx += 1
                         stop_reason = _check_stop_conditions(
                             stop_conditions, self._records, record.final_verdict
@@ -997,16 +1049,28 @@ class SuiteRunner:
             await context.close()
             await browser.close()
 
-        # Trim the session video per test (each test gets only its portion)
+        # Trim the session video per test/run. Each clip is anchored at the test's
+        # executor start (``test_start``) — which is BEFORE that test's own setup —
+        # so a test-level setup block stays in the clip and the timeline steps
+        # (relative to test_start) line up at video_event_offset. The FIRST test/run
+        # additionally extends back to the recording start so the one-time SUITE
+        # setup (navigate, vision do:start, etc.) is included rather than cut.
+        first_record = next(
+            (r for r in self._records if r.artifact and r.artifact.test_dir.exists()),
+            None,
+        )
         if video_path and video_path.exists():
             for r in self._records:
                 if not (r.artifact and r.artifact.test_dir.exists()):
                     continue
                 dest = r.artifact.video_path
-                # Trim exactly at event_collection_start (no buffer)
-                # so video t=0 aligns with event t=0 (offset=0)
-                start_s = r.event_collection_start - video_start_time
-                end_s = start_s + (r.duration_ms / 1000.0)
+                # Where this clip begins (wall clock): the first test reaches back to
+                # the recording start (suite setup); others start at their own setup.
+                trim_anchor = video_start_time if r is first_record else r.test_start
+                start_s = max(0.0, trim_anchor - video_start_time)
+                end_s = (r.test_start - video_start_time) + (r.duration_ms / 1000.0)
+                # Maps timeline step times (relative to test_start) to clip positions.
+                clip_offset = r.test_start - trim_anchor
                 trimmed = False
                 try:
                     proc = subprocess.run(
@@ -1023,7 +1087,10 @@ class SuiteRunner:
                     )
                     if proc.returncode == 0:
                         trimmed = True
-                        logger.debug("Trimmed video for %s: %.1fs-%.1fs", r.test_id, start_s, end_s)
+                        logger.debug(
+                            "Trimmed video for %s: %.1fs-%.1fs (offset %.1fs)",
+                            r.test_id, start_s, end_s, clip_offset,
+                        )
                     else:
                         shutil.copy2(video_path, dest)
                         logger.debug("ffmpeg trim failed for %s, copied full video", r.test_id)
@@ -1031,13 +1098,28 @@ class SuiteRunner:
                     shutil.copy2(video_path, dest)
                     logger.debug("ffmpeg not available, copied full video for %s", r.test_id)
 
-                # Update timeline: trimmed video starts at event_collection_start,
-                # so video_event_offset = 0 (video t=0 == event t=0)
-                if trimmed and r.artifact:
+                # Re-base every timestamp on the FIRST FRAME of this clip (t=0 = clip
+                # start), so setup and post-setup events form one positive, monotonic
+                # timeline that maps straight onto playback. Step/event times were
+                # recorded relative to test_start; the clip begins at trim_anchor, so
+                # shift them by (test_start - trim_anchor) == clip_offset. A full-copy
+                # fallback keeps the whole recording, so its clip starts at
+                # video_start_time instead.
+                shift_s = clip_offset if trimmed else (r.test_start - video_start_time)
+                if r.artifact:
+                    # 1. Shift the step timeline and zero the now-baked-in offset.
+                    #    start_ms/1000 + video_event_offset is invariant under this
+                    #    change, so the AI video trim (video_ai_processor) is unaffected.
                     tl_path = r.artifact.timeline_path
                     if tl_path.exists():
                         try:
                             tl = json.loads(tl_path.read_text(encoding="utf-8"))
+                            shift_ms = round(shift_s * 1000)
+                            for s in tl.get("steps", []):
+                                if isinstance(s.get("start_ms"), (int, float)):
+                                    s["start_ms"] += shift_ms
+                                if isinstance(s.get("end_ms"), (int, float)):
+                                    s["end_ms"] += shift_ms
                             tl["video_event_offset"] = 0.0
                             tl_path.write_text(
                                 json.dumps(tl, indent=2, ensure_ascii=False),
@@ -1045,6 +1127,9 @@ class SuiteRunner:
                             )
                         except (json.JSONDecodeError, OSError):
                             pass
+                    # 2. Shift this clip's own event stream by the same amount so the
+                    #    replay console times equal video time directly.
+                    _shift_events_jsonl(r.artifact.events_path, shift_s)
 
             # Remove the shared videos directory
             video_dir = video_path.parent
@@ -1079,12 +1164,14 @@ class SuiteRunner:
         # Generate human-readable summary.html alongside summary.json
         _write_summary_html(summary, summary_path.parent / "summary.html")
 
-        # Prepend global setup events to each test's events.jsonl
-        # so the replay console shows the full context (navigate, startGame, etc.)
-        # Setup event timestamps are relative to setup start (≈ video start).
-        # Test event timestamps are relative to event_collection_start.
-        # The replay viewer adds video_event_offset to all event.t values.
-        # So setup events need negative t values: t_setup - video_event_offset
+        # Prepend the one-time SUITE setup events (navigate, do:start, etc.) to the
+        # FIRST test/run's events.jsonl only — that is the clip whose video actually
+        # includes the suite-setup phase. Setup event t is already relative to setup
+        # start, which is exactly this clip's first frame (video_start_time), and the
+        # clip is now zero-offset (see the re-base in the trim loop above), so the setup
+        # events prepend as-is and sit in the setup portion of the timeline. (Other
+        # tests don't include the suite-setup video, so adding these events there would
+        # overlay their own content — hence first-only.)
         setup_events_path = run_dir / "_setup" / "events.jsonl"
         setup_events: list[dict[str, Any]] = []
         if setup_events_path.exists():
@@ -1096,37 +1183,17 @@ class SuiteRunner:
                     except json.JSONDecodeError:
                         pass
 
-        if setup_events:
-            for r in self._records:
-                if not (r.artifact and r.artifact.test_dir.exists()):
-                    continue
-                # Read this test's video_event_offset from timeline.json
-                tl_path = r.artifact.timeline_path
-                offset = 0.0
-                if tl_path.exists():
-                    try:
-                        tl = json.loads(tl_path.read_text(encoding="utf-8"))
-                        offset = tl.get("video_event_offset", 0.0)
-                    except (json.JSONDecodeError, OSError):
-                        pass
-
-                # Adjust setup event timestamps so replay viewer maps them correctly
-                # replay videoTime = event.t + offset → for setup at video t=0..N,
-                # we need event.t = video_t - offset
-                adjusted_lines = []
-                for ev in setup_events:
-                    adj = dict(ev)
-                    adj["t"] = round(ev["t"] - offset, 3)
-                    adjusted_lines.append(json.dumps(adj, ensure_ascii=False))
-
-                test_events_path = r.artifact.events_path
-                existing = ""
-                if test_events_path.exists():
-                    existing = test_events_path.read_text(encoding="utf-8").strip()
-                merged = "\n".join(adjusted_lines)
-                if existing:
-                    merged += "\n" + existing
-                test_events_path.write_text(merged + "\n", encoding="utf-8")
+        if setup_events and first_record and first_record.artifact \
+                and first_record.artifact.test_dir.exists():
+            r = first_record
+            test_events_path = r.artifact.events_path
+            existing = ""
+            if test_events_path.exists():
+                existing = test_events_path.read_text(encoding="utf-8").strip()
+            merged = "\n".join(json.dumps(ev, ensure_ascii=False) for ev in setup_events)
+            if existing:
+                merged += "\n" + existing
+            test_events_path.write_text(merged + "\n", encoding="utf-8")
 
         # Generate replay.html for each test
         reporter = Reporter(run_dir)
@@ -1262,6 +1329,7 @@ class SuiteRunner:
         gemini_image: GeminiImageHelper | None,
         run_dir: Path,
         bo: Any = None,
+        reference: Any = None,
     ) -> None:
         """Execute a single test: setup → steps → teardown."""
         test_doc = record.test_doc
@@ -1285,6 +1353,7 @@ class SuiteRunner:
         record.event_collection_start = time.time()
 
         test_start = time.time()
+        record.test_start = test_start
         executor = StepExecutor(
             bridge=bridge,
             network=network,
@@ -1294,6 +1363,7 @@ class SuiteRunner:
             test_start_time=test_start,
             game_url=self._game_url,
             bo=bo,
+            reference=reference,
         )
 
         bridge_passed = True
@@ -1345,6 +1415,9 @@ class SuiteRunner:
                     "[%s] teardown failed (cleanup, verdict unaffected): %s", test_id, t_err
                 )
 
+        # Reap the per-test warm Claude session (if any) before drains/teardown end.
+        await executor.aclose()
+
         # Drain final events
         try:
             events = await bridge.drain_events()
@@ -1395,6 +1468,7 @@ class SuiteRunner:
         gemini_image: Any,
         run_dir: Path,
         bo: Any = None,
+        reference: Any = None,
     ) -> None:
         """Execute a single run: setup → steps → teardown, fanning each tagged
         assert's outcome out to its case(s). Shares ONE artifact/timeline/video."""
@@ -1416,6 +1490,7 @@ class SuiteRunner:
         record.event_collection_start = time.time()
 
         run_start = time.time()
+        record.test_start = run_start
         executor = StepExecutor(
             bridge=bridge,
             network=network,
@@ -1425,6 +1500,7 @@ class SuiteRunner:
             test_start_time=run_start,
             game_url=self._game_url,
             bo=bo,
+            reference=reference,
         )
 
         # Run-level setup — a setup failure is fatal for the whole run: skip the
@@ -1462,6 +1538,9 @@ class SuiteRunner:
                 logger.warning(
                     "[%s] teardown failed (cleanup, verdict unaffected): %s", run_id, t_err
                 )
+
+        # Reap the per-run warm Claude session (if any) before drains/teardown end.
+        await executor.aclose()
 
         # Drain final events
         try:

@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -60,12 +61,23 @@ _REQUEST_TIMEOUT = 300
 # ---------------------------------------------------------------------------
 
 
-def _build_schema_prompt(prompt: str, output_schema: dict[str, Any]) -> str:
+def _build_schema_prompt(
+    prompt: str, output_schema: dict[str, Any], allow_reasoning: bool = False
+) -> str:
     """
-    Append a JSON-only schema hint + example to *prompt*.
+    Append a schema hint + example to *prompt* so the reply is parseable JSON.
 
-    Mirrors the logic in GeminiVideoHelper / GeminiImageHelper so the local model
-    is steered toward a flat JSON object matching *output_schema*.
+    Mirrors the logic in GeminiVideoHelper / GeminiImageHelper so the model is
+    steered toward a flat JSON object matching *output_schema*.
+
+    allow_reasoning:
+        False (default, used for the LOCAL self-hosted provider): demand JSON ONLY,
+        no reasoning. Self-hosted reasoning models otherwise emit a long <think>
+        trace and can hit the endpoint's output-token limit before answering.
+        True (used for Claude): let the model think/reason in plain text first, then
+        end with the JSON object as the LAST thing in the reply. Pair with
+        ``_extract_json`` (tolerant), which pulls the final JSON object out of a
+        reply that may contain reasoning before it.
     """
     example: dict[str, Any] = {}
     for key, spec in output_schema.items():
@@ -80,9 +92,24 @@ def _build_schema_prompt(prompt: str, output_schema: dict[str, Any]) -> str:
         else:
             example[key] = None
 
-    # Forceful, reasoning-suppressing instruction. Self-hosted reasoning models
-    # tend to emit a long <think> trace and can hit the endpoint's output-token
-    # limit before producing the answer — so we demand JSON first, no reasoning.
+    # Env override: AGENT_REASONING in {0,false,no,off} forces strict (no reasoning)
+    # even when the caller requested it — lets a run A/B reasoning without code edits.
+    reasoning_on = allow_reasoning and (
+        os.environ.get("AGENT_REASONING", "1").strip().lower() not in ("0", "false", "no", "off")
+    )
+    if reasoning_on:
+        # Reasoning allowed (Claude): think first, then a final JSON object last.
+        schema_hint = (
+            f"Work through the task carefully — you MAY think step by step in plain "
+            f"text first if it helps you decide. When you are ready, finish your reply "
+            f"with your answer as a SINGLE JSON object: it must be the LAST thing in "
+            f"your reply, on its own, and valid JSON matching this schema: "
+            f"{json.dumps(output_schema)}. Example of the final JSON object: "
+            f"{json.dumps(example)}"
+        )
+        return f"{schema_hint}\n\nTask: {prompt}\n\nReason if needed, then give the final JSON object:"
+
+    # Forceful, reasoning-suppressing instruction (local self-hosted models).
     schema_hint = (
         f"You are a JSON API. Do NOT explain. Do NOT reason. Do NOT think "
         f"step-by-step. Output ONLY a single JSON object and nothing else — your "
@@ -97,17 +124,42 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     """
     Parse the model's ``result`` text as a JSON object.
 
-    With reasoning disabled on the endpoint, ``result`` is a clean JSON object,
-    so a direct parse is enough. Returns the parsed dict, or None if the text is
-    empty or not a JSON object.
+    Fast path: the whole reply is a clean JSON object (strict mode / local) —
+    a direct parse. Fallback (reasoning mode): the model may think in plain text
+    first and emit the JSON object last, so scan for the LAST decodable ``{...}``
+    object (this also tolerates ```json code fences). Returns the parsed dict, or
+    None if no JSON object can be recovered.
     """
     if not text:
         return None
+    s = text.strip()
+
+    # Fast path — the entire reply is the JSON object.
     try:
-        parsed = json.loads(text.strip())
+        parsed = json.loads(s)
+        if isinstance(parsed, dict):
+            return parsed
     except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+        pass
+
+    # Tolerant path — find the last decodable top-level {...} object in the text.
+    decoder = json.JSONDecoder()
+    last: dict[str, Any] | None = None
+    i = 0
+    n = len(s)
+    while i < n:
+        if s[i] == "{":
+            try:
+                obj, end = decoder.raw_decode(s, i)
+            except json.JSONDecodeError:
+                i += 1
+                continue
+            if isinstance(obj, dict):
+                last = obj
+                i = end
+                continue
+        i += 1
+    return last
 
 
 # ---------------------------------------------------------------------------

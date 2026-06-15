@@ -1,0 +1,176 @@
+# Free Spin (Hold & Spin) — HYBRID transform of freespin-runs.yml
+# =============================================================================
+# The ONLY bridge use is the back-office paytable control (bo_paytable_*), which
+# forces the deterministic 3-coin count-down trigger — the one thing vision cannot
+# do. Those are BO API calls, independent of the in-game test bridge. Everything
+# else is AI VISION: Claude spins the reels, watches the bonus, and verifies it.
+#
+# WHAT'S BRIDGE vs VISION here:
+#   BRIDGE (BO API): force the fs-trigger3-countdown paytable so a normal spin lands
+#                    3 coins and the bonus counts 3->2->1->0 with no new coin.
+#   VISION (do:/check: + AI video): start the game, SPIN until the bonus triggers,
+#                    confirm entry, play it out, and verify the Hold & Spin invariants.
+#
+# Same four cases as freespin-runs.yml, one bonus, expected_by_case:
+#   ZZ-30  entered bonus, 3 coins locked        (vision check: coins-locked; video: coin_count 3)
+#   ZZ-32  coins held fixed across re-spins      (AI video)
+#   ZZ-33  only non-coin cells re-spin           (AI video)
+#   ZZ-35  counter counts down to 0, no reset    (AI video; vision check: returns to base game)
+#
+# Because the paytable is FORCED, the video assert keeps the original's precise
+# expectations (coin_count == 3, counts to 0, never resets). The exact entry counter
+# is transient, so ZZ-30's vision check only confirms "3 coins locked + counter".
+#
+# Run:
+#   python framework/runner/suite_runner.py --game zeus --suite freespin-vision --env dev
+# =============================================================================
+
+suite: "Free Spin (Hold & Spin) — hybrid (BO paytable + AI vision)"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 300000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: setup-01
+    description: "Ensure the automation paytable exists on the master game (BO API)"
+    action: bo_paytable_ensure
+    params: { paytable_code: AutomationTest }
+  - id: setup-02
+    description: "Point this agent's game at the automation paytable (BO API)"
+    action: bo_paytable_select
+    params: { paytable_code: AutomationTest }
+  - id: setup-03
+    description: "Open the game"
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: setup-04
+    description: "Vision: wait for load and start the game"
+    do: >
+      Wait for the game to finish loading. If a Start/Play button or a tap-to-start
+      screen is shown, tap it to enter the game. You are done when the main game
+      screen with the reels and a spin button is visible.
+    max_steps: 8
+
+teardown:
+  - id: teardown-01
+    description: "Restore the agent's game to its default paytable (BO API)"
+    action: bo_paytable_reset
+
+groups:
+
+  # =========================================================================
+  # GROUP: fs-trigger3-countdown — 3-coin trigger, respins count down (no new coin)
+  # =========================================================================
+  - id: fs-trigger3-countdown
+    title: "3-coin trigger, respins count down (no new coin)"
+    # Load these asset categories (inline images + descriptions) into every AI prompt
+    # for this group — the do:/check: agent and the AI video assert. Scopes the
+    # reference pack so the model has ground truth for the coin, counter and overlay.
+    assets: [ui, ui_elements]
+    setup:
+      - id: gsetup-01
+        description: "BRIDGE (BO API): force 3-coin trigger + count-down respins for this group"
+        action: bo_paytable_update
+        params: { paytable_code: AutomationTest, paytable_ref: fs-trigger3-countdown }
+    teardown: []
+
+    runs:
+      - id: fs-3coin-countdown-vision-run
+        title: "One bonus (vision-driven) -> ZZ-30, ZZ-32, ZZ-33, ZZ-35"
+        cases:
+          - { id: ZZ-30, title: "Trigger FS with 3 coins -> bonus entered, coins locked" }
+          - { id: ZZ-32, title: "Coins held fixed across all re-spins" }
+          - { id: ZZ-33, title: "Only non-coin cells re-spin (coin cells stay)" }
+          - { id: ZZ-35, title: "No new coin -> counter counts down to 0" }
+        steps:
+          - id: step-01
+            description: "Vision: spin until the Hold & Spin bonus triggers (3 coins lock)"
+            do: >
+              Spin the reels by tapping the spin button, repeatedly, until the Hold &
+              Spin bonus triggers — this happens when 3 or more gold COIN symbols land
+              and LOCK on the 3x3 grid and a re-spin counter appears. Each spin: tap
+              spin, wait for the reels to stop, and check whether coins locked. The
+              bonus may begin auto-playing the instant it triggers — that is fine: stop
+              and report done AS SOON AS you see gold coins locked on the grid and you see 
+              the re-spin counter, do NOT keep tapping spin.
+            max_steps: 10
+
+          - id: step-02
+            description: "Vision: let the bonus play out and return to the base game"
+            do: >
+              Wait for the Hold & Spin bonus to finish playing out. Let every re-spin
+              happen (use wait between checks). When it ends, a total-win / bonus-result
+              popup usually appears — dismiss it (tap it or its OK/Collect button) so the
+              game returns to the normal base game. You are done when the normal
+              base-game screen with the regular spin button is visible again (no Hold &
+              Spin overlay, no locked coins).
+            max_steps: 12
+
+          - id: step-03
+            description: "ZZ-35 (vision): bonus ended and returned to the base game"
+            case: ZZ-35
+            check: >
+              The Hold & Spin bonus has ended and the game is back to the normal base
+              game: the regular spin button is visible and there is NO Hold & Spin
+              overlay and NO re-spin counter on screen. (Coins from the bonus result may
+              still be shown sitting on the reels — that is fine and expected; only the
+              absence of the active bonus UI matters.)
+
+          # ONE AI video assert over the full clip (spins -> bonus -> end) → four case
+          # verdicts. The paytable is forced, so the precise expectations hold.
+          - id: step-04
+            description: "AI (video): entry (3 coins), coins held, only non-coin cells spin, counts to 0"
+            assert:
+              ai:
+                mode: video
+                video_trim: { from_step: step-01, to_step: step-03 }
+                ref_assets: [coin, free_spin_counter, hold_spin_overlay]
+                prompt: >
+                  IMPORTANT — the clip has TWO phases. It STARTS with one or more ordinary
+                  base-game spins (the whole reel set spins freely, nothing is locked); then
+                  the Hold & Spin BONUS is triggered and begins. You can recognise the bonus
+                  by the Hold & Spin overlay, the gold coins that become LOCKED on the grid,
+                  and the re-spin counter. IGNORE the base-game spins entirely. EVERY answer
+                  below is about the Hold & Spin BONUS phase ONLY (from the moment it begins to
+                  the moment it ends) — never about the base-game spins before it. If a coin
+                  appears unlocked or symbols tumble freely, that is the pre-bonus base game,
+                  not a violation.
+
+                  Now, judging the BONUS phase only: (0) At the moment the bonus BEGINS:
+                  entered_bonus: did the game enter the Hold & Spin bonus screen? coin_count:
+                  how many gold coins are locked on the 3x3 grid (they stay locked for the whole
+                  bonus, so count them across the bonus phase — do NOT try to read the
+                  fast-changing re-spin counter value). (1) coins_stay_locked: within the bonus,
+                  do the gold coins stay locked in the exact same grid positions for every
+                  re-spin? coins_moved_or_lost: within the bonus, did any locked coin move to
+                  another cell or disappear? (2) only_noncoin_cells_spin: during each bonus
+                  re-spin, do ONLY the cells without a coin spin/animate while coin cells stay
+                  completely still? coin_cell_respun: during the bonus, did any coin cell
+                  re-spin? (3) counted_down_to_zero: over the course of the bonus, does the
+                  re-spin counter trend downward and reach 0 before the bonus ends? ever_reset:
+                  during the bonus, did the counter ever jump back up to 3?
+                output_schema:
+                  entered_bonus: { type: boolean }
+                  coin_count: { type: number }
+                  coins_stay_locked: { type: boolean }
+                  coins_moved_or_lost: { type: boolean }
+                  only_noncoin_cells_spin: { type: boolean }
+                  coin_cell_respun: { type: boolean }
+                  counted_down_to_zero: { type: boolean }
+                  ever_reset: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected_by_case:
+                  ZZ-30: { entered_bonus: true, coin_count: 3, confidence: high }
+                  ZZ-32: { coins_stay_locked: true, coins_moved_or_lost: false, confidence: high }
+                  ZZ-33: { only_noncoin_cells_spin: true, coin_cell_respun: false, confidence: high }
+                  ZZ-35: { counted_down_to_zero: true, ever_reset: false, confidence: high }
+        teardown: []

@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -40,6 +41,26 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _effective_action(step: dict[str, Any]) -> str:
+    """Resolve a step's action, honoring human-readable sugar fields.
+
+    Precedence: explicit ``action`` > ``assert`` block > ``do:`` (agent_action)
+    > ``check:`` (agent_assert). The ``do``/``check`` sugar lets a bridge-free
+    suite read as plain English steps — ``do: "spin the reels"`` /
+    ``check: "the balance went down"`` — instead of action/params boilerplate.
+    """
+    if step.get("action"):
+        return str(step["action"])
+    if "assert" in step:
+        return "assert"
+    if "do" in step:
+        return "agent_action"
+    if "check" in step:
+        return "agent_assert"
+    return ""
+
 
 # ---------------------------------------------------------------------------
 # ANSI color helpers for console output
@@ -148,6 +169,7 @@ class StepExecutor:
         test_start_time: float | None = None,
         game_url: str | None = None,
         bo: Any = None,
+        reference: Any = None,
     ) -> None:
         self._bridge = bridge
         self._network = network
@@ -157,12 +179,26 @@ class StepExecutor:
         self._test_start_time: float = test_start_time or time.time()
         self._game_url: str = game_url or ""
         self._bo = bo
+        # Scoped asset reference (from a test/group `assets:`) shared by this test's
+        # agent_action / agent_assert steps; None = no reference (pure-pixel agent).
+        self._reference = reference
         # Accumulates timeline entries: list of dicts with id, action, start_ms, end_ms
         self.timeline: list[dict[str, Any]] = []
         # Named variables saved via a step's `save:` field, passed to bridge
         # functions later by `bridge_assert` (var/args). Per-test scope: one
         # executor lives for setup→steps→teardown.
         self.vars: dict[str, Any] = {}
+        # capture step id -> saved screenshot Path, so agent_assert can resolve a
+        # `ref:` to an earlier 'before' screenshot robustly (independent of the
+        # screenshot auto-increment counter).
+        self._capture_paths: dict[str, Path] = {}
+        # One warm `claude` process shared by this test's agent_action/agent_assert
+        # steps (lazily started, closed by aclose()). None until first use; the
+        # `_failed` flag latches a permanent one-shot fallback for this test.
+        self._claude_session: Any = None
+        self._claude_session_failed: bool = False
+        # Per-test audit log of every Claude decision (do turns + check verdicts).
+        self._decision_log: Any = None
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -185,7 +221,7 @@ class StepExecutor:
         """
         step_id = step.get("id", "")
         description = step.get("description", "")
-        action = step.get("action", "assert" if "assert" in step else "")
+        action = _effective_action(step)
         start_ms = self._elapsed_ms()
 
         # Log step start with action detail
@@ -271,7 +307,7 @@ class StepExecutor:
         if "assert" in step and step.get("action") in (None, "", "assert"):
             return await self._handle_assert(step)
 
-        action = step.get("action", "")
+        action = _effective_action(step)
         params: dict[str, Any] = step.get("params") or {}
 
         handlers = {
@@ -286,6 +322,8 @@ class StepExecutor:
             "go_online": self._handle_go_online,
             "press_key": self._handle_press_key,
             "click": self._handle_click,
+            "agent_action": self._handle_agent_action,
+            "agent_assert": self._handle_agent_assert,
             "wait_ms": self._handle_wait_ms,
             "bo_paytable_ensure": self._handle_bo_paytable_ensure,
             "bo_paytable_select": self._handle_bo_paytable_select,
@@ -549,6 +587,10 @@ class StepExecutor:
     async def _handle_capture(self, step: dict[str, Any]) -> StepResult:
         """capture — take a screenshot and save to artifact dir."""
         screenshot_path = await self._capture_screenshot()
+        sid = step.get("id")
+        if sid:
+            # Remember this capture so an agent_assert `ref:` can resolve to it.
+            self._capture_paths[str(sid)] = screenshot_path
         return StepResult(success=True, screenshot_path=screenshot_path)
 
     async def _handle_assert(self, step: dict[str, Any]) -> StepResult:
@@ -706,6 +748,182 @@ class StepExecutor:
                 error="click action requires 'params.selector' or both 'params.x' and 'params.y'",
             )
         return StepResult(success=True)
+
+    def _get_claude_session(self) -> Any:
+        """Return the per-test warm Claude session, lazily starting it once.
+
+        Shared by all ``do:``/``check:`` steps in this test so the process
+        cold-start is paid once instead of per turn. Returns None (→ one-shot
+        fallback) when disabled via ``AGENT_STREAM`` in {0,false,no}, when a prior
+        session died, or when startup fails.
+        """
+        if os.environ.get("AGENT_STREAM", "").strip().lower() in ("0", "false", "no"):
+            return None
+        if self._claude_session_failed:
+            return None
+        if self._claude_session is not None:
+            if self._claude_session.alive:
+                return self._claude_session
+            # Died mid-test → don't hand out a broken pipe; latch one-shot fallback.
+            self._claude_session_failed = True
+            return None
+        try:
+            from framework.helpers.agent_control import ClaudeStreamSession, PrewarmStreamPool
+
+            # Default: a single long-lived warm session. Measured A/B shows this is
+            # the fastest option — the CLI/API prompt-caches the accumulated context,
+            # so per-turn latency stays flat even over many turns. AGENT_PREWARM=1 opts
+            # into the pre-warm pool (background replacement + swap between turns); it
+            # bounds accumulated context but forfeits that prompt cache on each swap, so
+            # it is slightly SLOWER per turn — only worth it to cap context growth on a
+            # pathologically long single step (avoid hitting the context window).
+            if os.environ.get("AGENT_PREWARM", "0").strip().lower() in ("1", "true", "yes", "on"):
+                sess = PrewarmStreamPool()
+                kind = "pre-warm pool"
+            else:
+                sess = ClaudeStreamSession()
+                kind = "warm session"
+            sess.start(self._artifact.test_dir)
+            self._claude_session = sess
+            logger.info("Started Claude %s for this test (PID-backed stream-json)", kind)
+            return sess
+        except Exception as exc:  # noqa: BLE001 — any startup failure → one-shot
+            logger.warning("Could not start warm Claude session: %s; using one-shot calls", exc)
+            self._claude_session_failed = True
+            return None
+
+    def _get_decision_log(self) -> Any:
+        """Return the per-test decision audit log (``decisions.jsonl``), created once."""
+        if self._decision_log is None:
+            from framework.helpers.agent_control import DecisionLog
+
+            self._decision_log = DecisionLog(self._artifact.test_dir / "decisions.jsonl")
+        return self._decision_log
+
+    async def aclose(self) -> None:
+        """Reap the per-test warm Claude session, if any. Idempotent."""
+        sess, self._claude_session = self._claude_session, None
+        if sess is not None:
+            try:
+                await asyncio.to_thread(sess.close)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Error closing warm Claude session: %s", exc)
+
+    async def _handle_agent_action(self, step: dict[str, Any]) -> StepResult:
+        """agent_action — drive the game toward a goal with Claude vision (no bridge).
+
+        Bridge-free control for canvas games: screenshots the canvas, asks a
+        Claude Code CLI sub-agent for the next click/keypress, performs it with
+        Playwright, and loops until the goal is met or the step budget runs out.
+        See framework/helpers/agent_control.py. Game-agnostic — the only inputs
+        are the natural-language goal and the on-screen pixels.
+        """
+        # Imported lazily so the Claude/Gemini helper chain only loads when an
+        # agent_action step actually runs.
+        from framework.helpers.agent_control import AgentController
+
+        params = step.get("params") or {}
+        # 'do:' is the human-readable sugar for the goal (top-level on the step).
+        goal = params.get("goal") or step.get("do") or params.get("prompt")
+        if not goal:
+            return StepResult(
+                success=False,
+                error="agent_action requires a goal ('params.goal' or a top-level 'do:')",
+            )
+        max_steps = int(params.get("max_steps") or step.get("max_steps") or 0) or None
+        model = params.get("model") or step.get("model")
+
+        # Per-step screenshot dir under the test artifact directory.
+        step_id = step.get("id", "agent")
+        work_dir = self._artifact.test_dir / "agent" / str(step_id)
+
+        vp = self._page.viewport_size or {}
+        viewport = (int(vp.get("width", 531)), int(vp.get("height", 919)))
+
+        controller = AgentController(
+            self._page, work_dir, viewport=viewport, max_steps=max_steps, model=model,
+            session=self._get_claude_session(),
+            decision_log=self._get_decision_log(),
+            reference=self._reference,
+        )
+        result = await controller.run(goal, max_steps=max_steps)
+        return StepResult(
+            success=result.success,
+            result=result.to_dict(),
+            error=None if result.success else result.error,
+        )
+
+    async def _handle_agent_assert(self, step: dict[str, Any]) -> StepResult:
+        """agent_assert — verify a natural-language claim about the screen (no bridge).
+
+        Bridge-free, vision-based assertion: screenshots the current canvas, asks a
+        Claude Code CLI sub-agent whether the plain-English claim is true, and the
+        step passes/fails on its verdict. An optional ``ref:`` (a prior ``capture``
+        step id) supplies a 'before' screenshot for before/after claims.
+
+        Readable sugar: ``check: "<claim>"`` (top-level on the step) is equivalent
+        to ``action: agent_assert`` with ``params.check``.
+        """
+        from framework.helpers.agent_control import AgentVerifier
+
+        params = step.get("params") or {}
+        check = params.get("check") or step.get("check") or params.get("prompt")
+        if not check:
+            return StepResult(
+                success=False,
+                error="agent_assert requires a claim ('params.check' or a top-level 'check:')",
+            )
+        model = params.get("model") or step.get("model")
+
+        step_id = str(step.get("id", "agent-assert"))
+        now = self._artifact.test_dir / f"{step_id}-now.jpg"
+        await self._page.screenshot(path=str(now), type="jpeg")
+
+        ref_path: Path | None = None
+        ref_id = params.get("ref") or step.get("ref")
+        if ref_id:
+            ref_path = self._capture_paths.get(str(ref_id))
+            if ref_path is None:
+                return StepResult(
+                    success=False,
+                    error=f"agent_assert ref '{ref_id}' not found — it must be the id of an earlier 'capture' step",
+                )
+
+        verifier = AgentVerifier(
+            model=model, session=self._get_claude_session(), reference=self._reference
+        )
+        parsed, raw = await asyncio.to_thread(verifier.verify, now, check, ref_path)
+        passed = bool(parsed and parsed.get("passed"))
+        reason = (parsed or {}).get("reason") or (raw[:200] if not parsed else "")
+        confidence = (parsed or {}).get("confidence")
+        ai_result = {
+            "check": check,
+            "passed": passed,
+            "reason": reason,
+            "confidence": confidence,
+        }
+
+        # Log the verdict to console (do: turns already log; checks did not) and to
+        # the per-test decision audit log (with the raw model response).
+        _verdict = "PASS" if passed else "FAIL"
+        _color = _GREEN if passed else _RED
+        logger.info("  %scheck[%s] %s%s — %s", _color, step_id, _verdict, _RESET, (reason or "")[:90])
+        self._get_decision_log().record({
+            "step": step_id,
+            "kind": "assert",
+            "check": check,
+            "ref": str(ref_id) if ref_id else None,
+            "passed": passed,
+            "reason": reason,
+            "confidence": confidence,
+            "raw": raw,
+        })
+
+        return StepResult(
+            success=passed,
+            error=None if passed else f"agent_assert failed: {reason}",
+            ai_result=ai_result,
+        )
 
     async def _handle_wait_ms(self, step: dict[str, Any]) -> StepResult:
         """wait_ms — sleep for a fixed number of milliseconds."""
@@ -945,7 +1163,7 @@ class StepExecutor:
     @staticmethod
     def _step_detail(step: dict[str, Any]) -> str:
         """Extract a short detail string from a step for logging."""
-        action = step.get("action", "")
+        action = _effective_action(step)
         params = step.get("params") or {}
 
         if action == "navigate":
@@ -973,6 +1191,14 @@ class StepExecutor:
 
         if action == "click":
             return params.get("selector", "")
+
+        if action == "agent_action":
+            goal = params.get("goal") or step.get("do") or params.get("prompt") or ""
+            return goal[:60] + "..." if len(goal) > 60 else goal
+
+        if action == "agent_assert":
+            check = params.get("check") or step.get("check") or params.get("prompt") or ""
+            return check[:60] + "..." if len(check) > 60 else check
 
         if action == "wait_ms":
             return f"{params.get('ms', '?')}ms"

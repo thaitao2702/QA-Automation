@@ -1,0 +1,48 @@
+# Latency probe — a single LONG multi-turn vision step, no bridge, no BO API.
+# Purpose: measure per-turn decision latency across many turns to compare the
+# pre-warm pool (AGENT_PREWARM=1) against a single warm session (AGENT_PREWARM=0).
+# Uses only the base game (loads with the normal launch token) — no paytable forcing.
+#
+# Run both ways and diff agent/step-01/timings.jsonl:
+#   $env:AGENT_PREWARM='0'; python framework/runner/suite_runner.py --game zeus --suite agent-latency --env dev
+#   $env:AGENT_PREWARM='1'; python framework/runner/suite_runner.py --game zeus --suite agent-latency --env dev
+
+suite: "Latency probe — long multi-turn vision step (no bridge, no BO)"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: false
+  test_timeout_ms: 300000
+  suite_timeout_ms: 600000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: setup-01
+    description: "Open the game"
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: setup-02
+    description: "Vision: wait for load and start the game"
+    do: >
+      Wait for the game to finish loading. If a Start/Play button or a tap-to-start
+      screen is shown, tap it to enter the game. You are done when the main game
+      screen with the reels and a spin button is visible.
+    max_steps: 8
+
+tests:
+  - id: LAT-01
+    title: "Spin several times (long step for latency measurement)"
+    steps:
+      - id: step-01
+        description: "Spin the reels repeatedly to generate many turns"
+        do: >
+          Spin the reels several times in a row to test the game. Tap the spin
+          button, wait for the reels to stop, then tap the spin button again.
+          Repeat until you have completed about 5 spins, then report done. If a win
+          popup appears, dismiss it by tapping it before spinning again.
+        max_steps: 14

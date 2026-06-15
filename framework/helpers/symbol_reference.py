@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +58,18 @@ _HEADER_TEMPLATE = (
 )
 
 
-def load_symbol_reference(game: str, base_dir: Path) -> SymbolReference:
+def load_symbol_reference(
+    game: str, base_dir: Path, categories: list[str] | None = None
+) -> SymbolReference:
     """
     Build a SymbolReference from ``games/{game}/docs/assets/assets.yml`` (or legacy ``symbols.yml``).
 
-    Every entry under ``symbols:`` and ``ui_elements:`` that has an existing image
-    file becomes one ``(image_path, label)`` item, ordered symbols-then-ui. Missing
-    files are skipped (logged). Always returns a SymbolReference (possibly empty).
+    Every entry under the requested top-level ``categories`` that has an existing
+    image file becomes one ``(image_path, label)`` item, in the given category order.
+    ``categories=None`` loads the default set ``["symbols", "ui_elements"]`` (the whole
+    pack); pass e.g. ``["ui_elements"]`` to scope a test/group to just those. Missing
+    files (and unknown category names) are skipped and logged. Always returns a
+    SymbolReference (possibly empty).
     """
     asset_dir = base_dir / "games" / game / "docs" / "assets"
     # Prefer the current manifest name (assets.yml); fall back to the legacy
@@ -86,11 +92,16 @@ def load_symbol_reference(game: str, base_dir: Path) -> SymbolReference:
         return SymbolReference(header=header, items=[])
 
     asset_dir = manifest_path.parent
+    sections = categories if categories is not None else ["symbols", "ui_elements"]
     items: list[tuple[Path, str]] = []
     missing = 0
 
-    for section in ("symbols", "ui_elements"):
-        for key, entry in (manifest.get(section) or {}).items():
+    for section in sections:
+        entries = manifest.get(section)
+        if not entries:
+            logger.warning("asset category '%s' not found / empty in %s", section, manifest_path)
+            continue
+        for key, entry in entries.items():
             if not isinstance(entry, dict):
                 continue
             file_rel = entry.get("file", "")
@@ -102,11 +113,46 @@ def load_symbol_reference(game: str, base_dir: Path) -> SymbolReference:
                 continue
             name = entry.get("name", key)
             desc = entry.get("description", "")
-            label = f"Asset '{key}' — {name}" + (f": {desc}" if desc else "")
+            # Human-readable label only (no internal manifest key) — this is what the
+            # model sees as the per-image caption.
+            label = name + (f" — {desc}" if desc else "")
             items.append((img_path, label))
 
     logger.info(
-        "Symbol reference for %s: %d asset image(s) loaded, %d missing file(s)",
-        game, len(items), missing,
+        "Symbol reference for %s [%s]: %d asset image(s) loaded, %d missing file(s)",
+        game, ",".join(sections), len(items), missing,
     )
     return SymbolReference(header=header, items=items)
+
+
+def effective_assets(group_doc: Any, test_doc: Any) -> list[str] | None:
+    """Resolve the asset categories in effect for a test/run.
+
+    A test/run-level ``assets:`` overrides a group-level ``assets:``; if neither is
+    present, returns None (caller decides the default — typically the full pack for
+    AI asserts, and no references for the agent loop).
+    """
+    if isinstance(test_doc, dict) and isinstance(test_doc.get("assets"), list):
+        return test_doc["assets"]
+    if isinstance(group_doc, dict) and isinstance(group_doc.get("assets"), list):
+        return group_doc["assets"]
+    return None
+
+
+class ScopedReferenceCache:
+    """Build (and memoize) scoped SymbolReferences for one game by category set.
+
+    Reused across tests so the same ``assets:`` selection is only loaded from disk
+    once. ``scoped(None)`` returns the full pack.
+    """
+
+    def __init__(self, game: str, base_dir: Path) -> None:
+        self._game = game
+        self._base_dir = base_dir
+        self._cache: dict[tuple[str, ...] | None, SymbolReference] = {}
+
+    def scoped(self, categories: list[str] | None) -> SymbolReference:
+        key = tuple(categories) if categories is not None else None
+        if key not in self._cache:
+            self._cache[key] = load_symbol_reference(self._game, self._base_dir, categories)
+        return self._cache[key]

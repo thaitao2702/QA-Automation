@@ -60,6 +60,18 @@ supported_actions:
     optional_params: [selector, x, y]
     note: "Provide either 'selector' OR both 'x' and 'y'."
 
+  agent_action:
+    description: "Drive the game toward a natural-language goal using Claude vision (no bridge, no DOM)."
+    required_params: [goal]
+    optional_params: [max_steps, model]
+    note: "Bridge-free control for canvas games: screenshots the canvas, asks a Claude Code CLI sub-agent for the next click/keypress, performs it with Playwright, and loops until the agent reports the goal is met (or 'max_steps' is hit, default 8). 'goal' is plain English (e.g. 'increase the bet by one step'). 'model' overrides the CLI model (default sonnet). Game-agnostic. Readable sugar: 'do: <goal>' at step top-level is equivalent to action agent_action. Step result is a transcript {goal, success, error, steps[]}."
+
+  agent_assert:
+    description: "Verify a natural-language claim about the screen using Claude vision (no bridge, no DOM)."
+    required_params: [check]
+    optional_params: [ref, model]
+    note: "Bridge-free, vision-based assertion: screenshots the current canvas and asks a Claude Code CLI sub-agent whether 'check' (a plain-English claim, e.g. 'the spin button is visible') is true; the step passes/fails on its verdict {passed, reason, confidence}. Optional 'ref' is the id of an earlier 'capture' step, supplying a 'before' screenshot for before/after claims (e.g. 'the bet is higher than before'). 'model' overrides the CLI model. Readable sugar: 'check: <claim>' (with optional 'ref:') at step top-level is equivalent to action agent_assert."
+
   go_offline:
     description: "Set browser context to offline mode (all network requests fail)."
     required_params: []

@@ -1,0 +1,95 @@
+# =============================================================================
+# Zeus — bridge-free, natural-language test (Claude vision only)
+# =============================================================================
+# Every step is a human-readable instruction. There is NO bridge anywhere:
+#   do:    "<plain-English action>"  → Claude looks at the screen and taps it
+#   check: "<plain-English claim>"   → Claude looks at the screen and judges it
+# Control AND verification are pure vision, so this same style works on ANY game
+# — including ones that ship no test bridge at all.
+#
+# Run:
+#   python framework/runner/suite_runner.py --game zeus --suite agent-nl --env dev
+#
+# NOTE: each do:/check: is a Claude Code CLI decision (~15-20s). This is the
+# correctness POC; latency is addressed separately (API-based decider).
+# =============================================================================
+
+suite: "Zeus — bridge-free natural-language test"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 600000
+  suite_timeout_ms: 1200000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+setup:
+  - id: setup-01
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: setup-02
+    do: >
+      Wait for the game to finish loading. If a Start or Play button (or a
+      "tap to start" screen) is shown, tap it to enter the game. You are done
+      when the main game screen is visible with the reels and a spin button.
+    max_steps: 8
+
+teardown: []
+
+tests:
+
+  # =========================================================================
+  # NL-01 — Adjust the bet by sight
+  # =========================================================================
+  - id: NL-01
+    title: "Adjust the bet (vision only)"
+    description: "Claude raises then lowers the bet by sight; vision checks confirm the change."
+    steps:
+      - id: step-01
+        description: "Capture the starting (min) bet as the 'before' reference"
+        action: capture
+      - id: step-02
+        do: "Increase the bet by one step by tapping the bet increase (+) button once."
+      - id: step-03
+        check: "The bet amount shown on the bottom bar is HIGHER than it was in the earlier reference screen."
+        ref: step-01
+      - id: step-04
+        do: "Decrease the bet by one step by tapping the bet decrease (-) button once."
+      - id: step-05
+        check: "The bet amount shown on the bottom bar is back to the SAME value as in the earlier reference screen."
+        ref: step-01
+
+  # =========================================================================
+  # NL-02 — Spin and observe a result
+  # =========================================================================
+  - id: NL-02
+    title: "Spin and observe a result (vision only)"
+    description: "Claude spins and confirms the round completes — no bridge state polling."
+    steps:
+      - id: step-01
+        check: "The game is idle and ready: the main spin button is visible and tappable."
+      - id: step-02
+        do: >
+          Press the spin button once and wait until the reels have fully stopped
+          and any win or result animation has finished.
+        max_steps: 6
+      - id: step-03
+        check: "The reels have stopped on a set of symbols and the spin button is available again (the game is back to idle)."
+
+  # =========================================================================
+  # NL-03 — Open the auto-spin popup
+  # =========================================================================
+  - id: NL-03
+    title: "Open the auto-spin popup (vision only)"
+    description: "Claude finds and taps the AUTO button; a vision check confirms the popup."
+    steps:
+      - id: step-01
+        do: "Open the auto-spin settings popup by tapping the AUTO button on the bottom control bar."
+        max_steps: 5
+      - id: step-02
+        check: "An auto-spin / auto-play settings popup is open (e.g. it shows selectable spin counts and a start or confirm button)."
