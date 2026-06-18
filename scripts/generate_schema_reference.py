@@ -113,6 +113,24 @@ def _extract_action_params() -> dict[str, dict]:
             "description": "Click a CSS selector or canvas coordinates.",
             "note": "Provide either 'selector' OR both 'x' and 'y'.",
         },
+        "click_button": {
+            "required": ["name"],
+            "optional": ["require_visible"],
+            "description": "Click a named game button at its real on-screen coordinates (a genuine user tap), not by invoking its bridge action.",
+            "note": "Resolves 'name' to a screen rect via the bridge's getButtonRect(name) (bridge-api.md §3.7), then page.mouse.click(centerX, centerY). Names: spin, stop, auto, buyBonus, nextBet, previousBet, trophy (always), plus popup element names while that popup is open (e.g. bet:row:2, auto:package:0, buyBonus:confirm). Fails if the button is absent (unknown name or its popup is closed) or — unless require_visible: false — if the rect is not visible/clickable. The resolved rect is the step result (save:-able). Pair with a wait_for_state/wait_ms afterwards if the tap opens a popup or starts a spin.",
+        },
+        "agent_action": {
+            "required": ["goal"],
+            "optional": ["max_steps", "model"],
+            "description": "Drive the game toward a natural-language goal using Claude vision (no bridge, no DOM): screenshot → Claude picks the next click/keypress → Playwright performs it → loop until done or max_steps (default 8). Sugar: `do: <goal>`.",
+            "note": "Bridge-free, game-agnostic control: a Claude Code CLI sub-agent looks at a screenshot of the canvas and returns the next single action (click x/y, press_key, wait, done, fail); the runner performs it and re-screenshots, looping until the agent reports the goal met or 'max_steps' (default 8) is reached. 'goal' is plain English (e.g. 'open the auto-spin popup', 'increase the bet by one step') — keep goals small and observable. Uses local Claude Code auth (no API key); model via 'model:' or CLAUDE_MODEL/AGENT_MODEL (default sonnet); tunables AGENT_MAX_STEPS/AGENT_SETTLE_MS. Warm session: all do:/check: in a test share ONE persistent claude process (AGENT_STREAM=0 forces one-shot). Result is a transcript {goal, success, error, steps[]}; per-turn screenshots saved under agent/<step-id>/; every decision is appended to decisions.jsonl. Hybrid-friendly: combine with bridge_action/bridge_assert in the same test. Readable sugar: write 'do: <goal>' at the step top-level instead of action: agent_action + params.goal.",
+        },
+        "agent_assert": {
+            "required": ["check"],
+            "optional": ["ref", "model"],
+            "description": "Verify a natural-language claim about the screen using Claude vision (no bridge): screenshot → Claude judges if `check` is true → step passes/fails. `ref` = an earlier `capture` step id for before/after claims. Sugar: `check: <claim>` (+ optional `ref:`).",
+            "note": "Bridge-free, vision-based verification: a Claude Code CLI sub-agent screenshots the canvas and judges whether a plain-English 'check' claim is true, returning {passed, reason, confidence}; the step passes only when passed is true. 'check' is a single observable claim (e.g. 'the spin button is visible', 'an auto-spin popup is open') — one thing per step. 'ref' is the id of an earlier 'capture' step, supplying a 'before' screenshot so claims like 'the bet is higher than before' can compare against it (resolved from the captures taken so far, robust to the screenshot counter). Uses local Claude Code auth (no API key); model via 'model:' or CLAUDE_MODEL/AGENT_MODEL (default sonnet); the verdict shows in the report. Readable sugar: write 'check: <claim>' (with optional 'ref:') at the step top-level instead of action: agent_assert.",
+        },
         "wait_ms": {
             "required": ["ms"],
             "optional": [],
@@ -141,6 +159,30 @@ def _extract_action_params() -> dict[str, dict]:
             "optional": ["agent_id", "currency_id", "game_code"],
             "description": "Reset the agent's game paytable back to the game default (teardown step; undoes bo_paytable_select).",
             "note": "agent_id/currency_id/game_code default to the bo: block in games/{game}/env.config.yml. Resets to the game default paytable, not the value set before the test. Requires BO_TOKEN/BO_REFRESH_TOKEN in .env.{suffix}.",
+        },
+        "wallet_balance": {
+            "required": [],
+            "optional": ["currency"],
+            "description": "Read the player's Playsite balance via the wallet API. Stored in the step result (use 'save:' to assert it later).",
+            "note": "With a 'currency' (or the configured default) the result is the numeric balance for that currency; with none it is the full list of the player's wallets. currency defaults to playsite.currency in games/{game}/env.config.{suffix}.yml (or the PLAYSITE_CURRENCY env var). Requires PLAYSITE_API_URL/PLAYSITE_USER/PLAYSITE_PASS in .env.{suffix}.",
+        },
+        "wallet_deposit": {
+            "required": ["amount"],
+            "optional": ["currency"],
+            "description": "Deposit funds into the player's wallet via the Playsite API (server-side balance change for deterministic setup).",
+            "note": "amount is an int/float/numeric string. currency defaults to playsite.currency in games/{game}/env.config.{suffix}.yml (or PLAYSITE_CURRENCY); a step param overrides it. Result is the updated wallet {currency, balance} (save:-able). Requires PLAYSITE_API_URL/PLAYSITE_USER/PLAYSITE_PASS in .env.{suffix}.",
+        },
+        "wallet_withdraw": {
+            "required": ["amount"],
+            "optional": ["currency"],
+            "description": "Withdraw funds from the player's wallet via the Playsite API (server-side balance change for deterministic setup).",
+            "note": "amount is an int/float/numeric string. currency defaults to playsite.currency in games/{game}/env.config.{suffix}.yml (or PLAYSITE_CURRENCY); a step param overrides it. Result is the updated wallet {currency, balance} (save:-able). Fails if the balance is insufficient. Requires PLAYSITE_API_URL/PLAYSITE_USER/PLAYSITE_PASS in .env.{suffix}.",
+        },
+        "wallet_set": {
+            "required": ["amount"],
+            "optional": ["currency"],
+            "description": "Set the player's balance to an absolute target by depositing/withdrawing the difference (robust forcing + restore).",
+            "note": "amount is the TARGET balance (int/float/numeric string, or a \"$saved\" reference to an earlier wallet_balance result). It reads the current balance and applies only the delta, so it lands on exactly amount whatever the balance was. Use it to force a precise test balance (e.g. below the bet to test a disabled spin) and — paired with a wallet_balance 'save:' in the same test's setup — to restore the original in teardown ('amount: \"$orig_balance\"'). currency defaults to playsite.currency / PLAYSITE_CURRENCY. Requires PLAYSITE_API_URL/PLAYSITE_USER/PLAYSITE_PASS in .env.{suffix}.",
         },
     }
 
@@ -193,6 +235,13 @@ def _generate_yml(action_params: dict) -> str:
         lines.append(f"  {mode}:")
         lines.append(f"    required_fields: [{', '.join(req_fields)}]")
     lines.append("  note: \"In a run, an AI assert may use 'expected_by_case' (a {case_id: expected-subset} map) instead of a single 'expected' block — one model call, many case verdicts.\"")
+    lines.append("  prompt_substitution: \"'prompt' (and string values in 'expected'/'expected_by_case') may contain {{name}} placeholders, replaced at execution time with the value saved by an earlier step's 'save: name' — for deterministic asserts. A missing variable fails the step. Same for an agent_assert 'check:' claim.\"")
+    lines.append("  reference_selection:")
+    lines.append("    description: \"Scope which manifest assets prime an AI assert. Settable on the assert.ai AND at test/group level (assert > test > group; the most specific level that sets either field wins entirely). Unset everywhere -> the full pack. Validated at suite load: unknown group/item fails fast.\"")
+    lines.append("    fields:")
+    lines.append("      - { name: asset_groups, type: list, description: \"Manifest group names (e.g. [symbols, ui_elements, ui]); loads every item in each.\" }")
+    lines.append("      - { name: assets, type: list, description: \"Qualified '{group}.{name}' items (e.g. [ui_elements.bet_label, symbols.coin]); loads exactly those.\" }")
+    lines.append("      - { name: ref_assets, type: list, description: \"DEPRECATED — bare asset names resolved across all groups (warns). Use asset_groups/assets.\" }")
     lines.append("")
 
     lines.append("assert_bridge:")
@@ -226,6 +275,8 @@ def _generate_yml(action_params: dict) -> str:
     lines.append("    - { name: title, type: str }")
     lines.append("    - { name: setup, type: list, description: \"Group setup — runs once before the group's tests\" }")
     lines.append("    - { name: teardown, type: list, description: \"Group teardown — runs once after the group's tests\" }")
+    lines.append("    - { name: asset_groups, type: list, description: \"Default reference scope for this group's AI asserts (see ai_modes.reference_selection)\" }")
+    lines.append("    - { name: assets, type: list, description: \"Default '{group}.{name}' reference items for this group's AI asserts\" }")
     lines.append("  run_required_fields:")
     lines.append("    - { name: id, type: str, description: \"Unique run id (unique across all test/run/case ids)\" }")
     lines.append("    - { name: cases, type: list, description: \"Case definitions {id, title, description?} (>=1)\" }")
@@ -234,6 +285,8 @@ def _generate_yml(action_params: dict) -> str:
     lines.append("    - { name: title, type: str }")
     lines.append("    - { name: setup, type: list }")
     lines.append("    - { name: teardown, type: list }")
+    lines.append("    - { name: asset_groups, type: list, description: \"Default reference scope for this run's AI asserts (see ai_modes.reference_selection)\" }")
+    lines.append("    - { name: assets, type: list, description: \"Default '{group}.{name}' reference items for this run's AI asserts\" }")
     lines.append("  case_fields:")
     lines.append("    - { name: id, type: str, description: \"Unique case id (selectable via --test)\" }")
     lines.append("    - { name: title, type: str }")
@@ -253,6 +306,8 @@ def _generate_yml(action_params: dict) -> str:
     lines.append("    - { name: setup, type: list }")
     lines.append("    - { name: teardown, type: list }")
     lines.append("    - { name: description, type: str }")
+    lines.append("    - { name: asset_groups, type: list, description: \"Default reference scope for this test's AI asserts (see ai_modes.reference_selection)\" }")
+    lines.append("    - { name: assets, type: list, description: \"Default '{group}.{name}' reference items for this test's AI asserts\" }")
     lines.append("  step_required_fields:")
     lines.append("    - { name: id, type: str, description: \"Every step must have an id\" }")
     lines.append("  step_conditional_fields:")
@@ -335,6 +390,59 @@ def _generate_md(action_params: dict) -> str:
         req_fields = AI_MODE_REQUIRED_FIELDS.get(mode, [])
         lines.append(f"**mode: {mode}** — required fields: {', '.join(f'`{f}`' for f in req_fields)}")
         lines.append("")
+
+    lines.append("**Saved-value substitution (deterministic asserts).** The `prompt` (and any")
+    lines.append("string value in `expected` / `expected_by_case`) may contain `{{name}}`")
+    lines.append("placeholders. At step-execution time each is replaced with the value an earlier")
+    lines.append("step captured via `save: name`, so the AI confirms a known value instead of")
+    lines.append("judging a fuzzy one. A `{{name}}` whose variable was never saved fails the step.")
+    lines.append("Same mechanism applies to the `check:` claim of an `agent_assert` step.")
+    lines.append("")
+    lines.append("```yaml")
+    lines.append("- id: step-01")
+    lines.append("  action: bridge_action")
+    lines.append("  params: { name: getDisplayBet }")
+    lines.append("  save: bet")
+    lines.append("- id: step-02")
+    lines.append("  action: capture")
+    lines.append("- id: step-03")
+    lines.append("  assert:")
+    lines.append("    ai:")
+    lines.append("      mode: image")
+    lines.append("      ref_screenshot: step-02")
+    lines.append("      prompt: \"Does the bet label show {{bet}}?\"   # -> '... show 1.00?'")
+    lines.append("      output_schema: { matches: { type: boolean } }")
+    lines.append("      expected: { matches: true }")
+    lines.append("```")
+    lines.append("")
+
+    lines.append("### Reference selection (`asset_groups` / `assets`)")
+    lines.append("")
+    lines.append("Scope which manifest assets prime an AI assert instead of sending the full pack.")
+    lines.append("Settable on the `assert.ai` block AND at **test** / **group** level as an inherited")
+    lines.append("default. Precedence: **assert > test > group** — the most specific level that sets")
+    lines.append("either field wins entirely (no merge). Unset everywhere -> the full reference pack")
+    lines.append("(backward compatible). References are validated at suite load: an unknown group or")
+    lines.append("`{group}.{name}` item fails before any test runs.")
+    lines.append("")
+    lines.append("| Field | Type | Description |")
+    lines.append("|-------|------|-------------|")
+    lines.append("| `asset_groups` | list | Manifest group names (e.g. `[symbols, ui_elements, ui]`); loads every item in each, in section order. |")
+    lines.append("| `assets` | list | Qualified `{group}.{name}` items (e.g. `[ui_elements.bet_label, symbols.coin]`); loads exactly those. |")
+    lines.append("| `ref_assets` | list | **Deprecated** alias — bare names resolved across all groups (warns). Migrate to `asset_groups`/`assets`. |")
+    lines.append("")
+    lines.append("```yaml")
+    lines.append("- id: step-03")
+    lines.append("  assert:")
+    lines.append("    ai:")
+    lines.append("      mode: image")
+    lines.append("      ref_screenshot: step-02")
+    lines.append("      assets: [ui_elements.bet_label]   # only the bet label primes the model")
+    lines.append("      prompt: \"Is the bet label readable and non-zero?\"")
+    lines.append("      output_schema: { ok: { type: boolean } }")
+    lines.append("      expected: { ok: true }")
+    lines.append("```")
+    lines.append("")
 
     lines.append("---")
     lines.append("")

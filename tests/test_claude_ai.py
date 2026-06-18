@@ -247,6 +247,15 @@ class TestClaudeVideoHelper:
         assert summary["gemini_output_tokens"] == 0
         assert summary["estimated_cost_usd"] == 0.0
 
+    def test_exposes_model_and_cost_for_tokens(self) -> None:
+        # VideoAiProcessor calls helper.model + helper.cost_for_tokens() directly on the
+        # per-test path; the claude helper must expose them (GeminiVideoHelper-compatible)
+        # or _process_test crashes after analyse_video and silently leaves the test
+        # 'pending'. See: HANDOFF-video-ai-fold.md.
+        helper = ClaudeVideoHelper()
+        assert isinstance(helper.model, str) and helper.model
+        assert helper.cost_for_tokens(1234, 56) == 0.0  # local auth is unmetered
+
 
 # ---------------------------------------------------------------------------
 # ClaudeImageHelper
@@ -286,6 +295,11 @@ class TestClaudeImageHelper:
 
         assert result.success is True
         assert (_work_dir_for(image) / "screenshot-extra-1.png").exists()
+
+    def test_exposes_model_and_cost_for_tokens(self) -> None:
+        helper = ClaudeImageHelper()
+        assert isinstance(helper.model, str) and helper.model
+        assert helper.cost_for_tokens(1234, 56) == 0.0
 
     def test_cli_error_never_raises(self, tmp_path: Path) -> None:
         helper = ClaudeImageHelper()

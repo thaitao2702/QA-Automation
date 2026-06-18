@@ -49,6 +49,35 @@ The skill adds result presentation only — execution is identical.
 
 ---
 
+## Selecting What to Run (granularity)
+
+A suite is structured as **suite → group(s) → run/test → case**, and you can target any of
+these levels with the two filters (`--test` / `--group`). The smallest selectable unit is a
+**case/test** — there is no per-step selection.
+
+| Run by | Flags | Behavior |
+|---|---|---|
+| **Whole suite** | none | Every group, test, and run executes (default) |
+| **Group(s)** | `--group <id>[,<id>…]` | Only those groups — their setup/teardown **plus all** their tests/runs |
+| **Standalone test(s)** | `--test <id>[,<id>…]` | Only those tests; the enclosing **group's setup/teardown still runs** |
+| **A run** | `--test <run-id>` | The whole run executes once; **all** its case verdicts are reported |
+| **A single case** | `--test <case-id>` | The parent run still executes **once**, but only that case's verdict is reported (cases share one execution — a case can't run in isolation) |
+
+**Semantics to know:**
+- **`--test` accepts test ids, run ids, AND case ids** — a case id means "run the parent run,
+  report just this case." (`framework/runner/suite_runner.py` → `_test_selected` / `_run_selected`.)
+- **Both filters are comma-separated** (multi-select) and **compose with AND** — e.g.
+  `--group freespin --test ZZ-30` runs only the `freespin` group and, within it, only `ZZ-30`.
+- **A test/case selection never skips its group's setup/teardown**, so paytable / balance / state
+  preconditions established at group level are still applied (run a single bonus case safely).
+- **No `--case`, `--run`, or per-step flag** — cases and runs are both selected through `--test`
+  (by their id); steps are never run individually.
+
+To discover the selectable ids for a suite, read its YAML (the `id:` of each `group`, `test`,
+`run`, and `case`) or the `{suite}.plan.json` plan file — there is no `--list` command.
+
+---
+
 ## Expert Vocabulary Payload
 
 **Test Execution & Orchestration:**

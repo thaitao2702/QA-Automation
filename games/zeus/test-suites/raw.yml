@@ -1,0 +1,967 @@
+# =============================================================================
+# Zeus — raw QA suite (refined from test-case.xlsx)
+# Plan: games/zeus/test-suites/raw.plan.json
+#
+# WRITTEN SO FAR: GROUP core (ZZ-01/02/03/04/05/06/09/11/12)
+#                 GROUP holdspin (ZZ-30/31/32/33/34/35/36/37/38)
+# PENDING REVIEW: auto, turbo-sound, buybonus, spin, reconnect groups
+# SKIPPED (flagged): ZZ-07/08/10/16/23/27/28/29/51/52 (see raw.plan.json)
+#
+# Determinism (see memory feedback-devmode-vs-paytable-sequences):
+#   - single independent spins  -> setDevModeResult (client-side, one spin)
+#   - Hold & Spin bonus sequences -> BO paytable (server-authoritative)
+#       fs-trigger3-countdown / fs-trigger3-addcoin / fs-trigger9 fixtures
+# Runtime prereq for the holdspin groups: BO_TOKEN/BO_REFRESH_TOKEN in .env.<env>;
+# bo: block already present in games/zeus/env.config.dev.yml.
+# =============================================================================
+
+suite: "Zeus — Raw QA Sheet (core + Hold & Spin)"
+game: zeus
+version: "1.0"
+
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 120000
+  suite_timeout_ms: 240000
+  stop_conditions:
+    fail_fast: true
+    max_consecutive_failures: 3
+    max_total_failures: 10
+
+# NOTE: BO paytable steps live in the bonus GROUPS (fs-trigger*), not here, so the
+# BO-free core group runs even when the back-office API is unavailable.
+setup:
+  - id: setup-01
+    description: "Open the game (URL + ?bridge=1 resolved from env config)"
+    action: navigate
+    params: { url_script: "get_game_url" }
+  - id: setup-02
+    description: "Wait for the bridge to register at READY"
+    action: wait_for_state
+    params: { state: ready, timeout_ms: 30000 }
+  - id: setup-03
+    description: "Click Start and wait for the gameplay scene to be fully ready"
+    action: bridge_action
+    params: { name: startGame, args: [] }
+
+teardown: []
+
+groups:
+
+  # =========================================================================
+  # GROUP core — UI / denominations / bet / balance / paytable / history
+  # (bridge-injection / client-side; no BO paytable update needed)
+  # =========================================================================
+  - id: core
+    title: "Core — UI, denominations, bet, balance, paytable, history"
+    setup: []
+    teardown: []
+
+    runs:
+      # ---- game-load-run: ZZ-01, ZZ-02, ZZ-04 (one load -> 3 verdicts) ----
+      - id: game-load-run
+        title: "Game load — UI + denominations + default bet"
+        cases:
+          - { id: ZZ-01, title: "UI matches design (game loads correctly)" }
+          - { id: ZZ-02, title: "Denominations match server config" }
+          - { id: ZZ-04, title: "Default bet level shown at load" }
+        setup:
+          - id: setup-01
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+        steps:
+          - id: step-01
+            description: "Fetch denomination list"
+            action: bridge_action
+            params: { name: getDenominations }
+            save: denoms
+          - id: step-02
+            description: "Capture the displayed default bet string"
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betDisplay
+          - id: step-03
+            description: "Screenshot of the loaded idle base game"
+            action: capture
+          # Deterministic, config-derived default-bet check (untagged → applies to the
+          # whole run; ZZ-02/ZZ-04 also get per-case verdicts from step-05/06/07).
+          - id: step-04
+            description: >
+              Default bet shown at load matches server config (what a QA does by hand):
+              take defaultBetLevel (1-based) from gameInfo.settings, convert to a 0-based
+              denominations index (level - 1), read the bet amount at that index, and
+              assert the displayed bet equals it.
+            action: script
+            params:
+              cmd: |
+                const gi = bridge.getGameInfo();
+                assert(gi && gi.settings, 'getGameInfo().settings not available at load');
+                const level = gi.settings.defaultBetLevel;          // 1-based default bet level (server config)
+                const idx = level - 1;                              // -> 0-based denominations index
+                const amount = vars.denoms[idx];                    // bet amount at the default level
+                assert(bridge.getBetIndex() === idx,
+                  'game did not load at the default level: betIndex ' + bridge.getBetIndex()
+                  + ' != defaultBetLevel(' + level + ') - 1 = ' + idx);
+                // the displayed bet must equal that denomination (strip any thousands separators)
+                assert_equal(parseFloat(String(vars.betDisplay).replace(/,/g, '')), amount);
+          - id: step-05
+            description: "Next bet enabled at default"
+            case: ZZ-02
+            action: bridge_assert
+            params: { method: isNextBetEnabled, expected: true }
+          - id: step-06
+            description: "Previous bet enabled at the mid-range default (denoms exist below)"
+            case: ZZ-02
+            action: bridge_assert
+            params: { method: isPreviousBetEnabled, expected: true }
+          - id: step-07
+            description: "AI: UI present + bet label formatted + shows the default value"
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: step-03
+                assets: [ui.base_game]
+                prompt: >
+                  Zappin Zeus, a 3x3 Greek-myth slot, just finished loading and is sitting idle
+                  on the base game. Compare against the reference base_game layout.
+                  (1) ui_complete: is the full base-game UI present — 3x3 reels, spin button,
+                  balance and bet labels — matching the reference layout?
+                  (2) bet_label_formatted: is the bet label a properly formatted decimal value?
+                  (3) bet_value_matches: does the bet label show {{betDisplay}}?
+                output_schema:
+                  ui_complete: { type: boolean }
+                  bet_label_formatted: { type: boolean }
+                  bet_value_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected_by_case:
+                  ZZ-01: { ui_complete: true, confidence: high }
+                  ZZ-02: { bet_label_formatted: true, confidence: high }
+                  ZZ-04: { bet_value_matches: true, confidence: high }
+        teardown: []
+
+      # ---- balance-run: ZZ-05, ZZ-06 (two spins -> 2 verdicts) ----
+      - id: balance-run
+        title: "Balance math — deduct on bet + add payout"
+        cases:
+          - { id: ZZ-05, title: "Balance deducted by bet on spin" }
+          - { id: ZZ-06, title: "Payout added to balance after settle" }
+        setup:
+          - id: setup-01
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+        steps:
+          # -- spin A: no-win grid -> proves pure deduction (ZZ-05) --
+          - id: step-01
+            description: "Balance before spin A"
+            action: bridge_action
+            params: { name: getBalance }
+            save: balBeforeA
+          - id: step-02
+            description: "Screenshot before spin A"
+            action: capture
+          - id: step-03
+            description: "Inject a no-win grid (A/Q/K each reel — no payline)"
+            action: bridge_action
+            params: { name: setDevModeResult, grid: [[1, 1, 1], [3, 3, 3], [4, 4, 4]] }
+          - id: step-04-ready
+            description: "Wait until the spin button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [spin] }
+          - id: step-04
+            description: "Tap spin (the real tap triggers the spin that applies the injected no-win grid)"
+            action: click_button
+            params: { name: spin }
+          - id: step-04-settle
+            description: "Hold 300ms so the tap is a distinct, watchable moment"
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-05
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+          - id: step-06
+            description: "Balance after spin A"
+            action: bridge_action
+            params: { name: getBalance }
+            save: balAfterA
+          - id: step-07
+            description: "Screenshot after spin A"
+            action: capture
+          - id: step-08
+            description: "ZZ-05: no win -> balance change is pure bet deduction"
+            case: ZZ-05
+            action: bridge_assert
+            params: { method: getLastPayout, expected: 0 }
+          - id: step-09
+            description: "ZZ-05 AI: balance decreased"
+            case: ZZ-05
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: [step-02, step-07]
+                assets: [ui_elements.balance_label]
+                prompt: >
+                  Zappin Zeus base game; a losing spin just resolved. Compare the balance in
+                  image 1 (before) vs image 2 (after). Is the after-balance lower than the
+                  before-balance (reduced by the bet)?
+                output_schema:
+                  balance_decreased: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { balance_decreased: true, confidence: high }
+          # -- spin B: winning grid -> proves payout added (ZZ-06) --
+          - id: step-10
+            description: "Balance before spin B"
+            action: bridge_action
+            params: { name: getBalance }
+            save: balBeforeB
+          - id: step-11
+            description: "Screenshot before spin B"
+            action: capture
+          - id: step-12
+            description: "Inject a winning grid (3x P1/Crow on the top row = a payline)"
+            action: bridge_action
+            params: { name: setDevModeResult, grid: [[1, 5, 5], [1, 1, 1], [1, 3, 3]] }
+          - id: step-13-ready
+            description: "Wait until the spin button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [spin] }
+          - id: step-13
+            description: "Tap spin (the real tap triggers the spin that applies the injected winning grid)"
+            action: click_button
+            params: { name: spin }
+          - id: step-13-settle
+            description: "Hold 300ms so the tap is a distinct, watchable moment"
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-14
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+          - id: step-15
+            description: "Payout from the winning spin"
+            action: bridge_action
+            params: { name: getLastPayout }
+            save: payout
+          - id: step-16
+            description: "Displayed win string"
+            action: bridge_action
+            params: { name: getDisplayWin }
+            save: winDisplay
+          - id: step-17
+            description: "Screenshot after spin B"
+            action: capture
+          - id: step-18
+            description: "ZZ-06 AI: balance increased and win displayed"
+            case: ZZ-06
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: [step-11, step-17]
+                assets: [ui_elements.balance_label, ui_elements.win_label]
+                prompt: >
+                  Zappin Zeus base game; a winning spin just resolved. Compare image 1 (before)
+                  vs image 2 (after). (1) balance_increased: is the after-balance higher than
+                  before? (2) win_displayed: does the win label show a positive win of {{winDisplay}}?
+                output_schema:
+                  balance_increased: { type: boolean }
+                  win_displayed: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { balance_increased: true, win_displayed: true, confidence: high }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: resetDevMode }
+
+      # ---- paytable-run: ZZ-11, ZZ-12 (one popup -> 2 verdicts) ----
+      - id: paytable-run
+        title: "Paytable — UI + payout-by-bet formula"
+        cases:
+          - { id: ZZ-11, title: "Paytable popup UI correct" }
+          - { id: ZZ-12, title: "Symbol payout = total bet / 5 x multiplier" }
+        setup:
+          - id: setup-01
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+        steps:
+          - id: step-01
+            description: "Bet at index 0"
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betA
+          - id: step-02
+            description: "Open the paytable/info tab"
+            action: bridge_action
+            params: { name: openInfo }
+          - id: step-03
+            description: "Wait for the paytable popup to fully settle (payout numbers render after the symbols)"
+            action: wait_ms
+            params: { ms: 2500 }
+          - id: step-04
+            description: "Screenshot of paytable at bet A"
+            action: capture
+          - id: step-05
+            description: "ZZ-11 AI: paytable shows symbols with their payout values"
+            case: ZZ-11
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: step-04
+                assets: [ui_elements.paytable_popup]
+                prompt: >
+                  Zappin Zeus "Information" / paytable popup is open and fully settled (subtitle
+                  "Zappin ZEUS"). Looking at the symbol list:
+                  (1) popup_visible: is the paytable popup open?
+                  (2) has_symbol_payouts: is each symbol shown together with its numeric payout
+                  value(s) (e.g. a number under or beside the premium and card symbols)?
+                output_schema:
+                  popup_visible: { type: boolean }
+                  has_symbol_payouts: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { popup_visible: true, has_symbol_payouts: true, confidence: high }
+          - id: step-06
+            description: "Close the popup (no Escape/reload)"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: step-07-ready
+            description: "Wait until the main + (next bet) button is clickable (paytable popup cleared)"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [nextBet] }
+          - id: step-07
+            description: "Tap + — opens the bet-amount popup"
+            action: click_button
+            params: { name: nextBet }
+          - id: step-07-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-07b-ready
+            description: "Wait until the index-3 bet-amount button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: ["bet:row:3"] }
+          - id: step-07b
+            description: "Tap a higher bet amount (each denomination is its own button)"
+            action: click_button
+            params: { name: "bet:row:3" }
+          - id: step-07b-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-07c
+            description: "Close the bet-amount popup"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: step-07c-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-08
+            description: "Bet at the raised level"
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betB
+          - id: step-09
+            description: "Reopen the paytable at the higher bet"
+            action: bridge_action
+            params: { name: openInfo }
+          - id: step-10
+            description: "Wait for the reopened paytable to fully settle before capturing"
+            action: wait_ms
+            params: { ms: 2500 }
+          - id: step-11
+            description: "Screenshot of paytable at bet B"
+            action: capture
+          - id: step-12
+            description: "ZZ-12 AI: payout scales with bet (total bet / 5 x multiplier)"
+            case: ZZ-12
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: [step-04, step-11]
+                assets: [symbols.ring]
+                prompt: >
+                  Two screenshots of the same Zappin Zeus paytable: image 1 at bet {{betA}} and
+                  image 2 at bet {{betB}}. Payout per symbol = total bet / 5 x symbol multiplier,
+                  so raising the bet must raise every symbol's displayed payout. For the same
+                  premium symbol across both images, did its payout values increase from image 1
+                  to image 2, consistent with the higher bet?
+                output_schema:
+                  payouts_scaled_with_bet: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { payouts_scaled_with_bet: true, confidence: high }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+          # Restore the default bet. nextBet/previousBet now require the popup open,
+          # so open it, step down one (undoing step-07's raise), and close.
+          - id: teardown-03
+            description: "Open the bet-amount popup"
+            action: bridge_action
+            params: { name: openBetPopup }
+          - id: teardown-03b
+            description: "Let the popup register before stepping (openBetPopup is async)"
+            action: wait_ms
+            params: { ms: 500 }
+          - id: teardown-04
+            description: "Step the bet back down one (back to the default level)"
+            action: bridge_action
+            params: { name: previousBet }
+          - id: teardown-05
+            description: "Close the bet-amount popup"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+
+    tests:
+      # ---- ZZ-03: increase / decrease bet ----
+      - id: ZZ-03
+        title: "Increase / decrease bet (+ / - buttons)"
+        setup:
+          - id: setup-01
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+        steps:
+          - id: step-01
+            description: "Start at the default bet level (index 2 on dev)"
+            action: bridge_assert
+            params: { method: getBetIndex, expected: 2 }
+          - id: step-02
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betMin
+          - id: step-03
+            description: "Main-screen bet label at the default level (before)"
+            action: capture
+          # --- Increase: the main + button now OPENS the bet-amount popup; tap a higher amount ---
+          - id: step-04-ready
+            description: "Wait until the main + (next bet) button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [nextBet] }
+          - id: step-04
+            description: "Tap + — opens the bet-amount popup (no longer changes the bet inline)"
+            action: click_button
+            params: { name: nextBet }
+          - id: step-04-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-05-ready
+            description: "Wait until the index-3 bet-amount button in the popup is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: ["bet:row:3"] }
+          - id: step-05
+            description: "Tap the next bet amount (each denomination is its own button) -> index 3"
+            action: click_button
+            params: { name: "bet:row:3" }
+          - id: step-05-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-06
+            description: "Close the bet-amount popup (the selection already applied via setStake)"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: step-06-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-07
+            description: "Index stepped up"
+            action: bridge_assert
+            params: { method: getBetIndex, expected: 3 }
+          - id: step-08
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betUp
+          - id: step-09
+            description: "Main-screen bet label after raising the bet (after)"
+            action: capture
+          - id: step-10
+            description: "AI: bet value increased"
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: [step-03, step-09]
+                assets: [ui_elements.bet_label]
+                prompt: >
+                  Zappin Zeus base-game bet selector. The bet was raised one step, from {{betMin}}
+                  (image 1) to {{betUp}} (image 2). Is the bet value in image 2 higher than image 1,
+                  reading {{betUp}}?
+                output_schema:
+                  increased: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { increased: true, confidence: high }
+          # --- Decrease: the main − button opens the same popup; tap a lower amount ---
+          - id: step-11-ready
+            description: "Wait until the main − (previous bet) button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [previousBet] }
+          - id: step-11
+            description: "Tap − — opens the bet-amount popup"
+            action: click_button
+            params: { name: previousBet }
+          - id: step-11-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-12-ready
+            description: "Wait until the index-2 bet-amount button in the popup is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: ["bet:row:2"] }
+          - id: step-12
+            description: "Tap the lower bet amount -> back to index 2"
+            action: click_button
+            params: { name: "bet:row:2" }
+          - id: step-12-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-13
+            description: "Close the bet-amount popup"
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: step-13-settle
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-14
+            description: "Index back to the default"
+            action: bridge_assert
+            params: { method: getBetIndex, expected: 2 }
+          - id: step-15
+            action: bridge_action
+            params: { name: getDisplayBet }
+            save: betDown
+          - id: step-16
+            description: "Main-screen bet label after lowering the bet"
+            action: capture
+          - id: step-17
+            description: "AI: bet value decreased"
+            assert:
+              ai:
+                mode: image
+                ref_screenshot: [step-09, step-16]
+                assets: [ui_elements.bet_label]
+                prompt: >
+                  Zappin Zeus bet selector. The bet was lowered one step, from {{betUp}} (image 1)
+                  back to {{betDown}} (image 2). Is the bet value in image 2 lower than image 1,
+                  reading {{betDown}}?
+                output_schema:
+                  decreased: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { decreased: true, confidence: high }
+        teardown: []
+
+      # ---- ZZ-09: in-game history ----
+      - id: ZZ-09
+        title: "In-game History shows completed spin"
+        setup:
+          - id: setup-01
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+        steps:
+          - id: step-01-ready
+            description: "Wait until the spin button is clickable"
+            action: bridge_action
+            params: { name: waitForButtonClickable, args: [spin] }
+          - id: step-01
+            description: "Tap spin to complete one bet (real coordinate click)"
+            action: click_button
+            params: { name: spin }
+          - id: step-01-settle
+            description: "Hold 300ms so the tap is a distinct, watchable moment"
+            action: wait_ms
+            params: { ms: 300 }
+          - id: step-02
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+          - id: step-03
+            description: "Open the History tab"
+            action: bridge_action
+            params: { name: openHistory }
+          - id: step-04
+            action: wait_ms
+            params: { ms: 1000 }
+          - id: step-05
+            action: capture
+          - id: step-06
+            description: "History popup shows at least one bet record"
+            assert:
+              bridge:
+                method: getAppState
+                expected: "idle"
+              ai:
+                mode: image
+                ref_screenshot: step-05
+                assets: [ui_elements.paytable_popup]
+                prompt: >
+                  Zappin Zeus just completed one base-game spin, then the History tab of the info
+                  popup was opened. Is a history popup visible, and does it list at least one bet
+                  record (bet amount, payout, round info)?
+                output_schema:
+                  popup_visible: { type: boolean }
+                  has_bet_record: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { popup_visible: true, has_bet_record: true, confidence: high }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            action: wait_for_state
+            params: { state: idle, timeout_ms: 30000 }
+
+  # =========================================================================
+  # GROUP fs-trigger3-countdown — 3-coin trigger, respins count down (no new coin)
+  # ZZ-30, ZZ-32, ZZ-33, ZZ-35, ZZ-36, ZZ-38
+  # =========================================================================
+  - id: fs-trigger3-countdown
+    title: "Hold & Spin — 3-coin trigger, count-down respins"
+    setup:
+      - id: gsetup-01
+        description: "Ensure the automation paytable exists (idempotent)"
+        action: bo_paytable_ensure
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-02
+        description: "Point this agent's game at the automation paytable"
+        action: bo_paytable_select
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-03
+        description: "Force 3-coin trigger + count-down respins for this group"
+        action: bo_paytable_update
+        params: { paytable_code: AutomationTest, paytable_ref: fs-trigger3-countdown }
+    teardown:
+      - id: gteardown-01
+        description: "Restore the agent's game to its default paytable"
+        action: bo_paytable_reset
+    runs:
+      - id: fs-3coin-countdown-run
+        title: "One countdown bonus -> ZZ-30/32/33/35/36/38"
+        cases:
+          - { id: ZZ-30, title: "Trigger 3 coins -> 3 free spins granted" }
+          - { id: ZZ-38, title: "+/- and Autoplay disabled during bonus" }
+          - { id: ZZ-32, title: "Coins held fixed across re-spins" }
+          - { id: ZZ-33, title: "Only non-coin cells re-spin" }
+          - { id: ZZ-35, title: "No new coin -> count down re-spins to 0" }
+          - { id: ZZ-36, title: "Bonus ends -> total payout -> base game" }
+        setup:
+          - id: setup-01
+            description: "Start an independent capture buffer for this bonus"
+            action: bridge_action
+            params: { name: startEventCapture, args: ["bonus"] }
+        steps:
+          - id: step-01
+            description: "Spin until bonus; pauses at START_BONUS (counter = 3)"
+            action: bridge_action
+            params: { name: spinUntilBonus, args: [{ maxSpins: 5 }] }
+          - id: step-02
+            description: "ZZ-30: at the entry pause, free spins remaining is 3 (read now, race-safe)"
+            case: ZZ-30
+            assert:
+              bridge:
+                method: getFreeSpinsRemaining
+                expected: 3
+          - id: step-03
+            description: "ZZ-38: buy bonus disabled during bonus"
+            case: ZZ-38
+            action: bridge_assert
+            params: { method: isBuyBonusEnabled, expected: false }
+          - id: step-04
+            description: "ZZ-38: auto disabled during bonus"
+            case: ZZ-38
+            action: bridge_assert
+            params: { method: isAutoEnabled, expected: false }
+          - id: step-05
+            description: "ZZ-38: next bet disabled during bonus"
+            case: ZZ-38
+            action: bridge_assert
+            params: { method: isNextBetEnabled, expected: false }
+          - id: step-06
+            description: "ZZ-38: previous bet disabled during bonus"
+            case: ZZ-38
+            action: bridge_assert
+            params: { method: isPreviousBetEnabled, expected: false }
+          # ZZ-38 is bridge-only (anti-pattern #8 exception): the 4 asserts above
+          # (buy-bonus / auto / next-bet / prev-bet all disabled) authoritatively prove button
+          # interactability during the bonus — a state the bridge owns. No AI assert: the
+          # greyed-pixel visual is weak, a per-case image assert inside a run stays 'pending',
+          # and the bonus-entry visual is already covered by the video (ZZ-30/32/33/35/36).
+          - id: step-09
+            description: "Let the bonus play out; wait for the total-win popup (ZZ-36 premise)"
+            action: bridge_action
+            params: { name: waitForBonusTotalWinPopup, args: [] }
+          - id: step-10
+            description: "Return to base-game idle"
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+          - id: step-11
+            description: "Stop the capture; keep the raw stream"
+            action: bridge_action
+            params: { name: endEventCapture, args: ["bonus"] }
+            save: raw
+          - id: step-12
+            description: "Slice the START_BONUS..END_BONUS episode"
+            action: bridge_action
+            params: { name: filterBonusEvent, args: ["$raw"] }
+            save: events
+          - id: step-13
+            description: "Invariant: coins stay locked across respins"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params: { method: verifyHoldSpinCoinsHeld, args: ["$events"], path: valid, expected: true }
+          - id: step-14
+            description: "Invariant: new coin resets counter to 3 (vacuous here; run-all-three)"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params: { method: verifyHoldSpinFreespinResetOnNewCoin, args: ["$events"], path: valid, expected: true }
+          - id: step-15
+            description: "Invariant: no new coin decrements counter 3->2->1->0 (ZZ-35 headline)"
+            case: [ZZ-30, ZZ-32, ZZ-33, ZZ-35]
+            action: bridge_assert
+            params: { method: verifyHoldSpinFreespinCountDown, args: ["$events"], path: valid, expected: true }
+          - id: step-16
+            description: "ZZ-36: returned to base game"
+            case: ZZ-36
+            action: bridge_assert
+            params: { method: getAppState, expected: "idle" }
+          - id: step-17
+            description: "AI (full bonus, partitioned): entry, coins held, only non-coin spin, countdown, end"
+            assert:
+              ai:
+                mode: video
+                video_trim: { from_step: step-01, to_step: step-10 }
+                assets: [symbols.coin, ui_elements.free_spin_counter, ui_elements.bonus_result_popup]
+                prompt: >
+                  The clip STARTS with ordinary base-game spins (the reels spin freely, nothing is
+                  locked); then the Hold & Spin BONUS is triggered. IGNORE the base-game spins —
+                  every answer is about the BONUS phase only.
+                  (0) entered_bonus: did the game enter the Hold & Spin bonus? coin_count: how many
+                  gold coins are locked on the 3x3 grid (count across the bonus; do NOT read the
+                  fast-changing re-spin counter).
+                  (1) coins_stay_locked / coins_moved_or_lost: do the locked coins stay in the exact
+                  same cells every re-spin, or did any move/disappear?
+                  (2) only_noncoin_cells_spin / coin_cell_respun: do ONLY the non-coin cells spin while
+                  coin cells stay still, or did a coin cell re-spin?
+                  (3) counted_down_to_zero / ever_reset: does the counter trend down to 0 before the
+                  bonus ends, and did it ever jump back to 3?
+                  (4) total_payout_then_base: at the end, was a total bonus payout shown and the game
+                  returned to the base game?
+                output_schema:
+                  entered_bonus: { type: boolean }
+                  coin_count: { type: number }
+                  coins_stay_locked: { type: boolean }
+                  coins_moved_or_lost: { type: boolean }
+                  only_noncoin_cells_spin: { type: boolean }
+                  coin_cell_respun: { type: boolean }
+                  counted_down_to_zero: { type: boolean }
+                  ever_reset: { type: boolean }
+                  total_payout_then_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected_by_case:
+                  # confidence NOT gated on video (inherently 'medium'); bridge analysers are authoritative
+                  ZZ-30: { entered_bonus: true, coin_count: 3 }
+                  ZZ-32: { coins_stay_locked: true, coins_moved_or_lost: false }
+                  ZZ-33: { only_noncoin_cells_spin: true, coin_cell_respun: false }
+                  ZZ-35: { counted_down_to_zero: true, ever_reset: false }
+                  ZZ-36: { total_payout_then_base: true }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+
+  # =========================================================================
+  # GROUP fs-trigger3-addcoin — 3-coin trigger, every respin adds a coin
+  # ZZ-34 (reset on new coin), ZZ-37 (fills to 9 -> ends)
+  # =========================================================================
+  - id: fs-trigger3-addcoin
+    title: "Hold & Spin — 3-coin trigger, add-coin respins"
+    setup:
+      - id: gsetup-01
+        description: "Ensure the automation paytable exists (idempotent)"
+        action: bo_paytable_ensure
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-02
+        description: "Point this agent's game at the automation paytable"
+        action: bo_paytable_select
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-03
+        description: "Force 3-coin trigger + add-coin respins for this group"
+        action: bo_paytable_update
+        params: { paytable_code: AutomationTest, paytable_ref: fs-trigger3-addcoin }
+    teardown:
+      - id: gteardown-01
+        description: "Restore the agent's game to its default paytable"
+        action: bo_paytable_reset
+    runs:
+      - id: fs-3coin-addcoin-run
+        title: "One add-coin bonus -> ZZ-34, ZZ-37"
+        cases:
+          - { id: ZZ-34, title: "New coin -> hold + reset re-spins to 3" }
+          - { id: ZZ-37, title: "Reach 9 coins -> stop immediately -> total payout" }
+        setup:
+          - id: setup-01
+            action: bridge_action
+            params: { name: startEventCapture, args: ["bonus"] }
+        steps:
+          - id: step-01
+            description: "Spin until bonus (then add-coin respins fill the grid)"
+            action: bridge_action
+            params: { name: spinUntilBonus, args: [{ maxSpins: 5 }] }
+          - id: step-02
+            description: "Grid fills to 9 -> bonus ends -> total payout popup"
+            action: bridge_action
+            params: { name: waitForBonusTotalWinPopup, args: [] }
+          - id: step-03
+            description: "Return to base-game idle"
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+          - id: step-04
+            action: bridge_action
+            params: { name: endEventCapture, args: ["bonus"] }
+            save: raw
+          - id: step-05
+            action: bridge_action
+            params: { name: filterBonusEvent, args: ["$raw"] }
+            save: events
+          - id: step-06
+            description: "Invariant: coins stay locked across respins"
+            case: [ZZ-34, ZZ-37]
+            action: bridge_assert
+            params: { method: verifyHoldSpinCoinsHeld, args: ["$events"], path: valid, expected: true }
+          - id: step-07
+            description: "ZZ-34 headline: every new coin resets the counter to 3"
+            case: [ZZ-34, ZZ-37]
+            action: bridge_assert
+            params: { method: verifyHoldSpinFreespinResetOnNewCoin, args: ["$events"], path: valid, expected: true }
+          - id: step-08
+            description: "Invariant: countdown (vacuous here; run-all-three)"
+            case: [ZZ-34, ZZ-37]
+            action: bridge_assert
+            params: { method: verifyHoldSpinFreespinCountDown, args: ["$events"], path: valid, expected: true }
+          - id: step-09
+            description: "ZZ-37: bonus ended, back to base game"
+            case: ZZ-37
+            action: bridge_assert
+            params: { method: getAppState, expected: "idle" }
+          - id: step-10
+            description: "AI (full bonus, partitioned): coins keep landing + counter resets; grid fills to 9 then ends"
+            assert:
+              ai:
+                mode: video
+                video_trim: { from_step: step-01, to_step: step-03 }
+                assets: [symbols.coin, ui_elements.free_spin_counter, ui_elements.bonus_result_popup]
+                prompt: >
+                  The clip STARTS with ordinary base-game spins (ignore them); then the Hold & Spin
+                  BONUS triggers. Every answer is about the BONUS phase only.
+                  (a) new_coins_added: across the bonus, do additional gold coins keep landing and
+                  locking on re-spins?
+                  (b) counter_reset_to_3: when a new coin lands, does the re-spin counter jump back
+                  up to 3?
+                  (c) grid_filled_to_9: does the 3x3 grid eventually fill completely with 9 locked coins?
+                  (d) ended_with_total_payout: the moment the grid is full, does the bonus end and show
+                  a total payout, returning to the base game?
+                output_schema:
+                  new_coins_added: { type: boolean }
+                  counter_reset_to_3: { type: boolean }
+                  grid_filled_to_9: { type: boolean }
+                  ended_with_total_payout: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected_by_case:
+                  # confidence NOT gated on video (inherently 'medium'); bridge analysers are authoritative
+                  ZZ-34: { new_coins_added: true, counter_reset_to_3: true }
+                  ZZ-37: { grid_filled_to_9: true, ended_with_total_payout: true }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+
+  # =========================================================================
+  # GROUP fs-trigger9 — 9-coin trigger on the base spin (skip respins)
+  # ZZ-31
+  # =========================================================================
+  - id: fs-trigger9
+    title: "Hold & Spin — 9-coin trigger (skip respins)"
+    setup:
+      - id: gsetup-01
+        description: "Ensure the automation paytable exists (idempotent)"
+        action: bo_paytable_ensure
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-02
+        description: "Point this agent's game at the automation paytable"
+        action: bo_paytable_select
+        params: { paytable_code: AutomationTest }
+      - id: gsetup-03
+        description: "Force a 9-coin trigger for this group"
+        action: bo_paytable_update
+        params: { paytable_code: AutomationTest, paytable_ref: fs-trigger9 }
+    teardown:
+      - id: gteardown-01
+        description: "Restore the agent's game to its default paytable"
+        action: bo_paytable_reset
+    tests:
+      - id: ZZ-31
+        title: "9 coins on trigger spin -> skip respins -> total payout -> base"
+        setup:
+          - id: setup-01
+            action: bridge_action
+            params: { name: startEventCapture, args: ["bonus"] }
+        steps:
+          - id: step-01
+            description: "Base spin lands 9 coins -> bonus, resolves immediately"
+            action: bridge_action
+            params: { name: spinUntilBonus, args: [{ maxSpins: 5 }] }
+          - id: step-02
+            description: "Immediate total payout popup (no re-spins)"
+            action: bridge_action
+            params: { name: waitForBonusTotalWinPopup, args: [] }
+          - id: step-03
+            description: "Capture the full 9-coin grid + total payout"
+            action: capture
+          - id: step-04
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }
+          - id: step-05
+            action: bridge_action
+            params: { name: endEventCapture, args: ["bonus"] }
+            save: raw
+          - id: step-06
+            action: bridge_action
+            params: { name: filterBonusEvent, args: ["$raw"] }
+            save: events
+          - id: step-07
+            description: "Episode well-formed; coins held"
+            action: bridge_assert
+            params: { method: verifyHoldSpinCoinsHeld, args: ["$events"], path: valid, expected: true }
+          - id: step-08
+            description: "Returned to base game"
+            action: bridge_assert
+            params: { method: getAppState, expected: "idle" }
+          - id: step-09
+            description: "9 coins, no re-spins, immediate payout, return to base"
+            assert:
+              bridge:
+                method: getAppState
+                expected: "idle"
+              ai:
+                mode: video
+                video_trim: { from_step: step-01, to_step: step-04 }
+                assets: [symbols.coin, ui_elements.bonus_result_popup, ui_elements.spin_button]
+                prompt: >
+                  The clip STARTS with ordinary base-game spins (ignore them); then a spin lands
+                  NINE gold coins at once and the Hold & Spin bonus triggers. Judging that bonus only:
+                  (a) nine_coins_on_trigger: did all 9 grid cells show locked coins from the triggering
+                  spin? (b) no_respins: did the bonus award immediately WITHOUT any re-spins (the grid
+                  was already full)? (c) immediate_total_payout: was a total bonus payout shown right
+                  away? (d) returned_to_base: did the game then return to the base game?
+                output_schema:
+                  nine_coins_on_trigger: { type: boolean }
+                  no_respins: { type: boolean }
+                  immediate_total_payout: { type: boolean }
+                  returned_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected: { nine_coins_on_trigger: true, no_respins: true, immediate_total_payout: true, returned_to_base: true }
+        teardown:
+          - id: teardown-01
+            action: bridge_action
+            params: { name: dismissPopups, args: [] }
+          - id: teardown-02
+            action: bridge_action
+            params: { name: waitForIdle, args: [] }

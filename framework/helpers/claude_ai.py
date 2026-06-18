@@ -14,12 +14,16 @@ For each assertion we:
   1. (video only) sample the trimmed clip into JPEG frames with ffmpeg at
      ``CLAUDE_AI_FPS`` frames/second into a per-call work dir
      (``{stem}-claude/frame-0001.jpg`` …).
-  2. write an ``ASSETS.md`` into the work dir listing each reference symbol/UI
-     element with its description and the absolute path to its ground-truth image.
+  2. (video only) write an ``ASSETS.md`` into the work dir listing each reference
+     symbol/UI element with its description and the absolute path to its ground-truth
+     image. The image path skips this: every reference's description AND path are
+     embedded directly in the prompt, so the sub-agent never opens a manifest file —
+     it reads only the image files themselves (one fewer Read round-trip per assert).
   3. spawn ``claude -p "<prompt>" --output-format json`` with the work dir as cwd
      and read-only tools (``Read``, ``Glob``) pre-approved. The prompt tells the
-     sub-agent to read ``ASSETS.md`` (and its reference images) first, then read the
-     frames / screenshot in order, then emit ONLY a JSON object matching the schema.
+     sub-agent which reference image(s) and screenshot to read (paths inline for the
+     image path; via ``ASSETS.md`` for video), then emit ONLY a JSON object matching
+     the schema.
   4. parse the CLI's JSON envelope, pull the agent's final ``result`` text, and
      extract the verdict object from it.
 
@@ -86,6 +90,25 @@ _DEFAULT_TIMEOUT = 600
 
 # ffmpeg frame-sampling timeout (seconds).
 _FFMPEG_TIMEOUT = 120
+
+# Env markers Claude Code injects into its child processes. The `claude` CLI refuses
+# to launch a *nested* session when it sees these ("Claude Code cannot be launched
+# inside another Claude Code session"). Our CLI calls are headless one-shot `-p`
+# invocations — not interactive sessions — so we strip these markers when spawning so
+# AI asserts work even when the QA runner is itself driven from inside Claude Code.
+_NESTED_SESSION_ENV_MARKERS = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")
+
+
+def _claude_subprocess_env() -> dict[str, str]:
+    """A copy of the current env with the nested-session markers removed.
+
+    No-op outside Claude Code (the markers are simply absent there), so it is safe in
+    every context.
+    """
+    env = os.environ.copy()
+    for marker in _NESTED_SESSION_ENV_MARKERS:
+        env.pop(marker, None)
+    return env
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +291,24 @@ class _ClaudeCliClient:
     def call_count(self) -> int:
         return self._call_count
 
+    @property
+    def model(self) -> str:
+        """The model id used for asserts (e.g. ``sonnet``).
+
+        Part of the GeminiVideoHelper-compatible interface VideoAiProcessor relies on
+        for per-test/per-run cost bookkeeping.
+        """
+        return self._model
+
+    def cost_for_tokens(self, input_tokens: int, output_tokens: int) -> float:
+        """USD cost of a single call — always 0.0 (local Claude Code auth is unmetered).
+
+        Part of the GeminiVideoHelper-compatible interface: VideoAiProcessor calls this
+        on every video assert, so the claude provider must expose it (consistent with
+        ``cost_summary`` reporting ``estimated_cost_usd: 0.0``).
+        """
+        return 0.0
+
     @staticmethod
     def _env_float(name: str, default: float) -> float:
         raw = os.environ.get(name, "").strip()
@@ -281,15 +322,16 @@ class _ClaudeCliClient:
 
     # -- reference manifest -------------------------------------------------
 
-    def _write_assets_file(self, work_dir: Path) -> Path | None:
+    def _write_assets_file(self, work_dir: Path, reference: Any | None = None) -> Path | None:
         """
         Write ``ASSETS.md`` describing each reference asset + its image path.
 
         The sub-agent reads this first to learn the canonical appearance of every
         symbol/UI element before judging the frames. Returns the path, or None when
-        there is no reference pack.
+        there is no reference pack. A per-call *reference* (scoped selection) overrides
+        the constructor default.
         """
-        ref = self._reference
+        ref = reference if reference is not None else self._reference
         if ref is None or getattr(ref, "is_empty", True):
             return None
 
@@ -376,6 +418,7 @@ class _ClaudeCliClient:
             capture_output=True,
             text=True,
             timeout=self._timeout,
+            env=_claude_subprocess_env(),
         )
 
         # The CLI prints a JSON envelope on stdout with --output-format json.
@@ -439,6 +482,7 @@ class _ClaudeCliClient:
             cmd, cwd=str(work_dir),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8",
+            env=_claude_subprocess_env(),
         )
         try:
             stdout, _stderr = proc.communicate(input=message + "\n", timeout=self._timeout)
@@ -502,6 +546,7 @@ class ClaudeVideoHelper(_ClaudeCliClient):
         prompt: str,
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> VideoResult:
         """Sample *video_path* into frames and judge them with a Claude sub-agent."""
         self._call_count += 1
@@ -510,12 +555,14 @@ class ClaudeVideoHelper(_ClaudeCliClient):
 
         # Reference assets are attached inline alongside the frames and also count
         # toward the per-request image cap, so resolve them first and reserve room for
-        # them when budgeting frames (the full symbol pack can be ~20+ images).
+        # them when budgeting frames (the full symbol pack can be ~20+ images). A
+        # per-call ``reference`` (scoped selection) overrides the constructor default.
+        ref = reference if reference is not None else self._reference
         ref_items: list[tuple[Path, str]] = []
-        if self._reference is not None and not getattr(self._reference, "is_empty", True):
+        if ref is not None and not getattr(ref, "is_empty", True):
             ref_items = [
                 (Path(img), label)
-                for img, label in getattr(self._reference, "items", [])
+                for img, label in getattr(ref, "items", [])
                 if Path(img).exists()
             ]
         ref_paths = [img for img, _label in ref_items]
@@ -685,6 +732,7 @@ class ClaudeImageHelper(_ClaudeCliClient):
         prompt: str,
         output_schema: dict[str, Any],
         extra_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> GeminiResult:
         """Judge *image_path* (a screenshot) with a Claude sub-agent."""
         self._call_count += 1
@@ -710,8 +758,9 @@ class ClaudeImageHelper(_ClaudeCliClient):
                 raw_text=None,
             )
 
-        self._write_assets_file(work_dir)
-        agent_prompt = self._build_image_prompt(prompt, extra_names)
+        # No ASSETS.md: the reference descriptions + paths go straight into the prompt
+        # so the agent's only tool calls are reading the image files themselves.
+        agent_prompt = self._build_image_prompt(prompt, extra_names, reference)
 
         try:
             data, raw_text = self._run_agent(work_dir, agent_prompt, output_schema)
@@ -741,26 +790,51 @@ class ClaudeImageHelper(_ClaudeCliClient):
             raw_text=raw_text,
         )
 
-    def _build_image_prompt(self, prompt: str, extra_names: list[str]) -> str:
-        """Prepend agent instructions (read assets, then screenshot) to *prompt*."""
-        has_assets = self._reference is not None and not getattr(
-            self._reference, "is_empty", True
-        )
-        steps = []
-        if has_assets:
+    def _build_image_prompt(
+        self, prompt: str, extra_names: list[str], reference: Any | None = None
+    ) -> str:
+        """Build the full agent prompt for one image assert — all context inline.
+
+        Every reference image's description AND absolute path are embedded here, so
+        the agent never opens a separate manifest: its only tool calls are reading the
+        image files. The references are framed as the NORMAL, expected appearance — the
+        canonical, correct way the real game and its UI are meant to look in this state —
+        so the agent judges the screenshot under test against them. The per-call
+        *reference* (scoped selection) overrides the constructor default.
+        """
+        ref = reference if reference is not None else self._reference
+        has_refs = ref is not None and not getattr(ref, "is_empty", True)
+
+        steps: list[str] = []
+        if has_refs:
+            ref_lines: list[str] = []
+            for img_path, label in getattr(ref, "items", []):
+                ref_lines.append(f"     - {label}")
+                ref_lines.append(f"       file: {Path(img_path).resolve()}")
             steps.append(
-                "1. Read `ASSETS.md` in this directory and use the Read tool on each "
-                "reference image it lists, to learn the canonical appearance of each "
-                "game symbol and UI element."
+                "Use the Read tool to open each REFERENCE image file listed below. Each "
+                "one is the NORMAL, expected appearance — the canonical, correct way the "
+                "real game and its UI are meant to look in this state. Study them so you "
+                "know what 'correct' looks like before judging anything:\n"
+                + "\n".join(ref_lines)
             )
         shots = "`screenshot.png`"
         if extra_names:
             shots += " and " + ", ".join(f"`{n}`" for n in extra_names)
-        steps.append(f"{len(steps) + 1}. Read {shots} (the screenshot under test).")
-        steps.append(f"{len(steps) + 1}. Then answer the task below.")
+        steps.append(
+            f"Read {shots} — the actual screenshot under test, captured from a live run."
+        )
+        if has_refs:
+            steps.append(
+                "Answer the task below, comparing the screenshot under test against the "
+                "reference image(s) above."
+            )
+        else:
+            steps.append("Then answer the task below.")
+
+        numbered = "\n".join(f"{i}. {s}" for i, s in enumerate(steps, start=1))
         instructions = (
-            "You are analysing a game screenshot in your current directory.\n\n"
-            + "\n".join(steps)
+            "You are analysing a game screenshot in your current directory.\n\n" + numbered
         )
         return f"{instructions}\n\nTask:\n{prompt}"
 

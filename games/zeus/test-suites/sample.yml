@@ -1,0 +1,292 @@
+# ===========================================================================
+# GENERATED FILE - DO NOT EDIT. Edit the .flow.yml source and recompile.
+# Source: sample.flow.yml
+# Regenerate: python -m framework.authoring.compile --game zeus --suite sample
+# ===========================================================================
+
+suite: Authoring sample (golden fixture)
+game: zeus
+version: '1.0'
+config:
+  detection_method: both
+  video: true
+  test_timeout_ms: 120000
+  suite_timeout_ms: 1200000
+  stop_conditions:
+    fail_fast: false
+    max_consecutive_failures: 3
+    max_total_failures: 10
+setup:
+# <- "start the game" (sample.flow.yml:15)
+- id: setup-01
+  action: navigate
+  params:
+    url_script: get_game_url
+- id: setup-02
+  action: wait_for_state
+  params:
+    state: ready
+    timeout_ms: 30000
+- id: setup-03
+  action: bridge_action
+  params:
+    name: startGame
+tests:
+- id: ZZ-03
+  title: Increase/Decrease Bet
+  description: Verify bet increases on nextBet and decreases on previousBet
+  steps:
+  # <- "expect bet index is 0" (sample.flow.yml:23)
+  - id: step-01
+    action: bridge_assert
+    params:
+      method: getBetIndex
+      expected: 0
+  # <- "take a screenshot as before_inc" (sample.flow.yml:24)
+  - id: step-02
+    action: capture
+  # <- "increase bet" (sample.flow.yml:25)
+  - id: step-03
+    action: bridge_action
+    params:
+      name: nextBet
+  # <- "expect bet index is 1" (sample.flow.yml:26)
+  - id: step-04
+    action: bridge_assert
+    params:
+      method: getBetIndex
+      expected: 1
+  # <- "take a screenshot as after_inc" (sample.flow.yml:27)
+  - id: step-05
+    action: capture
+  # <- "check that the bet increased between before_inc and after_inc" (sample.flow.yml:28)
+  - id: step-06
+    action: assert
+    assert:
+      ai:
+        mode: image
+        ref_screenshot:
+        - step-02
+        - step-05
+        ref_assets:
+        - bet_label
+        prompt: Compare the bet value in these two images. Is the bet value in the second image higher than the first? Read both values.
+        output_schema:
+          increased:
+            type: boolean
+          confidence:
+            type: string
+            enum:
+            - high
+            - medium
+            - low
+        expected:
+          increased: true
+          confidence: high
+  # <- "decrease bet" (sample.flow.yml:29)
+  - id: step-07
+    action: bridge_action
+    params:
+      name: previousBet
+  # <- "expect bet index is 0" (sample.flow.yml:30)
+  - id: step-08
+    action: bridge_assert
+    params:
+      method: getBetIndex
+      expected: 0
+- id: ZZ-05
+  title: Balance Deduction on Bet
+  description: Verify balance decreases after a no-win spin
+  setup:
+  # <- "force grid "no-win"" (sample.flow.yml:36)
+  - id: setup-01
+    action: bridge_action
+    params:
+      name: setDevModeResult
+      grid:
+      - - 1
+        - 1
+        - 1
+      - - 3
+        - 3
+        - 3
+      - - 4
+        - 4
+        - 4
+  steps:
+  # <- "remember balance as before" (sample.flow.yml:38)
+  - id: step-01
+    action: bridge_action
+    params:
+      name: getBalance
+    save: before
+  # <- "take a screenshot as before_shot" (sample.flow.yml:39)
+  - id: step-02
+    action: capture
+  # <- "spin and wait for result" (sample.flow.yml:40)
+  - id: step-03
+    action: bridge_action
+    params:
+      name: waitForSpinComplete
+      timeoutMs: 60000
+  # <- "expect last payout is 0" (sample.flow.yml:41)
+  - id: step-04
+    action: bridge_assert
+    params:
+      method: getLastPayout
+      expected: 0
+  # <- "take a screenshot as after_shot" (sample.flow.yml:42)
+  - id: step-05
+    action: capture
+  # <- "check that the balance decreased between before_shot and after_shot" (sample.flow.yml:43)
+  - id: step-06
+    action: assert
+    assert:
+      ai:
+        mode: image
+        ref_screenshot:
+        - step-02
+        - step-05
+        ref_assets:
+        - balance_label
+        prompt: Compare the balance value in these two images. Is the balance in the second image lower than the first? Read both balance values.
+        output_schema:
+          balance_decreased:
+            type: boolean
+          confidence:
+            type: string
+            enum:
+            - high
+            - medium
+            - low
+        expected:
+          balance_decreased: true
+          confidence: high
+  teardown:
+  # <- "reset forced grid" (sample.flow.yml:45)
+  - id: teardown-01
+    action: bridge_action
+    params:
+      name: resetDevMode
+groups:
+- id: fs-trigger3-countdown
+  title: 3-coin trigger, respins count down
+  asset_groups:
+  - symbols
+  - ui_elements
+  setup:
+  # <- "force grid "3 coins top row"" (sample.flow.yml:52)
+  - id: setup-01
+    action: bridge_action
+    params:
+      name: setDevModeResult
+      grid:
+      - - 13
+        - 13
+        - 13
+      - - 1
+        - 1
+        - 1
+      - - 3
+        - 3
+        - 3
+  runs:
+  - id: fs-3coin-run
+    title: One bonus play, several case verdicts
+    cases:
+    - id: ZZ-30
+      title: Trigger free spin (3-8 coins)
+    - id: ZZ-32
+      title: Coins stay locked
+    - id: ZZ-35
+      title: Returns to base game
+    steps:
+    # <- "remember balance as before" (sample.flow.yml:61)
+    - id: step-01
+      action: bridge_action
+      params:
+        name: getBalance
+      save: before
+    # <- "spin through the whole bonus" (sample.flow.yml:62)
+    - id: step-02
+      action: bridge_action
+      params:
+        name: spin
+        timeoutMs: 120000
+    - id: step-03
+      action: wait_for_state
+      params:
+        state: idle
+        timeout_ms: 120000
+    # <- "expect game state is idle" (sample.flow.yml:63)
+    - id: step-04
+      action: bridge_assert
+      params:
+        method: getAppState
+        expected: idle
+      case: ZZ-30
+    # <- "expect free spins remaining is 0" (sample.flow.yml:64)
+    - id: step-05
+      action: bridge_assert
+      params:
+        method: getFreeSpinsRemaining
+        expected: 0
+      case: ZZ-30
+    # <- "take a screenshot as endshot" (sample.flow.yml:65)
+    - id: step-06
+      action: capture
+    # <- "check that endshot shows the bonus has ended" (sample.flow.yml:66)
+    - id: step-07
+      action: assert
+      assert:
+        ai:
+          mode: image
+          ref_screenshot: step-06
+          ref_assets:
+          - spin_button
+          prompt: Is the Hold & Spin bonus over and the game back in the normal base game (regular spin button visible, no Hold & Spin overlay and no re-spin counter)?
+          output_schema:
+            bonus_ended:
+              type: boolean
+            confidence:
+              type: string
+              enum:
+              - high
+              - medium
+              - low
+          expected:
+            bonus_ended: true
+            confidence: high
+      case: ZZ-35
+    # <- raw (sample.flow.yml:67)
+    - id: step-08
+      action: assert
+      assert:
+        ai:
+          mode: video
+          video_trim:
+            from_step: step-02
+            to_step: step-06
+          ref_assets:
+          - coin
+          - hold_spin_overlay
+          prompt: Did the coins stay locked through the Hold & Spin re-spins?
+          output_schema:
+            coins_stay_locked:
+              type: boolean
+            confidence:
+              type: string
+              enum:
+              - high
+              - medium
+              - low
+          expected_by_case:
+            ZZ-32:
+              coins_stay_locked: true
+              confidence: high
+  teardown:
+  # <- "reset forced grid" (sample.flow.yml:81)
+  - id: teardown-01
+    action: bridge_action
+    params:
+      name: resetDevMode

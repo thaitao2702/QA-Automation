@@ -332,6 +332,72 @@ class TestClick:
 
 
 # ---------------------------------------------------------------------------
+# Action: click_button (real-coordinate click via getButtonRect)
+# ---------------------------------------------------------------------------
+
+
+class TestClickButton:
+    _RECT = {
+        "x": 10.0, "y": 20.0, "width": 40.0, "height": 40.0,
+        "centerX": 30.0, "centerY": 40.0, "visible": True, "interactable": True,
+    }
+
+    def _run(self, executor, step):
+        return asyncio.get_event_loop().run_until_complete(executor.execute(step))
+
+    def test_resolves_rect_and_clicks_center(self, tmp_path: Path) -> None:
+        executor, bridge, _, page = _make_executor(
+            tmp_path, bridge_overrides={"get_button_rect": AsyncMock(return_value=self._RECT)}
+        )
+        step = {"id": "s1", "action": "click_button", "params": {"name": "spin"}}
+        result = self._run(executor, step)
+        assert result.success is True
+        bridge.get_button_rect.assert_awaited_once_with("spin")
+        page.mouse.click.assert_awaited_once_with(30.0, 40.0)
+        assert result.result == self._RECT  # rect returned so it is save:-able
+
+    def test_missing_name_fails(self, tmp_path: Path) -> None:
+        executor, *_ = _make_executor(tmp_path)
+        result = self._run(executor, {"id": "s1", "action": "click_button", "params": {}})
+        assert result.success is False
+        assert "name" in result.error
+
+    def test_unknown_button_fails_without_clicking(self, tmp_path: Path) -> None:
+        executor, _, _, page = _make_executor(
+            tmp_path, bridge_overrides={"get_button_rect": AsyncMock(return_value=None)}
+        )
+        step = {"id": "s1", "action": "click_button", "params": {"name": "ghost"}}
+        result = self._run(executor, step)
+        assert result.success is False
+        assert "not found" in result.error
+        page.mouse.click.assert_not_awaited()
+
+    def test_invisible_button_fails_by_default(self, tmp_path: Path) -> None:
+        rect = {**self._RECT, "visible": False}
+        executor, _, _, page = _make_executor(
+            tmp_path, bridge_overrides={"get_button_rect": AsyncMock(return_value=rect)}
+        )
+        step = {"id": "s1", "action": "click_button", "params": {"name": "spin"}}
+        result = self._run(executor, step)
+        assert result.success is False
+        assert "visible" in result.error
+        page.mouse.click.assert_not_awaited()
+
+    def test_require_visible_false_clicks_invisible(self, tmp_path: Path) -> None:
+        rect = {**self._RECT, "visible": False}
+        executor, _, _, page = _make_executor(
+            tmp_path, bridge_overrides={"get_button_rect": AsyncMock(return_value=rect)}
+        )
+        step = {
+            "id": "s1", "action": "click_button",
+            "params": {"name": "spin", "require_visible": False},
+        }
+        result = self._run(executor, step)
+        assert result.success is True
+        page.mouse.click.assert_awaited_once_with(30.0, 40.0)
+
+
+# ---------------------------------------------------------------------------
 # Action: wait_ms
 # ---------------------------------------------------------------------------
 
@@ -461,77 +527,97 @@ class TestAssertStep:
         assert result.ai_pending is True
         assert result.ai_result is None  # not processed inline
 
-    def test_assert_image_ai_calls_gemini(self, tmp_path: Path) -> None:
-        from framework.helpers.gemini import GeminiResult
-
-        gemini = MagicMock()
-        gemini.analyse_image = MagicMock(
-            return_value=GeminiResult(
-                success=True,
-                data={"free_spins": 3, "confidence": "high"},
-                reason=None,
-                input_tokens=100,
-                output_tokens=20,
-            )
-        )
+    def _image_assert_scheduler(self, tmp_path, gemini):
+        """Build an executor wired to a real (gemini-provider) AI scheduler + recording sink."""
+        from framework.runner.ai_assert_scheduler import AiAssertScheduler, make_ai_semaphore
 
         executor, *_ = _make_executor(tmp_path, gemini_image=gemini)
+        scheduler = AiAssertScheduler(make_ai_semaphore("gemini"), gemini)
+        sink_calls: list = []
+        executor._ai_scheduler = scheduler
+        executor._ai_image_sink = lambda step, result, ri: sink_calls.append((step, result, ri))
+        # 'step-02' resolves via the numeric fallback to screenshot index 2.
+        executor._artifact.screenshot_path(2).write_bytes(b"\x89PNG" + b"\x00" * 10)
+        return executor, scheduler, sink_calls
 
-        # Save a fake screenshot so ref_screenshot resolves
-        screenshot_path = executor._artifact.screenshot_path(2)
-        screenshot_path.write_bytes(b"\x89PNG" + b"\x00" * 10)
+    def test_assert_image_ai_launches_async_and_grades_pass(self, tmp_path: Path) -> None:
+        from framework.helpers.gemini import GeminiResult
+        from framework.runner.ai_assert_scheduler import grade_image
+
+        gemini = MagicMock()
+        gemini.analyse_image = MagicMock(return_value=GeminiResult(
+            success=True, data={"free_spins": 3, "confidence": "high"}, reason=None,
+            input_tokens=100, output_tokens=20))
+        executor, scheduler, sink_calls = self._image_assert_scheduler(tmp_path, gemini)
 
         step = {
             "id": "step-03",
-            "assert": {
-                "ai": {
-                    "mode": "image",
-                    "ref_screenshot": "step-02",
-                    "prompt": "How many free spins?",
-                    "output_schema": {"free_spins": {"type": "number"}},
-                    "expected": {"free_spins": 3, "confidence": "high"},
-                }
-            },
+            "assert": {"ai": {
+                "mode": "image", "ref_screenshot": "step-02",
+                "prompt": "How many free spins?",
+                "output_schema": {"free_spins": {"type": "number"}},
+                "expected": {"free_spins": 3, "confidence": "high"},
+            }},
         }
-        result = asyncio.get_event_loop().run_until_complete(executor.execute(step))
-        assert result.success is True
-        assert result.ai_result is not None
-        assert result.ai_result["passed"] is True
+        async def _scenario():
+            result = await executor.execute(step)
+            # Image AI is launched in the background — pending, not graded inline.
+            assert result.ai_pending is True
+            assert result.ai_result is None
+            await scheduler.await_all()
+
+        asyncio.get_event_loop().run_until_complete(_scenario())
         gemini.analyse_image.assert_called_once()
+        assert len(sink_calls) == 1
+        _step, res, ri = sink_calls[0]
+        ai_data, ai_result, err = grade_image(res, ri)
+        assert ai_result == "pass" and ai_data["passed"] is True and err is None
 
-    def test_assert_image_ai_fails_on_mismatch(self, tmp_path: Path) -> None:
+    def test_assert_image_ai_grades_fail_on_mismatch(self, tmp_path: Path) -> None:
         from framework.helpers.gemini import GeminiResult
+        from framework.runner.ai_assert_scheduler import grade_image
 
         gemini = MagicMock()
-        gemini.analyse_image = MagicMock(
-            return_value=GeminiResult(
-                success=True,
-                data={"free_spins": 1, "confidence": "low"},
-                reason=None,
-                input_tokens=100,
-                output_tokens=20,
-            )
-        )
-
-        executor, *_ = _make_executor(tmp_path, gemini_image=gemini)
-        screenshot_path = executor._artifact.screenshot_path(2)
-        screenshot_path.write_bytes(b"\x89PNG" + b"\x00" * 10)
+        gemini.analyse_image = MagicMock(return_value=GeminiResult(
+            success=True, data={"free_spins": 1, "confidence": "low"}, reason=None,
+            input_tokens=100, output_tokens=20))
+        executor, scheduler, sink_calls = self._image_assert_scheduler(tmp_path, gemini)
 
         step = {
             "id": "step-03",
-            "assert": {
-                "ai": {
-                    "mode": "image",
-                    "ref_screenshot": "step-02",
-                    "prompt": "How many free spins?",
-                    "output_schema": {},
-                    "expected": {"free_spins": 3, "confidence": "high"},
-                }
-            },
+            "assert": {"ai": {
+                "mode": "image", "ref_screenshot": "step-02",
+                "prompt": "How many free spins?", "output_schema": {},
+                "expected": {"free_spins": 3, "confidence": "high"},
+            }},
         }
-        result = asyncio.get_event_loop().run_until_complete(executor.execute(step))
-        assert result.success is False
-        assert result.ai_result["passed"] is False
+        async def _scenario():
+            result = await executor.execute(step)
+            assert result.ai_pending is True
+            await scheduler.await_all()
+
+        asyncio.get_event_loop().run_until_complete(_scenario())
+        _step, res, ri = sink_calls[0]
+        ai_data, ai_result, err = grade_image(res, ri)
+        assert ai_result == "fail" and ai_data["passed"] is False
+
+    def test_assert_image_ai_missing_ref_folds_fail_immediately(self, tmp_path: Path) -> None:
+        gemini = MagicMock()
+        gemini.analyse_image = MagicMock()
+        executor, scheduler, sink_calls = self._image_assert_scheduler(tmp_path, gemini)
+
+        step = {
+            "id": "step-03",
+            "assert": {"ai": {
+                "mode": "image", "ref_screenshot": "step-99",  # no such capture
+                "prompt": "?", "output_schema": {}, "expected": {},
+            }},
+        }
+        asyncio.get_event_loop().run_until_complete(executor.execute(step))
+        # Missing ref → sink called immediately with a failed result, no task launched.
+        assert len(sink_calls) == 1
+        assert sink_calls[0][1].success is False
+        gemini.analyse_image.assert_not_called()
 
     def test_assert_unknown_ai_mode_fails(self, tmp_path: Path) -> None:
         executor, *_ = _make_executor(tmp_path)
@@ -889,3 +975,330 @@ class TestCamelToSnake:
 
     def test_get_app_state(self) -> None:
         assert StepExecutor._camel_to_snake("getAppState") == "get_app_state"
+
+
+# ---------------------------------------------------------------------------
+# AI prompt variable substitution — {{name}} from saved vars (deterministic asserts)
+# ---------------------------------------------------------------------------
+
+
+def _run(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
+def test_resolve_text_vars_substitutes(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    executor.vars.update({"bet": "1.00", "n": 3})
+    assert executor._resolve_text_vars("shows {{bet}}") == ("shows 1.00", None)
+    assert executor._resolve_text_vars("a {{bet}} b {{n}}") == ("a 1.00 b 3", None)
+    assert executor._resolve_text_vars("ws {{ bet }}") == ("ws 1.00", None)  # whitespace tolerated
+    assert executor._resolve_text_vars("no token here") == ("no token here", None)
+
+
+def test_resolve_text_vars_coerces_and_passthrough(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    executor.vars.update({"x": 1234.5})
+    assert executor._resolve_text_vars("v={{x}}") == ("v=1234.5", None)
+    assert executor._resolve_text_vars(42) == (42, None)  # non-string passthrough
+
+
+def test_resolve_text_vars_unknown_var_errors(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    resolved, err = executor._resolve_text_vars("shows {{missing}}")
+    assert resolved == "shows {{missing}}"  # left unchanged on error
+    assert err is not None and "missing" in err and "save: missing" in err
+
+
+def test_assert_image_prompt_resolved_in_place(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    executor.vars["bet"] = "1.00"
+    ai = {
+        "mode": "image",
+        "ref_screenshot": "step-02",
+        "prompt": "Does the bet label show {{bet}}?",
+        "output_schema": {"matches": {"type": "boolean"}},
+        "expected": {"matches": True},
+    }
+    step = {"id": "step-03", "assert": {"ai": ai}}
+    result = _run(executor.execute(step))
+    assert result.success is True
+    assert result.ai_pending is True
+    # Resolved IN PLACE so the deferred image/video processor reads the real value.
+    assert step["assert"]["ai"] is ai
+    assert ai["prompt"] == "Does the bet label show 1.00?"
+
+
+def test_assert_expected_string_leaf_resolved(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    executor.vars["bet"] = "1.00"
+    step = {
+        "id": "step-03",
+        "assert": {
+            "ai": {
+                "mode": "image",
+                "ref_screenshot": "step-02",
+                "prompt": "Read the bet label.",
+                "output_schema": {"shown": {"type": "string"}},
+                "expected": {"shown": "{{bet}}"},
+            }
+        },
+    }
+    result = _run(executor.execute(step))
+    assert result.success is True
+    assert step["assert"]["ai"]["expected"]["shown"] == "1.00"
+
+
+def test_assert_video_prompt_resolved(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    executor.vars["payout"] = 250
+    step = {
+        "id": "step-10",
+        "assert": {
+            "ai": {
+                "mode": "video",
+                "video_trim": {"from_step": "step-01", "to_step": "step-09"},
+                "prompt": "Was the total payout {{payout}}?",
+                "output_schema": {"ok": {"type": "boolean"}},
+                "expected": {"ok": True},
+            }
+        },
+    }
+    result = _run(executor.execute(step))
+    assert result.ai_pending is True
+    assert step["assert"]["ai"]["prompt"] == "Was the total payout 250?"
+
+
+def test_assert_unknown_var_fails_step(tmp_path: Path) -> None:
+    executor, *_ = _make_executor(tmp_path)
+    step = {
+        "id": "step-03",
+        "assert": {
+            "ai": {
+                "mode": "image",
+                "ref_screenshot": "step-02",
+                "prompt": "Does it show {{nope}}?",
+                "output_schema": {"matches": {"type": "boolean"}},
+                "expected": {"matches": True},
+            }
+        },
+    }
+    result = _run(executor.execute(step))
+    assert result.success is False
+    assert result.ai_pending is False
+    assert "nope" in (result.error or "")
+
+
+def test_agent_assert_unknown_var_fails_before_verify(tmp_path: Path) -> None:
+    # A check: with an unsaved var fails at execution, before the vision call.
+    executor, *_ = _make_executor(tmp_path)
+    result = _run(executor.execute({"id": "s1", "check": "the bet is {{missing}}"}))
+    assert result.success is False
+    assert "agent_assert" in (result.error or "") and "missing" in (result.error or "")
+
+
+# ---------------------------------------------------------------------------
+# Scoped reference resolution for image AI asserts (_image_reference_for)
+# ---------------------------------------------------------------------------
+
+
+def _ref_cache_and_index(tmp_path: Path):
+    from framework.helpers.symbol_reference import ScopedReferenceCache, build_asset_index
+
+    assets = tmp_path / "games" / "g" / "docs" / "assets"
+    (assets / "ui").mkdir(parents=True)
+    (assets / "symbols").mkdir(parents=True)
+    (assets / "ui" / "bet.jpg").write_bytes(b"x")
+    (assets / "symbols" / "coin.jpg").write_bytes(b"x")
+    (assets / "assets.yml").write_text(
+        "ui_elements:\n  bet_label: { file: ui/bet.jpg, name: Bet }\n"
+        "symbols:\n  coin: { file: symbols/coin.jpg, name: Coin }\n",
+        encoding="utf-8",
+    )
+    return ScopedReferenceCache("g", tmp_path), build_asset_index("g", tmp_path)
+
+
+def _executor_with_cache(tmp_path: Path, group_doc=None, test_doc=None):
+    cache, index = _ref_cache_and_index(tmp_path)
+    return StepExecutor(
+        bridge=MagicMock(), network=MagicMock(), artifact=MagicMock(),
+        gemini_image=MagicMock(), page=MagicMock(),
+        ref_cache=cache, group_doc=group_doc, test_doc=test_doc, asset_index=index,
+    )
+
+
+class TestImageReferenceFor:
+    def test_no_cache_returns_none(self):
+        ex = StepExecutor(bridge=None, network=None, artifact=None, gemini_image=None, page=None)
+        assert ex._image_reference_for({"assets": ["symbols.coin"]}) is None
+
+    def test_no_selection_anywhere_returns_none(self, tmp_path: Path):
+        ex = _executor_with_cache(tmp_path)
+        assert ex._image_reference_for({"mode": "image"}) is None
+
+    def test_assert_level_selection_scopes_reference(self, tmp_path: Path):
+        ex = _executor_with_cache(tmp_path)
+        ref = ex._image_reference_for({"assets": ["symbols.coin"]})
+        assert ref is not None
+        assert [Path(p).name for p, _l in ref.items] == ["coin.jpg"]
+
+    def test_test_level_default_used_when_assert_unset(self, tmp_path: Path):
+        ex = _executor_with_cache(tmp_path, test_doc={"asset_groups": ["ui_elements"]})
+        ref = ex._image_reference_for({"mode": "image"})
+        assert [Path(p).name for p, _l in ref.items] == ["bet.jpg"]
+
+    def test_assert_overrides_test(self, tmp_path: Path):
+        ex = _executor_with_cache(tmp_path, test_doc={"asset_groups": ["ui_elements"]})
+        ref = ex._image_reference_for({"assets": ["symbols.coin"]})
+        assert [Path(p).name for p, _l in ref.items] == ["coin.jpg"]
+
+
+# ---------------------------------------------------------------------------
+# Wallet (Playsite balance) actions
+# ---------------------------------------------------------------------------
+
+
+class _FakeWallet:
+    """Stand-in for WalletHelper: records calls, returns canned balances."""
+
+    def __init__(self, *, raise_on: str | None = None) -> None:
+        self.calls: list[tuple] = []
+        self._raise_on = raise_on
+
+    async def get_balance(self, currency: str | None = None):
+        self.calls.append(("balance", currency))
+        if self._raise_on == "balance":
+            raise RuntimeError("playsite boom")
+        if currency:
+            return 1000.0
+        return [{"currency": "USD", "balance": 1000.0, "isDefault": 1}]
+
+    async def deposit(self, amount, currency: str | None = None):
+        self.calls.append(("deposit", amount, currency))
+        if self._raise_on == "deposit":
+            raise RuntimeError("playsite boom")
+        return {"currency": currency or "USD", "balance": 1100.0}
+
+    async def withdraw(self, amount, currency: str | None = None):
+        self.calls.append(("withdraw", amount, currency))
+        return {"currency": currency or "USD", "balance": 900.0}
+
+    async def set_balance(self, target, currency: str | None = None):
+        self.calls.append(("set", target, currency))
+        if self._raise_on == "set":
+            raise RuntimeError("playsite boom")
+        return {"currency": currency or "USD", "balance": target}
+
+
+def _wallet_executor(wallet: Any) -> StepExecutor:
+    return StepExecutor(
+        bridge=MagicMock(), network=MagicMock(), artifact=MagicMock(),
+        gemini_image=MagicMock(), page=MagicMock(), wallet=wallet,
+    )
+
+
+def _run_step(executor: StepExecutor, step: dict) -> StepResult:
+    return asyncio.get_event_loop().run_until_complete(executor.execute(step))
+
+
+class TestWalletActions:
+    def test_balance_with_currency_returns_numeric(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_balance", "params": {"currency": "TRY"}},
+        )
+        assert res.success and res.result == 1000.0
+        assert w.calls == [("balance", "TRY")]
+
+    def test_balance_without_currency_returns_wallets(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(_wallet_executor(w), {"id": "s", "action": "wallet_balance"})
+        assert res.success
+        assert res.result == [{"currency": "USD", "balance": 1000.0, "isDefault": 1}]
+        assert w.calls == [("balance", None)]
+
+    def test_deposit_forwards_amount_and_currency(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_deposit", "params": {"amount": 250, "currency": "TRY"}},
+        )
+        assert res.success and res.result == {"currency": "TRY", "balance": 1100.0}
+        assert w.calls == [("deposit", 250, "TRY")]
+
+    def test_withdraw_forwards_amount_default_currency(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_withdraw", "params": {"amount": 50}},
+        )
+        assert res.success and res.result == {"currency": "USD", "balance": 900.0}
+        assert w.calls == [("withdraw", 50, None)]
+
+    def test_deposit_requires_amount(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w), {"id": "s", "action": "wallet_deposit", "params": {}}
+        )
+        assert not res.success and "requires 'params.amount'" in res.error
+        assert w.calls == []  # never reached the helper
+
+    def test_no_wallet_helper_fails_clearly(self) -> None:
+        res = _run_step(
+            _wallet_executor(None),
+            {"id": "s", "action": "wallet_deposit", "params": {"amount": 1}},
+        )
+        assert not res.success and "not configured" in res.error
+
+    def test_helper_error_is_surfaced_as_step_failure(self) -> None:
+        w = _FakeWallet(raise_on="deposit")
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_deposit", "params": {"amount": 1, "currency": "TRY"}},
+        )
+        assert not res.success and "playsite boom" in res.error
+
+    def test_set_forwards_target_and_currency(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_set", "params": {"amount": 0, "currency": "TRY"}},
+        )
+        assert res.success and res.result == {"currency": "TRY", "balance": 0}
+        assert w.calls == [("set", 0, "TRY")]
+
+    def test_set_requires_amount(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(_wallet_executor(w), {"id": "s", "action": "wallet_set", "params": {}})
+        assert not res.success and "target balance" in res.error
+        assert w.calls == []
+
+    def test_set_resolves_saved_var_for_restore(self) -> None:
+        w = _FakeWallet()
+        ex = _wallet_executor(w)
+        ex.vars["orig_balance"] = 1234.5  # captured by a wallet_balance step in setup
+        res = _run_step(
+            ex,
+            {"id": "s", "action": "wallet_set", "params": {"amount": "$orig_balance", "currency": "TRY"}},
+        )
+        assert res.success
+        assert w.calls == [("set", 1234.5, "TRY")]
+
+    def test_deposit_resolves_saved_var_amount(self) -> None:
+        w = _FakeWallet()
+        ex = _wallet_executor(w)
+        ex.vars["topup"] = 500
+        res = _run_step(
+            ex,
+            {"id": "s", "action": "wallet_deposit", "params": {"amount": "$topup", "currency": "TRY"}},
+        )
+        assert res.success and w.calls == [("deposit", 500, "TRY")]
+
+    def test_set_missing_var_fails_before_helper(self) -> None:
+        w = _FakeWallet()
+        res = _run_step(
+            _wallet_executor(w),
+            {"id": "s", "action": "wallet_set", "params": {"amount": "$nope"}},
+        )
+        assert not res.success and "nope" in res.error
+        assert w.calls == []

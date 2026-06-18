@@ -50,6 +50,7 @@ SUPPORTED_ACTIONS: frozenset[str] = frozenset(
         "go_online",
         "press_key",
         "click",
+        "click_button",
         "agent_action",
         "agent_assert",
         "wait_ms",
@@ -57,6 +58,10 @@ SUPPORTED_ACTIONS: frozenset[str] = frozenset(
         "bo_paytable_select",
         "bo_paytable_update",
         "bo_paytable_reset",
+        "wallet_balance",
+        "wallet_deposit",
+        "wallet_withdraw",
+        "wallet_set",
     }
 )
 
@@ -99,11 +104,17 @@ class ValidationError:
 
 
 class _Collector:
-    """Accumulates ValidationError objects during a validation pass."""
+    """Accumulates ValidationError objects during a validation pass.
 
-    def __init__(self, source: str) -> None:
+    ``asset_index`` (group -> item names, from the game's manifest) is carried here so
+    every validator can fail fast on a bad ``asset_groups``/``assets`` reference without
+    threading it through each signature. ``None`` -> skip asset reference validation.
+    """
+
+    def __init__(self, source: str, asset_index: dict[str, set[str]] | None = None) -> None:
         self._source = source
         self._errors: list[ValidationError] = []
+        self.asset_index = asset_index
 
     def add(self, path: str, message: str) -> None:
         self._errors.append(ValidationError(path=path, message=message, source=self._source))
@@ -179,6 +190,9 @@ def _validate_assert_ai(
         if req_field == "expected" and uses_expected_by_case:
             continue
         _require_field(ai, req_field, path, collector)
+
+    # Optional reference-selection fields on the assert (override test/group defaults).
+    _validate_selection_fields(ai, path, collector)
 
     # expected_by_case: runs-only, partitions the AI output across cases
     if "expected_by_case" in ai:
@@ -368,19 +382,70 @@ def _validate_step_sequence(
 # ---------------------------------------------------------------------------
 
 
-def _validate_assets(container: Any, path: str, collector: _Collector) -> None:
-    """Validate an optional ``assets:`` field — a list of asset-category names.
+def _validate_selection_fields(container: Any, path: str, collector: _Collector) -> None:
+    """Validate the optional reference-selection fields on a test/run/group/assert.ai.
 
-    Scopes which categories from the game's assets.yml are loaded (inline, with
-    descriptions) into the AI prompts for this test/run/group. Category names are
-    not resolved here (unknown names are skipped + logged at load time), mirroring
-    how missing asset files are handled.
+    - ``asset_groups``: list of manifest group names (each must exist).
+    - ``assets``: list of ``"{group}.{name}"`` items (qualified; group + name must exist).
+    - ``ref_assets``: DEPRECATED list of bare names (alias). Unknown names are flagged as
+      a *warning-style* error message but, because the field is deprecated and resolved
+      leniently at runtime, we keep validation lenient — only the shape is enforced here.
+
+    Asset existence is only checked when ``collector.asset_index`` is set (the game's
+    manifest). Missing image *files* are NOT a load error (runtime warn+skip).
     """
-    if not isinstance(container, dict) or "assets" not in container:
+    if not isinstance(container, dict):
         return
-    assets = container["assets"]
-    if not isinstance(assets, list) or not all(isinstance(a, str) for a in assets):
-        collector.add(f"{path}.assets", "expected a list of asset-category names (strings)")
+    index = collector.asset_index
+
+    if "asset_groups" in container:
+        groups = container["asset_groups"]
+        if not isinstance(groups, list) or not all(isinstance(g, str) for g in groups):
+            collector.add(f"{path}.asset_groups", "expected a list of asset group names (strings)")
+        elif index is not None:
+            for g in groups:
+                if g not in index:
+                    known = ", ".join(sorted(index)) or "(none)"
+                    collector.add(
+                        f"{path}.asset_groups",
+                        f"unknown asset group '{g}'; known groups: {known}",
+                    )
+
+    if "assets" in container:
+        assets = container["assets"]
+        if not isinstance(assets, list) or not all(isinstance(a, str) for a in assets):
+            collector.add(
+                f"{path}.assets",
+                "expected a list of qualified '{group}.{name}' asset references (strings)",
+            )
+        elif index is not None:
+            for a in assets:
+                if "." not in a:
+                    collector.add(
+                        f"{path}.assets",
+                        f"asset '{a}' must be qualified as '{{group}}.{{name}}'",
+                    )
+                    continue
+                group, name = a.split(".", 1)
+                if group not in index:
+                    known = ", ".join(sorted(index)) or "(none)"
+                    collector.add(
+                        f"{path}.assets",
+                        f"asset '{a}': unknown group '{group}'; known groups: {known}",
+                    )
+                elif name not in index[group]:
+                    collector.add(
+                        f"{path}.assets",
+                        f"asset '{a}': '{name}' is not an item of group '{group}'",
+                    )
+
+    if "ref_assets" in container:
+        ref_assets = container["ref_assets"]
+        if not isinstance(ref_assets, list) or not all(isinstance(a, str) for a in ref_assets):
+            collector.add(
+                f"{path}.ref_assets",
+                "expected a list of asset names (strings) [deprecated: use asset_groups/assets]",
+            )
 
 
 def _validate_test(test: Any, path: str, collector: _Collector) -> None:
@@ -404,7 +469,7 @@ def _validate_test(test: Any, path: str, collector: _Collector) -> None:
     if "teardown" in test:
         _validate_step_sequence(test["teardown"], "teardown", f"{path}.teardown", collector)
 
-    _validate_assets(test, path, collector)
+    _validate_selection_fields(test, path, collector)
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +544,7 @@ def _validate_run(run: Any, path: str, collector: _Collector, all_ids: list[str]
     if "teardown" in run:
         _validate_step_sequence(run["teardown"], "teardown", f"{path}.teardown", collector)
 
-    _validate_assets(run, path, collector)
+    _validate_selection_fields(run, path, collector)
 
     # steps (required, non-empty) — validated with run case context
     if not _require_field(run, "steps", path, collector, list):
@@ -545,7 +610,7 @@ def _validate_group(
     if "teardown" in group:
         _validate_step_sequence(group["teardown"], "teardown", f"{path}.teardown", collector)
 
-    _validate_assets(group, path, collector)
+    _validate_selection_fields(group, path, collector)
 
     has_tests = "tests" in group
     has_runs = "runs" in group
@@ -608,13 +673,21 @@ def _validate_config(config: Any, path: str, collector: _Collector) -> None:
 # ---------------------------------------------------------------------------
 
 
-def validate_suite(doc: Any, source: str = "<unknown>") -> list[ValidationError]:
+def validate_suite(
+    doc: Any,
+    source: str = "<unknown>",
+    asset_index: dict[str, set[str]] | None = None,
+) -> list[ValidationError]:
     """Validate a parsed test suite YAML document.
 
     Args:
         doc:    The result of ``yaml.safe_load()`` on a test suite file.
         source: A label (typically the file name) included in each error for
                 context. Defaults to ``"<unknown>"``.
+        asset_index: Optional ``{group: {item names}}`` from the game's asset manifest.
+                When provided, ``asset_groups``/``assets`` references on asserts, tests,
+                groups, and runs are validated against it (unknown group/item -> error).
+                When ``None`` (e.g. unit tests), asset reference validation is skipped.
 
     Returns:
         A list of ValidationError objects. An empty list means the document
@@ -623,7 +696,7 @@ def validate_suite(doc: Any, source: str = "<unknown>") -> list[ValidationError]
     The function never raises; all problems are returned as ValidationError
     objects so callers can handle them all at once.
     """
-    collector = _Collector(source)
+    collector = _Collector(source, asset_index)
 
     if not isinstance(doc, dict):
         collector.add("$", f"suite document must be a YAML mapping, got {type(doc).__name__}")

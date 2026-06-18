@@ -174,7 +174,7 @@ Key variables:
 | `GEMINI_API_KEY` | base `.env` | Required for Gemini AI assertions (image/video) |
 | `AI_PROVIDER` | base `.env` | `gemini` (default), `local`, or `claude` — picks the AI backend for visual assertions |
 | `LOCAL_AI_ENDPOINT` | base `.env` | Used when `AI_PROVIDER=local`; self-hosted `/analyze` endpoint |
-| `CLAUDE_AI_FPS`, `CLAUDE_CLI_PATH`, `CLAUDE_MODEL`, `CLAUDE_CLI_TIMEOUT` | base `.env` | Used when `AI_PROVIDER=claude` (see note below) |
+| `CLAUDE_AI_FPS`, `CLAUDE_AI_MAX_CONCURRENCY`, `CLAUDE_CLI_PATH`, `CLAUDE_MODEL`, `CLAUDE_CLI_TIMEOUT` | base `.env` | Used when `AI_PROVIDER=claude` (see note below). `CLAUDE_AI_MAX_CONCURRENCY` (default `2`) caps concurrent Claude AI-assert processes. |
 | `BO_API_BASE`, `BO_TOKEN`, `BO_REFRESH_TOKEN` | overlay `.env.{suffix}` | Back-office endpoint + session tokens for `bo_paytable_*` steps |
 
 > **`claude` provider:** samples the trimmed video into JPEG frames at `CLAUDE_AI_FPS`

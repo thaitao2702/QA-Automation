@@ -24,8 +24,8 @@ UnsupportedActionError
 Supported action types
 ----------------------
 navigate, wait_for_state, bridge_action, bridge_assert, capture, assert,
-script, go_offline, go_online, press_key, click, wait_ms, bo_paytable_ensure,
-bo_paytable_select, bo_paytable_update, bo_paytable_reset
+script, go_offline, go_online, press_key, click, click_button, wait_ms,
+bo_paytable_ensure, bo_paytable_select, bo_paytable_update, bo_paytable_reset
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -62,6 +63,10 @@ def _effective_action(step: dict[str, Any]) -> str:
     return ""
 
 
+# Token for injecting a saved variable into AI prompt text: {{name}}.
+_AI_VAR_TOKEN = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
 # ---------------------------------------------------------------------------
 # ANSI color helpers for console output
 # ---------------------------------------------------------------------------
@@ -84,6 +89,7 @@ _ACTION_COLORS: dict[str, str] = {
     "assert": _MAGENTA,
     "script": _YELLOW,
     "click": _CYAN,
+    "click_button": _CYAN,
     "press_key": _CYAN,
     "wait_ms": _DIM,
     "go_offline": _RED,
@@ -92,6 +98,10 @@ _ACTION_COLORS: dict[str, str] = {
     "bo_paytable_select": _BLUE,
     "bo_paytable_update": _BLUE,
     "bo_paytable_reset": _BLUE,
+    "wallet_balance": _BLUE,
+    "wallet_deposit": _BLUE,
+    "wallet_withdraw": _BLUE,
+    "wallet_set": _BLUE,
 }
 
 
@@ -157,6 +167,9 @@ class StepExecutor:
         Unix timestamp when the test started (for timeline ms offsets).
     bo:
         Optional BoHelper for back-office paytable updates (bo_paytable_update).
+    wallet:
+        Optional WalletHelper for Playsite balance changes (wallet_balance/
+        wallet_deposit/wallet_withdraw).
     """
 
     def __init__(
@@ -169,19 +182,42 @@ class StepExecutor:
         test_start_time: float | None = None,
         game_url: str | None = None,
         bo: Any = None,
+        wallet: Any = None,
         reference: Any = None,
+        ai_scheduler: Any = None,
+        ai_image_sink: Any = None,
+        ref_cache: Any = None,
+        group_doc: Any = None,
+        test_doc: Any = None,
+        asset_index: Any = None,
     ) -> None:
         self._bridge = bridge
         self._network = network
         self._artifact = artifact
         self._gemini_image = gemini_image
         self._page = page
+        # Launch-at-step AI image asserts: a suite-level AiAssertScheduler (capped
+        # background tasks) and a record-bound sink callable(step, result, request_info)
+        # that folds each result into the owning test/run record. None outside a suite run.
+        self._ai_scheduler = ai_scheduler
+        self._ai_image_sink = ai_image_sink
         self._test_start_time: float = test_start_time or time.time()
         self._game_url: str = game_url or ""
         self._bo = bo
+        # Optional WalletHelper for Playsite balance steps (None outside a suite run
+        # or when Playsite creds are absent -> wallet_* steps fail with a clear error).
+        self._wallet = wallet
         # Scoped asset reference (from a test/group `assets:`) shared by this test's
         # agent_action / agent_assert steps; None = no reference (pure-pixel agent).
         self._reference = reference
+        # Shared ScopedReferenceCache + this test's group/test docs + the asset index,
+        # so an image AI assert can resolve its effective `asset_groups`/`assets`
+        # selection (assert > test > group) and send only the scoped reference pack.
+        # None outside a suite run -> image asserts use the helper's full-pack default.
+        self._ref_cache = ref_cache
+        self._group_doc = group_doc
+        self._test_doc = test_doc
+        self._asset_index = asset_index
         # Accumulates timeline entries: list of dicts with id, action, start_ms, end_ms
         self.timeline: list[dict[str, Any]] = []
         # Named variables saved via a step's `save:` field, passed to bridge
@@ -322,6 +358,7 @@ class StepExecutor:
             "go_online": self._handle_go_online,
             "press_key": self._handle_press_key,
             "click": self._handle_click,
+            "click_button": self._handle_click_button,
             "agent_action": self._handle_agent_action,
             "agent_assert": self._handle_agent_assert,
             "wait_ms": self._handle_wait_ms,
@@ -329,6 +366,10 @@ class StepExecutor:
             "bo_paytable_select": self._handle_bo_paytable_select,
             "bo_paytable_update": self._handle_bo_paytable_update,
             "bo_paytable_reset": self._handle_bo_paytable_reset,
+            "wallet_balance": self._handle_wallet_balance,
+            "wallet_deposit": self._handle_wallet_deposit,
+            "wallet_withdraw": self._handle_wallet_withdraw,
+            "wallet_set": self._handle_wallet_set,
         }
 
         handler = handlers.get(action)
@@ -410,6 +451,95 @@ class StepExecutor:
             else:
                 arg_values.append(item)
         return arg_values, None
+
+    def _resolve_param(self, value: Any) -> tuple[Any, str | None]:
+        """Resolve a single scalar param with the same ``$name`` rules as ``_resolve_args``.
+
+        A string ``"$name"`` resolves to the variable saved by an earlier step's
+        ``save:`` field (``"$$"`` escapes a literal leading ``$``); anything else
+        passes through unchanged. Lets a wallet step take ``amount: "$orig_balance"``.
+        Returns ``(resolved, error)``.
+        """
+        resolved, err = self._resolve_args([value])
+        if err is not None:
+            return None, err
+        return resolved[0], None
+
+    def _resolve_text_vars(self, text: Any) -> tuple[Any, str | None]:
+        """Substitute ``{{name}}`` placeholders in *text* with saved variables.
+
+        Each ``{{name}}`` becomes ``str(self.vars[name])`` — a value a prior step
+        captured via ``save: name``. Lets an AI prompt embed a real value read
+        earlier so the model confirms a known fact instead of judging a fuzzy one
+        (deterministic AI assert). A ``{{name}}`` whose variable was never saved is
+        an error — the step fails at execution time, not at deferred-AI time.
+        Non-string *text*, or text with no ``{{`` token, is returned unchanged.
+
+        Returns ``(resolved, error)``; *error* is ``None`` on success.
+        """
+        if not isinstance(text, str) or "{{" not in text:
+            return text, None
+        missing: list[str] = []
+
+        def _sub(m: "re.Match[str]") -> str:
+            name = m.group(1)
+            if name not in self.vars:
+                missing.append(name)
+                return m.group(0)
+            return str(self.vars[name])
+
+        resolved = _AI_VAR_TOKEN.sub(_sub, text)
+        if missing:
+            return text, (
+                f"variable '{missing[0]}' referenced in an AI prompt was not saved "
+                f"by an earlier step (use 'save: {missing[0]}')"
+            )
+        return resolved, None
+
+    def _resolve_in_leaves(self, value: Any) -> tuple[Any, str | None]:
+        """Recursively resolve ``{{name}}`` in every string leaf of a nested value."""
+        if isinstance(value, str):
+            return self._resolve_text_vars(value)
+        if isinstance(value, dict):
+            out: dict[Any, Any] = {}
+            for k, v in value.items():
+                rv, err = self._resolve_in_leaves(v)
+                if err is not None:
+                    return value, err
+                out[k] = rv
+            return out, None
+        if isinstance(value, list):
+            out_list: list[Any] = []
+            for v in value:
+                rv, err = self._resolve_in_leaves(v)
+                if err is not None:
+                    return value, err
+                out_list.append(rv)
+            return out_list, None
+        return value, None
+
+    def _resolve_ai_block_vars(self, ai_block: dict[str, Any]) -> str | None:
+        """Resolve ``{{name}}`` placeholders in an ``assert.ai`` block, in place.
+
+        Substitutes saved variables into ``prompt`` and into every string leaf of
+        ``expected`` / ``expected_by_case``. Structural keys (``output_schema``,
+        ``mode``, ``ref_screenshot``, ``ref_assets``, ``video_trim``) are left
+        untouched. Runs at step-execution time while ``self.vars`` is live, so the
+        deferred image/video processors that read this same block later see the
+        resolved text. Returns the first error string, or ``None`` on success.
+        """
+        if "prompt" in ai_block:
+            resolved, err = self._resolve_text_vars(ai_block["prompt"])
+            if err is not None:
+                return err
+            ai_block["prompt"] = resolved
+        for key in ("expected", "expected_by_case"):
+            if key in ai_block:
+                resolved, err = self._resolve_in_leaves(ai_block[key])
+                if err is not None:
+                    return err
+                ai_block[key] = resolved
+        return None
 
     async def _handle_bridge_action(self, step: dict[str, Any]) -> StepResult:
         """bridge_action — call a named method on the bridge.
@@ -636,17 +766,27 @@ class StepExecutor:
         # --- AI assertion (skip if bridge already failed — fail fast) ---
         ai_block = assert_block.get("ai")
         if ai_block and not errors:
-            mode = ai_block.get("mode", "")
-            if mode == "image":
-                # Image AI is deferred — processed after all tests complete
-                ai_pending = True
-                logger.debug("Image AI assertion deferred for step %s", step.get("id"))
-            elif mode == "video":
-                # Video AI is deferred — mark pending
-                ai_pending = True
-                logger.debug("Video AI assertion deferred to batch processor for step %s", step.get("id"))
+            # Inject {{name}} saved-variable placeholders into prompt/expected NOW,
+            # while self.vars is live — the deferred image/video processors read
+            # this same block later. A missing variable fails the step here.
+            var_err = self._resolve_ai_block_vars(ai_block)
+            if var_err is not None:
+                errors.append(var_err)
             else:
-                errors.append(f"assert.ai has unknown mode '{mode}'")
+                mode = ai_block.get("mode", "")
+                if mode == "image":
+                    # Image AI launches NOW as a capped background task (the
+                    # referenced screenshot already exists). Verdict stays pending
+                    # until the task's sink folds it into the record.
+                    ai_pending = True
+                    self._launch_image_ai(step, ai_block)
+                elif mode == "video":
+                    # Video AI is deferred — its clip only exists after the suite's
+                    # shared recording is finalized (video_ai_processor handles it).
+                    ai_pending = True
+                    logger.debug("Video AI assertion deferred to batch processor for step %s", step.get("id"))
+                else:
+                    errors.append(f"assert.ai has unknown mode '{mode}'")
 
         success = len(errors) == 0
         error_str = "; ".join(errors) if errors else None
@@ -658,6 +798,85 @@ class StepExecutor:
             ai_result=ai_result,
             ai_pending=ai_pending,
         )
+
+    def _image_reference_for(self, ai_block: dict[str, Any]) -> Any:
+        """Resolve the scoped reference pack for one image AI assert.
+
+        Computes the effective ``asset_groups``/``assets`` selection (assert > test >
+        group) and returns the cached scoped SymbolReference, or ``None`` to let the
+        helper use its full-pack default (no cache wired, or no selection anywhere).
+        """
+        if self._ref_cache is None:
+            return None
+        from framework.helpers.symbol_reference import effective_selection
+
+        sel = effective_selection(
+            self._group_doc, self._test_doc, ai_block, self._asset_index
+        )
+        if sel is None:
+            return None
+        return self._ref_cache.for_selection(*sel)
+
+    def _launch_image_ai(self, step: dict[str, Any], ai_block: dict[str, Any]) -> None:
+        """Submit an image AI assertion to the background scheduler now.
+
+        Resolves the ref screenshot(s) from this test's captures and fires a capped
+        background task whose sink folds the verdict into the record. If a ref is
+        missing, folds a fail immediately (no task). No-op when no scheduler/sink is
+        wired (e.g. no AI provider) — the step stays pending, matching prior behavior.
+        """
+        if not (self._ai_scheduler and self._ai_scheduler.enabled and self._ai_image_sink):
+            logger.debug("Image AI assertion: no scheduler/sink — left pending for step %s", step.get("id"))
+            return
+        prompt = ai_block.get("prompt", "")
+        output_schema = ai_block.get("output_schema", {})
+        expected = ai_block.get("expected", {})
+        paths, missing = self._resolve_step_ref_paths(ai_block.get("ref_screenshot", ""))
+        request_info = {
+            "prompt": prompt,
+            "output_schema": output_schema,
+            "expected": expected,
+            "screenshots": [p.name for p in paths],
+        }
+        if missing:
+            from framework.helpers.gemini import GeminiResult
+            failed = GeminiResult(
+                success=False, data=None,
+                reason=f"screenshot(s) not found: {', '.join(missing)}",
+            )
+            self._ai_image_sink(step, failed, request_info)
+            return
+        self._ai_scheduler.submit_image(
+            screenshot_paths=paths,
+            prompt=prompt,
+            output_schema=output_schema,
+            sink=lambda result, _s=step, _ri=request_info: self._ai_image_sink(_s, result, _ri),
+            reference=self._image_reference_for(ai_block),
+        )
+
+    def _resolve_step_ref_paths(self, ref: Any) -> tuple[list[Path], list[str]]:
+        """Resolve ``ref_screenshot`` id(s) to screenshot Paths AT step time.
+
+        Uses ``self._capture_paths`` (capture-step-id -> Path, populated as capture
+        steps run) first, then a ``step-NN`` numeric fallback. Returns
+        ``(paths, missing)``. Because this runs at the assert step, every referenced
+        capture must PRECEDE it (the normal pattern; a forward ref fails fast).
+        """
+        ref_ids = ref if isinstance(ref, list) else [ref]
+        paths: list[Path] = []
+        missing: list[str] = []
+        for rid in ref_ids:
+            found = self._capture_paths.get(str(rid))
+            if (found is None or not found.exists()) and isinstance(rid, str) and rid.startswith("step-"):
+                try:
+                    found = self._artifact.screenshot_path(int(rid.split("-")[1]))
+                except (ValueError, IndexError):
+                    found = None
+            if found and found.exists():
+                paths.append(found)
+            else:
+                missing.append(str(rid))
+        return paths, missing
 
     async def _handle_script(self, step: dict[str, Any]) -> StepResult:
         """script — evaluate a JS expression in the browser page context.
@@ -748,6 +967,59 @@ class StepExecutor:
                 error="click action requires 'params.selector' or both 'params.x' and 'params.y'",
             )
         return StepResult(success=True)
+
+    async def _handle_click_button(self, step: dict[str, Any]) -> StepResult:
+        """click_button — click a named button at its real on-screen coordinates.
+
+        Resolves ``params.name`` to a screen rectangle via the bridge's
+        ``getButtonRect(name)`` (bridge-api.md §3.7), then fires a real OS-level
+        pointer event at the rect's centre (``page.mouse.click(centerX, centerY)``).
+        This emulates a genuine user tap on the canvas instead of invoking the
+        button's bridge action directly.
+
+        Fails (never silently) when the button is absent (unknown name or its popup
+        is closed) or, unless ``params.require_visible: false``, when the rect is not
+        visible/clickable. The resolved rect is returned as the step result so it can
+        be ``save:``d for a later assert.
+        """
+        params = step.get("params") or {}
+        name = params.get("name", "")
+        if not name:
+            return StepResult(success=False, error="click_button action requires 'params.name'")
+
+        try:
+            rect = await self._bridge.get_button_rect(name)
+        except Exception as exc:  # noqa: BLE001 — surface a clear step failure, never crash
+            return StepResult(
+                success=False,
+                error=f"click_button: getButtonRect({name!r}) failed: {exc}",
+            )
+
+        if not rect:
+            return StepResult(
+                success=False,
+                error=f"click_button: button '{name}' not found "
+                "(unknown name or its owning popup is closed)",
+            )
+
+        require_visible = params.get("require_visible", True)
+        if require_visible and not rect.get("visible", False):
+            return StepResult(
+                success=False,
+                error=f"click_button: button '{name}' is not visible/clickable "
+                f"(visible=false); rect={rect}",
+            )
+
+        cx, cy = rect.get("centerX"), rect.get("centerY")
+        if cx is None or cy is None:
+            return StepResult(
+                success=False,
+                error=f"click_button: button '{name}' rect has no centerX/centerY: {rect}",
+            )
+
+        await self._page.mouse.click(float(cx), float(cy))
+        screenshot_path = await self._capture_screenshot() if step.get("capture") else None
+        return StepResult(success=True, result=rect, screenshot_path=screenshot_path)
 
     def _get_claude_session(self) -> Any:
         """Return the per-test warm Claude session, lazily starting it once.
@@ -873,6 +1145,10 @@ class StepExecutor:
                 success=False,
                 error="agent_assert requires a claim ('params.check' or a top-level 'check:')",
             )
+        # Inject {{name}} saved-variable placeholders into the claim (deterministic check).
+        check, var_err = self._resolve_text_vars(check)
+        if var_err is not None:
+            return StepResult(success=False, error=f"agent_assert: {var_err}")
         model = params.get("model") or step.get("model")
 
         step_id = str(step.get("id", "agent-assert"))
@@ -1086,6 +1362,115 @@ class StepExecutor:
         return StepResult(success=True, result=message)
 
     # ------------------------------------------------------------------
+    # Wallet (Playsite balance) actions
+    # ------------------------------------------------------------------
+
+    async def _handle_wallet_balance(self, step: dict[str, Any]) -> StepResult:
+        """wallet_balance — read the player's Playsite balance.
+
+        params:
+          currency (optional) — currency code; defaults to playsite.currency /
+            PLAYSITE_CURRENCY. With a currency in effect the result is the numeric
+            balance for it (save:-able for a later bridge_assert); with none, the full
+            list of the player's wallets.
+        """
+        if self._wallet is None:
+            return StepResult(
+                success=False,
+                error="wallet_balance unavailable: Playsite wallet not configured (no WalletHelper)",
+            )
+        params = step.get("params") or {}
+        currency, err = self._resolve_param(params.get("currency"))
+        if err is not None:
+            return StepResult(success=False, error=f"wallet_balance: {err}")
+        try:
+            balance = await self._wallet.get_balance(currency=currency)
+        except Exception as exc:  # noqa: BLE001 — surface PlaysiteError/WalletConfigError as step error
+            return StepResult(success=False, error=str(exc))
+        return StepResult(success=True, result=balance)
+
+    async def _handle_wallet_set(self, step: dict[str, Any]) -> StepResult:
+        """wallet_set — set the player's balance to an absolute target.
+
+        Reads the current balance and deposits/withdraws the difference so the balance
+        ends at exactly `amount`, whatever it was before. This is the robust way to
+        (a) force a precise balance for a test (e.g. below the bet) and (b) restore the
+        pre-test balance in teardown via `amount: "$orig_balance"`, where orig_balance
+        was captured by a `wallet_balance` step in the same test's setup.
+
+        params:
+          amount (required) — the TARGET balance to set (int/float/numeric string, or a
+            "$saved" reference to an earlier wallet_balance result).
+          currency (optional) — defaults to playsite.currency / PLAYSITE_CURRENCY.
+        """
+        if self._wallet is None:
+            return StepResult(
+                success=False,
+                error="wallet_set unavailable: Playsite wallet not configured (no WalletHelper)",
+            )
+        params = step.get("params") or {}
+        if params.get("amount") is None:
+            return StepResult(
+                success=False, error="wallet_set requires 'params.amount' (the target balance)"
+            )
+        target, err = self._resolve_param(params.get("amount"))
+        if err is not None:
+            return StepResult(success=False, error=f"wallet_set: {err}")
+        currency, err = self._resolve_param(params.get("currency"))
+        if err is not None:
+            return StepResult(success=False, error=f"wallet_set: {err}")
+        try:
+            data = await self._wallet.set_balance(target, currency=currency)
+        except Exception as exc:  # noqa: BLE001 — surface PlaysiteError/WalletConfigError as step error
+            return StepResult(success=False, error=str(exc))
+        return StepResult(success=True, result=data)
+
+    async def _handle_wallet_deposit(self, step: dict[str, Any]) -> StepResult:
+        """wallet_deposit — add funds to the player's wallet via the Playsite API.
+
+        params:
+          amount (required) — amount to deposit (int/float/numeric string).
+          currency (optional) — currency code; defaults to playsite.currency /
+            PLAYSITE_CURRENCY.
+        Result is the updated wallet data ({currency, balance}); use save: to assert it.
+        """
+        return await self._run_wallet_op(step, "deposit")
+
+    async def _handle_wallet_withdraw(self, step: dict[str, Any]) -> StepResult:
+        """wallet_withdraw — remove funds from the player's wallet via the Playsite API.
+
+        params:
+          amount (required) — amount to withdraw (int/float/numeric string).
+          currency (optional) — currency code; defaults to playsite.currency /
+            PLAYSITE_CURRENCY.
+        Result is the updated wallet data ({currency, balance}); use save: to assert it.
+        """
+        return await self._run_wallet_op(step, "withdraw")
+
+    async def _run_wallet_op(self, step: dict[str, Any], op: str) -> StepResult:
+        """Shared body for wallet_deposit / wallet_withdraw (op in {deposit, withdraw})."""
+        if self._wallet is None:
+            return StepResult(
+                success=False,
+                error=f"wallet_{op} unavailable: Playsite wallet not configured (no WalletHelper)",
+            )
+        params = step.get("params") or {}
+        if params.get("amount") is None:
+            return StepResult(success=False, error=f"wallet_{op} requires 'params.amount'")
+        amount, err = self._resolve_param(params.get("amount"))
+        if err is not None:
+            return StepResult(success=False, error=f"wallet_{op}: {err}")
+        currency, err = self._resolve_param(params.get("currency"))
+        if err is not None:
+            return StepResult(success=False, error=f"wallet_{op}: {err}")
+        try:
+            method = self._wallet.deposit if op == "deposit" else self._wallet.withdraw
+            data = await method(amount, currency=currency)
+        except Exception as exc:  # noqa: BLE001 — surface PlaysiteError/WalletConfigError as step error
+            return StepResult(success=False, error=str(exc))
+        return StepResult(success=True, result=data)
+
+    # ------------------------------------------------------------------
     # AI image assertion (inline)
     # ------------------------------------------------------------------
 
@@ -1116,7 +1501,10 @@ class StepExecutor:
             )
 
         logger.info("Running AI image assert (step %s): %s", step.get("id"), ref_step_id)
-        gemini_result = self._gemini_image.analyse_image(screenshot_path, prompt, output_schema)
+        gemini_result = self._gemini_image.analyse_image(
+            screenshot_path, prompt, output_schema,
+            reference=self._image_reference_for(ai_block),
+        )
 
         if not gemini_result.success:
             ai_result = {
@@ -1191,6 +1579,9 @@ class StepExecutor:
 
         if action == "click":
             return params.get("selector", "")
+
+        if action == "click_button":
+            return params.get("name", "")
 
         if action == "agent_action":
             goal = params.get("goal") or step.get("do") or params.get("prompt") or ""

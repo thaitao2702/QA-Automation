@@ -38,13 +38,13 @@ description: |
 ## Expert Vocabulary Payload
 
 **Test Architecture:**
-step-based test structure, sequential step IDs (every step including setup/teardown requires `id`), three lifecycle scopes (suite-level / group-level / test-level setup+teardown), test groups (`groups:` with once-per-group setup/teardown), single-test execution with group setup/teardown intact (`--test`/`--group`), unique suite-wide test ids, self-contained test state, test determinism via bridge injection AND back-office paytable control, paytable-grouped test cases (base game / free spin / etc.), deterministic server result, 16 supported action types only (navigate, wait_for_state, bridge_action, bridge_assert, capture, assert, script, go_offline, go_online, press_key, click, wait_ms, bo_paytable_ensure, bo_paytable_select, bo_paytable_update, bo_paytable_reset)
+step-based test structure, sequential step IDs (every step including setup/teardown requires `id`), three lifecycle scopes (suite-level / group-level / test-level setup+teardown), test groups (`groups:` with once-per-group setup/teardown), single-test execution with group setup/teardown intact (`--test`/`--group`), unique suite-wide test ids, self-contained test state, test determinism via bridge injection AND back-office paytable control, paytable-grouped test cases (base game / free spin / etc.), deterministic server result, 21 supported action types only (navigate, wait_for_state, bridge_action, bridge_assert, capture, assert, script, go_offline, go_online, press_key, click, click_button, wait_ms, bo_paytable_ensure, bo_paytable_select, bo_paytable_update, bo_paytable_reset, wallet_balance, wallet_deposit, wallet_withdraw, wallet_set), server-side player-balance control via the wallet_* actions (force a balance to test balance-dependent rules; ALWAYS snapshot + restore the original in teardown)
 
 **Bridge Integration:**
-bridge action, bridge injection (setDevModeResult), bridge method validation, state query (getAppState, getBalance), dev mode reset (resetDevMode), API surface coverage, missing method flagging, bridge assert schema (assert.bridge sub-block: method + expected only, no computed fields; the `bridge_assert` action additionally accepts an `args` list), saved variables (`save: <name>` on a step captures its result), bridge-owned deterministic assertions (`bridge_assert` with `args: ["$name"]` passes a saved value to a bridge function and compares its return to expected)
+bridge action, real-coordinate button taps (`click_button` resolves a button's on-screen rectangle via the bridge's `getButtonRect`/`getAllButtonRects` geometry API and fires a genuine pointer event — the preferred way to press any on-screen button; method-invoking `bridge_action` is the last resort), tap-wrap pattern (`waitForButtonClickable` to wait the button is visible/enabled/un-covered → `click_button` → `wait_ms 300` settle so each action is a distinct, watchable moment in the recording), bridge injection (setDevModeResult), bridge method validation, state query (getAppState, getBalance), dev mode reset (resetDevMode), API surface coverage, missing method flagging, bridge assert schema (assert.bridge sub-block: method + expected only, no computed fields; the `bridge_assert` action additionally accepts an `args` list), saved variables (`save: <name>` on a step captures its result), bridge-owned deterministic assertions (`bridge_assert` with `args: ["$name"]` passes a saved value to a bridge function and compares its return to expected)
 
 **AI Visual Assertions:**
-dual assertion (bridge + AI), mode selection favoring video (image only when a single frame is unambiguous), game-context preamble (≤300 tokens), constrained prompt, output_schema, confidence gating (high/medium/low), reference screenshot (ref_screenshot for image mode), video trim (from_step/to_step for video mode), Gemini visual verification
+dual assertion (bridge + AI), mode selection favoring video (image only when a single frame is unambiguous), game-context preamble (≤300 tokens), constrained prompt, output_schema, confidence gating (high/medium/low), reference screenshot (ref_screenshot for image mode), video trim (from_step/to_step for video mode), Gemini visual verification, saved-value prompt substitution (`{{name}}` injected into prompt/expected from an earlier `save:` for deterministic AI asserts)
 
 **QA Workflow:**
 grouped test plan artifact (`{suite}.plan.json`), case-vs-execution model, case consolidation into runs (one execution → many verdicts; fewest executions = minimal suite time), per-execution paytable decision + confirmation, plan-level overview gate (10a) then per-execution approval loop (approve/change/paytable/split/skip), compact execution presentation format, sub-agent paytable generation (from `base.json` + `paytable.md`), coverage report (cases + executions, replays saved), mechanic coverage matrix, ambiguity flagging (`!! AMBIGUITY`), asset gap detection
@@ -69,16 +69,95 @@ use the action names and params from those files (they win on any conflict). For
 
 | What you want to do | WRONG (invented) | CORRECT |
 |---|---|---|
+| Press an on-screen game button (spin, auto, bet ±, buy bonus, popup confirm/cancel) | `bridge_action` invoking the method (`spin()`, `nextBet()`, `confirmBuyBonus()`); or a bare `click_button` with no readiness wait / settle | `waitForButtonClickable` → `click_button { name }` → `wait_ms 300` (see "Prefer real taps" below); `bridge_action` to invoke the method only as a last resort |
 | Loop a bridge call until condition | `bridge_action_until` | Multiple `bridge_action` steps, or a `script` step |
 | Read a bridge value without asserting | `bridge_query` | `bridge_action` (runner stores the return value) |
 | Reload the game page | `reload` | `navigate` + `wait_for_state ready` + `click #start-button` + `wait_for_state idle` |
 | Pause for N milliseconds | `wait` | `wait_ms` with `params: { ms: N }` |
-| Wait until bridge returns a value | `wait_for_condition` | `wait_for_state` |
 | Assert on a value captured earlier | `script` with `assert_equal(steps[...])` | `save: <name>` on the producing step, then `bridge_assert` with `args: ["$name"]` calling a bridge function that judges it |
 | Compare two captured values | `script` comparing `steps[...]` | `save:` both, then `bridge_assert` `args: ["$before", "$after"]` to a bridge function that compares them |
+| Put a captured value into an AI prompt | hardcode it, or ask vaguely "is a value shown?" | `save: <name>`, then a `{{name}}` placeholder in the `ai` block's `prompt` / `expected` — replaced with the real value at run time |
 | Verify a bridge value is shown on screen | Bridge-only assertion | `bridge_assert` + `capture` + AI assertion with the concrete value in the prompt |
+| Force the player's server-side balance (e.g. test "can't bet when balance < bet") | a `setBalance` bridge call; `setDevModeResult` | `wallet_set { amount }` (reads current, applies the delta) — see "Manipulating Player Balance (Wallet)" |
+| Restore the balance a test changed | a fixed reverse `wallet_deposit`/`withdraw` | snapshot with `wallet_balance save: orig` in setup, then `wallet_set { amount: "$orig" }` in the test's teardown |
 
 **NEVER invent action type names.** If no supported action (see `schema_reference.yml`) fits, use `script` to run custom logic.
+
+### Prefer real taps (`click_button`) over invoking the method
+
+A real player presses buttons — they don't call `spin()`. **Emulate the tap.** The bridge's
+on-screen geometry API (`getButtonRect` / `getAllButtonRects`, bridge-api.md §3.7) lets the
+`click_button` action resolve a button's screen rectangle and fire a **genuine OS-level pointer
+event** at its centre. That is the highest-fidelity gesture: it goes through the real canvas
+hit-testing and the full UI path (sound, animation, button-state, input validation) exactly as a
+player does — whereas invoking the method directly can skip those side-effects.
+
+**Default to `click_button` for every on-screen button press.** Use the button `name`:
+
+- **Main screen (always):** `spin`, `stop`, `auto`, `buyBonus`, `nextBet`, `previousBet`, `trophy`.
+- **Popup elements (only while that popup is open):** bet — `bet:row:<i>`, `bet:plus`, `bet:minus`,
+  `bet:close`; auto — `auto:package:<0..4>`, `auto:confirm`, `auto:cancel`, `auto:stop`, `auto:next`,
+  `auto:prev`, `auto:stopAtWin`; buy-bonus — `buyBonus:package:<0..2>`, `buyBonus:buy`,
+  `buyBonus:confirm`, `buyBonus:cancel`, `buyBonus:close`, `buyBonus:next`, `buyBonus:prev`.
+
+**Wrap every tap: wait-clickable → tap → 300 ms settle.** A `click_button` only fires a pointer
+event — it does not confirm the button is ready, and it does not block. Bracket each tap with three
+steps:
+
+1. **Before — wait until it's clickable.** `bridge_action { name: waitForButtonClickable, args: [<button>] }`
+   (a §4 wait helper) polls until the button is visible, enabled, **and not covered by an overlay**
+   (it folds in the hit-test) and then resolves, so the very next step can click it. Never tap a button
+   you haven't waited for — it may be mid-animation, disabled, or behind a popup. (This is a *wait*,
+   not the gesture — invoking it via `bridge_action` is correct; only the tap itself must be `click_button`.)
+2. **Tap.** `click_button { name: <button> }`.
+3. **After — settle 300 ms.** `wait_ms { ms: 300 }`. A short, deliberate pause so the screen is stable
+   and **the moment is visible in the recording**. Without it, taps blur into one another and you lose
+   track of what happened. This 300 ms is a *readability* pause — it does **not** replace waiting on the
+   real outcome: if the tap starts something async (a spin, a popup, a transition), **also** add the
+   right result wait (`wait_for_state`, `waitForSpinComplete`, …) after it.
+
+```yaml
+# wait until the spin button is genuinely clickable (visible, enabled, not covered)
+- id: step-01
+  action: bridge_action
+  params: { name: waitForButtonClickable, args: [spin] }
+# real tap on the spin button (resolved via getButtonRect)
+- id: step-02
+  action: click_button
+  params: { name: spin }
+# hold 300 ms so this tap is a distinct, watchable moment in the recording
+- id: step-03
+  action: wait_ms
+  params: { ms: 300 }
+# then wait for the actual result this tap started (the 300 ms pause does NOT cover it)
+- id: step-04
+  action: wait_for_state
+  params: { state: idle, timeout_ms: 30000 }
+```
+
+**Invoke the method via `bridge_action` only as a LAST RESORT** — when a real tap is impossible or
+not what's being tested:
+
+- **No on-screen button / pre-gameplay-scene** — e.g. `startGame` (the geometry API throws
+  `GameplayScene is not yet initialised` until the game has started, so the splash "START GAME" button
+  is not reachable by `click_button`; use `bridge_action startGame`).
+- **State setup / injection** — `setDevModeResult`, the `bo_paytable_*` actions, `resetDevMode`.
+- **Reading or asserting values** — these are not gestures: `bridge_action` to read (then `save:`) and
+  `bridge_assert` to check stay as bridge calls.
+- **Capture / analyser APIs** — `startEventCapture`, `endEventCapture`, the Hold & Spin verifiers, etc.
+- **The button isn't there** — `getButtonRect` returns `null` (popup closed / unknown) or `visible:false`
+  (`click_button` fails fast in that case); if the gesture genuinely can't be tapped, fall back to the
+  method and note why.
+
+Converting **gestures** to `click_button` does **not** change reads/asserts — only genuine button
+presses move from `bridge_action <method>` to `click_button { name: <button> }`.
+
+**Scope: the test's interaction steps.** The "tap it, don't call it" rule targets the gestures the
+test actually exercises (the ones that should be faithful and watchable in the recording). In
+`setup`/`teardown` you're only establishing a precondition fast and deterministically — invoking the
+method there is the expected **state-setup** path, not something to convert: e.g. `bridge_action spin`
+to *apply* a `setDevModeResult`, or composite helpers like `startAutoSpin` / `confirmBuyBonus`. Keep
+those as `bridge_action`.
 
 ---
 
@@ -93,15 +172,25 @@ Control"** (read it before writing a BO suite). The low-level BO API lives in th
 users at it. You only write the YAML steps; the runner resolves BO credentials/config
 automatically from the `--env` it runs under.
 
-**The model has three layers:**
+**The model has three layers — every layer you set up forwards you MUST tear down in
+reverse, so a forced result never leaks past the deterministic tests:**
 
 1. **Ensure** — the automation paytable (`AutomationTest`) must exist on the master game
    so it is selectable per-agent. `bo_paytable_ensure` (idempotent; run once in suite setup).
+   Nothing to undo (it only creates a reusable paytable).
 2. **Select** — point the agent's game at that paytable so spins use it.
-   `bo_paytable_select` in suite setup; **`bo_paytable_reset`** in suite teardown to
-   restore the game default.
+   `bo_paytable_select` in suite setup. **Always pair it with a `bo_paytable_reset` step in
+   the suite teardown** — this is the required "set the paytable back to default" step that
+   runs once **after all deterministic tests are done**, putting the agent back on the
+   game-default paytable. Omit it and the agent stays pinned to `AutomationTest` after the run.
 3. **Update content per group** — rewrite the paytable's content so each *group* of test
-   cases gets its forced outcome. `bo_paytable_update` immediately before the group runs.
+   cases gets its forced outcome (`bo_paytable_update` in the **group setup**). When a single
+   group/test forces a result the *rest of the suite* must not inherit, restore the expected
+   baseline in **that group/test's teardown** with another `bo_paytable_update` (back to the
+   group's paytable). **Do not use `bo_paytable_reset` mid-suite** — it *un-selects*
+   `AutomationTest`, so a later group's `bo_paytable_update` would edit content the agent no
+   longer points at, and its spins would silently fall back to the game default.
+   `bo_paytable_reset` belongs **only in the suite teardown** (the final restore-to-default).
 
 ### Group test cases by paytable
 
@@ -167,8 +256,9 @@ setup:                                  # suite-level — runs ONCE before all g
     params: { name: startGame }
 
 teardown:                               # suite-level — runs ONCE after all groups
-  - id: teardown-bo-01
-    action: bo_paytable_reset           # restore the agent's game default paytable
+  - id: teardown-bo-01                   # REQUIRED for any BO-paytable suite:
+    action: bo_paytable_reset           # set the paytable back to default once the
+                                        # deterministic tests are done (un-pins AutomationTest)
 
 groups:
   # ----- Group: base game — shared paytable set ONCE for the group -----
@@ -224,6 +314,102 @@ isolated client-state tests. Use **BO paytable** when the test must validate the
 server result path (the spin is resolved by the BO, not stubbed) or when QA explicitly asks
 for determined server results. They compose: a BO-paytable suite still uses bridge
 assertions + AI visual assertions to judge each spin's outcome.
+
+---
+
+## Manipulating Player Balance (Wallet)
+
+Some tests need to control the player's **real server-side balance** — usually to drive a
+balance-dependent rule, e.g. *"the spin/bet is disabled when the balance is below the bet
+amount"*, a low-balance warning, or an exact-funds boundary. Four `wallet_*` actions change
+the Playsite wallet through the same back-end the front-end uses. You write only the YAML —
+the runner reads `PLAYSITE_API_URL` / `PLAYSITE_USER` / `PLAYSITE_PASS` from the `.env.{suffix}`
+overlay (the same credentials the game-URL login uses) and resolves the currency automatically.
+
+| Action | Params | Result (`save:`-able) | Use |
+|---|---|---|---|
+| `wallet_balance` | `currency` (opt) | numeric balance for that currency (or the full wallet list if none) | Read / snapshot the balance |
+| `wallet_set` | `amount` (target), `currency` (opt) | updated `{currency, balance}` | **Set the balance to an exact value** — reads current, applies only the delta |
+| `wallet_deposit` | `amount`, `currency` (opt) | updated `{currency, balance}` | Add a known amount |
+| `wallet_withdraw` | `amount`, `currency` (opt) | updated `{currency, balance}` | Remove a known amount |
+
+- **`amount` accepts a `"$saved"` reference** (same `$name` rule as `bridge_assert` `args`), so a
+  value captured by an earlier `wallet_balance` `save:` can be fed back in — this is how you
+  restore the original balance.
+- **`currency`** defaults to `playsite.currency` in the game's `env.config.{suffix}.yml` (or the
+  `PLAYSITE_CURRENCY` env var); pass it on a step only to override.
+- **These are server calls — slow (login + HTTP).** Use them ONLY when the test genuinely needs
+  server-side balance control. Never to fake a result that bridge injection could establish.
+
+### ALWAYS restore the pre-test balance (mandatory)
+
+Changing the balance is a side effect that **leaks into every later test** if not undone — a
+later test could start from a balance you forced to 0 and fail in isolation or a different order
+(leaky state, anti-pattern #2, but server-side and invisible until something downstream breaks).
+**Any test that changes the balance MUST restore it to its pre-test value in that same test's
+teardown.** Use `wallet_balance` to snapshot the original and `wallet_set` to restore it:
+`wallet_set` reads the current balance and applies only the delta, so it lands back on the
+original **even if the test changed the balance in between** — a fixed reverse `deposit`/`withdraw`
+would not.
+
+**Scope matters:** saved variables are **test-scoped** (one executor for that test's
+setup → steps → teardown). Snapshot the original in the **test's own `setup`** and restore in the
+**test's own `teardown`** — a `wallet_balance` saved in a *group* setup is NOT visible to a test's
+teardown (different executor). So balance save/restore lives at the **test (or run) level**, never
+group level.
+
+```yaml
+- id: ZZ-40
+  title: "Spin/bet is disabled when the balance is below the bet amount"
+  setup:
+    - id: setup-01                       # snapshot the real balance FIRST (test-scoped var)
+      action: wallet_balance
+      save: orig_balance
+    - id: setup-02                       # force the balance below the minimum bet
+      action: wallet_set
+      params: { amount: 0 }
+    - id: setup-03                       # reload so the client reads the new balance
+      action: navigate
+      params: { url_script: "get_game_url" }
+    - id: setup-04
+      action: wait_for_state
+      params: { state: ready, timeout_ms: 30000 }
+    - id: setup-05
+      action: bridge_action
+      params: { name: startGame }
+  steps:
+    - id: step-01                        # bridge: the spin/bet must be disabled
+      assert:
+        bridge:
+          method: isSpinEnabled
+          expected: false
+    - id: step-02
+      action: capture
+    - id: step-03                        # AI: the player SEES that betting is blocked
+      assert:
+        ai:
+          mode: image
+          ref_screenshot: step-02
+          assets: [ui_elements.spin_button, ui_elements.balance_label]
+          prompt: "This is a slot game at rest on the base game; the balance is 0, below the minimum bet, so betting must be blocked. Is the spin button visibly disabled / greyed out, and does the balance read 0?"
+          output_schema:
+            spin_disabled: { type: boolean }
+            balance_zero: { type: boolean }
+            confidence: { type: string, enum: [high, medium, low] }
+          expected: { spin_disabled: true, balance_zero: true, confidence: high }
+  teardown:
+    - id: teardown-01                    # MANDATORY: restore the exact pre-test balance
+      action: wallet_set
+      params: { amount: "$orig_balance" }
+    - id: teardown-02
+      action: wait_for_state
+      params: { state: idle }
+```
+
+To force a *specific* sub-bet balance instead of 0 (e.g. just under the minimum bet), use
+`wallet_set { amount: 0.10 }`. The reload (`navigate → ready → startGame`) after forcing the
+balance matters: the client reads the wallet at load, so a mid-session change only shows after a
+refresh.
 
 ---
 
@@ -358,9 +544,39 @@ named bridge function receives the resolved arguments and its return is compared
 - With **no** `args`, `bridge_assert` calls the plain getter (e.g. `isSpinEnabled`) — the
   existing behavior is unchanged.
 
-When the captured value also appears on screen, still add an AI visual assertion confirming
-the same concrete value (Rule 8 / anti-pattern #13) — `bridge_assert` checks state, the AI
-checks what the player sees.
+**3. Inject a saved value into an AI prompt (`{{name}}`)** — when the captured value also
+appears on screen, embed it in the AI assertion so the model confirms a **known** value
+instead of judging a fuzzy one. A `{{name}}` token in an `ai` block's `prompt` (and in any
+string inside `expected` / `expected_by_case`) is replaced **at run time** with the value an
+earlier step saved via `save: name`. This makes AI asserts deterministic and is the way to
+satisfy anti-pattern #13 when the value is only known at run time (read from the bridge), not
+a literal you can hardcode while authoring.
+
+```yaml
+- id: step-02
+  action: bridge_action
+  params: { name: getDisplayBet }       # the formatted string the player sees, e.g. "1.00"
+  save: bet
+- id: step-03
+  action: capture
+- id: step-04
+  assert:
+    ai:
+      mode: image
+      ref_screenshot: step-03
+      prompt: "Does the bet label show {{bet}}?"   # -> "Does the bet label show 1.00?"
+      output_schema: { matches: { type: boolean }, confidence: { type: string, enum: [high, medium, low] } }
+      expected: { matches: true, confidence: high }
+```
+
+- **Pick the display-shaped saved value.** Save `getDisplayBet` (formatted `"1.00"`) for a
+  label check, not `getBetAmount` (numeric `1`) — the token becomes `str(value)`, so save
+  whatever matches what the player sees.
+- A `{{name}}` whose variable was never saved **fails the step at execution** (not at the
+  deferred AI stage) — same hard-error contract as a bridge `"$name"`.
+- Works in `mode: image` and `mode: video`, and in an `agent_assert` `check:` claim.
+- Still pair it with the bridge: `bridge_assert` checks state, the AI checks what the player
+  **sees** (Rule 8 / anti-pattern #13).
 
 ---
 
@@ -386,9 +602,9 @@ checks what the player sees.
 **Resolution:** Begin the prompt with a short **game-context preamble** (≤ 300 tokens — game/theme + what is happening in this clip/screenshot), THEN ask closed-ended question(s) (Rule 4). Always include output_schema with typed fields and a confidence enum, and an expected block matching the schema.
 
 ### 4. Asset Overload
-**Detection:** ref_assets contains all asset keys from assets.yml rather than only the ones relevant to the specific assertion.
-**Why it's dangerous:** Floods the AI context with irrelevant reference images, reducing accuracy and increasing latency.
-**Resolution:** Select only the ref_assets keys the AI needs to answer the specific prompt. "Is the wild symbol in the center?" needs only `wild`, not the entire symbol set.
+**Detection:** an AI assert loads the whole pack (`asset_groups: [symbols, ui_elements]`, or no selection at all) when only one or two assets are relevant to the prompt.
+**Why it's dangerous:** Floods the AI context with irrelevant reference images, reducing accuracy and increasing latency/cost.
+**Resolution:** Select the **smallest** group/item set the AI needs via `assets: ["{group}.{name}"]` (or `asset_groups:` for a whole section). "Is the wild symbol in the center?" needs only `assets: [symbols.wild]`, not the entire symbol set. References are now validated at suite load, so a typo (`symbols.wld`) fails fast.
 
 ### 5. Silent Skip
 **Detection:** A test or assertion is dropped from the output without flagging the reason to QA.
@@ -413,7 +629,7 @@ checks what the player sees.
 ### 13. Vague AI Expected Values
 **Detection:** AI assertion asks "Is a bet amount displayed?" or "Is a balance shown?" without specifying the concrete expected value, even though the test knows the exact value (from bridge data, game config, or setup injection).
 **Why it's dangerous:** The AI confirms *something* is displayed, but not that the *correct* value is displayed. A broken UI showing "999999" instead of "0.20" would pass. The AI assertion becomes useless validation theater.
-**Resolution:** When the test knows the expected value, embed it in the prompt and expected block. Instead of `"Is a bet amount displayed?"` → `"Is the bet amount displayed as 0.20?"` with `expected: { bet_value: 0.20 }`. The AI assertion must verify the **same specific value** that the bridge assertion checks.
+**Resolution:** When the test knows the expected value, embed it in the prompt and expected block. Instead of `"Is a bet amount displayed?"` → `"Is the bet amount displayed as 0.20?"` with `expected: { bet_value: 0.20 }`. The AI assertion must verify the **same specific value** that the bridge assertion checks. **When the value is only known at run time** (read by an earlier step rather than a literal you know while authoring), save it and inject it with a `{{name}}` placeholder — e.g. `save: bet` then `prompt: "Is the bet shown as {{bet}}?"` (see "Saving Values …" §3). Never leave the prompt vague when the value can be pinned, literally or via `{{name}}`.
 
 ### 14. Script for Cross-Step Comparison (last resort)
 **Detection:** A `script` step asserts across steps with JS, e.g. `assert(steps['step-05'].result > 0, ...)` or `assert_equal(steps[...], steps[...])`.
@@ -445,6 +661,11 @@ checks what the player sees.
 **Why it's dangerous:** The suite runner validates top-level schema immediately. A nested structure fails with "required field 'game' is missing" and "expected str, got dict" — zero tests execute, the entire run is wasted.
 **Resolution:** `suite` is always a string title. `game`, `version`, `config`, `setup`, `teardown`, `tests` are always root-level keys. Refer to `framework/schema_reference.md` / `framework/schema_reference.yml` (read in Step 6).
 
+### 18. Unrestored Player Balance
+**Detection:** A test changes the player balance with `wallet_set` / `wallet_deposit` / `wallet_withdraw` but does **not** restore the original value in its own teardown — or it "restores" with a fixed reverse `deposit`/`withdraw` instead of snapshotting the original and `wallet_set`ting it back. Also: the snapshot `wallet_balance save:` lives in a *group* setup (out of scope for the test's teardown vars) rather than the test's own setup.
+**Why it's dangerous:** The forced balance (e.g. 0) leaks into every later test — they start from the wrong balance and fail in isolation or a different order (the server-side, invisible form of leaky state, anti-pattern #2). A fixed reverse op also fails to restore if the test itself changed the balance in between (spent on a bet, won a payout).
+**Resolution:** Snapshot the real balance with `wallet_balance save: orig_balance` in the **test's own `setup`**, and restore it with `wallet_set { amount: "$orig_balance" }` in the **test's own `teardown`** (test-scoped vars — never group level). `wallet_set` reads the current balance and applies the delta, so it always lands back on the original. See "Manipulating Player Balance (Wallet)".
+
 ---
 
 ## Behavioral Instructions
@@ -462,7 +683,7 @@ checks what the player sees.
      values to set so a spin resolves to a known outcome (the basis for the forced-result
      paytables driven through the `bo_paytable_*` flow / generated in Step 6b).
 2. Also read:
-   - `games/{game}/docs/assets/assets.yml` — asset manifest: symbol + UI keys, types, and image paths (symbol images under `docs/assets/symbols/`). These keys are the `ref_assets`.
+   - `games/{game}/docs/assets/assets.yml` — asset manifest. Top-level sections  are **groups**; each key under them is an **item**. Reference an AI assert with `asset_groups: [<group>]` (whole section) or `assets: ["<group>.<name>"]` (specific items). The bare-name `ref_assets` field is deprecated.
    - `framework/schema_reference.md` and `framework/schema_reference.yml` — **auto-generated**
      reference of supported actions, params, assert formats, and suite structure. Source of truth
      for what the framework accepts; never hardcode action types or field names.
@@ -698,7 +919,7 @@ The AI assertion is the visual validator — it must confirm the **exact same va
 A test must never depend on a *previous test's* leftover state — but expensive preconditions that a **group** of tests share may be established **once** rather than per test. Split setup/teardown into two scopes:
 
 - **Shared, once per group → suite-level `setup`/`teardown`.** The BO paytable is the canonical case: for a base-game group of 6 tests, `bo_paytable_ensure` + `bo_paytable_select` (and the group's `bo_paytable_update`) run **once** in suite setup, and `bo_paytable_reset` runs **once** in suite teardown — NOT per test (re-setting/resetting the paytable every test is wasteful and slow; see anti-pattern #15). Anything that is identical for every test in the group and costly to repeat belongs here.
-- **Per-test → test-level `setup`/`teardown`.** Each test still owns the state unique to it: bring the game to the exact state it asserts on (bridge injection if used) in its `setup`, and return to a clean baseline in its `teardown` — e.g. `wait_for_state idle`, `resetDevMode`, close any popup it opened. Every test must leave the game in the same clean idle baseline the next test expects, so order-independence holds even though the shared paytable persists across the group.
+- **Per-test → test-level `setup`/`teardown`.** Each test still owns the state unique to it: bring the game to the exact state it asserts on (bridge injection if used) in its `setup`, and return to a clean baseline in its `teardown` — e.g. `wait_for_state idle`, `resetDevMode`, close any popup it opened. Every test must leave the game in the same clean idle baseline the next test expects, so order-independence holds even though the shared paytable persists across the group. **If the test changed the player's server-side balance, restoring it here is mandatory** — snapshot it with `wallet_balance save: orig` in this test's setup and put it back with `wallet_set { amount: "$orig" }` in this teardown (test-scoped vars; see "Manipulating Player Balance (Wallet)" and anti-pattern #18).
 
 **Every step in setup and teardown (both suite-level and test-level) MUST have an `id` field** — use the format `setup-01`, `setup-02`, ... and `teardown-01`, `teardown-02`, ... The runner validates `id` on ALL steps including setup/teardown and will reject the entire suite if any are missing.
 
@@ -856,6 +1077,9 @@ just waste a whole run most often):
     - [ ] Every step has an `id` field — including suite/group/test/run setup and teardown (per schema_reference.md → Step object)
     - [ ] Every `action` value is listed in `schema_reference.md` → Supported Action Types
     - [ ] Every action's required params are present (per schema_reference.md)
+    - [ ] On-screen button presses use `click_button` (not method-invoking `bridge_action`, which is a documented last resort), and each tap is wrapped: `waitForButtonClickable` before → `click_button` → `wait_ms 300` after (plus a result wait like `wait_for_state` when the tap starts something async)
+    - [ ] Any BO-paytable (deterministic) suite restores the default in teardown — a `bo_paytable_reset` in the **suite** teardown, and a baseline-restoring `bo_paytable_update` in any group/test that forced its own result
+    - [ ] Any test that changes the player balance (`wallet_set`/`wallet_deposit`/`wallet_withdraw`) snapshots it with `wallet_balance save:` in its **own setup** and restores it with `wallet_set { amount: "$orig" }` in its **own teardown** (anti-pattern #18)
     - [ ] Every `assert.bridge` has exactly the fields listed in schema_reference.md → assert.bridge
     - [ ] Every `assert.ai` has the mode-specific required fields from schema_reference.md → assert.ai
     - [ ] No invented action types or assert fields beyond what schema_reference.md defines
@@ -967,7 +1191,7 @@ Next steps:
     ai:
       mode: image
       ref_screenshot: step-02
-      ref_assets: [wild, scatter, coin, dragon, phoenix, jade, card_a, card_k, card_q, card_j]
+      asset_groups: [symbols, ui_elements]   # loads the ENTIRE pack — overload (anti-pattern #4)
       prompt: "What do you see on the screen?"
 ```
 Vague prompt (anti-pattern #3). All assets loaded (anti-pattern #4). No output_schema. No expected. Gemini returns free-form text — unjudgeable.
@@ -980,7 +1204,7 @@ Vague prompt (anti-pattern #3). All assets loaded (anti-pattern #4). No output_s
     ai:
       mode: image
       ref_screenshot: step-02
-      ref_assets: [bet_label]
+      assets: [ui_elements.bet_label]
       prompt: "Is a bet amount displayed on the bet label? Does the game show a valid numeric bet value?"
       output_schema:
         bet_displayed: { type: boolean }
@@ -998,7 +1222,7 @@ Has structure but checks only "is *some* bet displayed?" — does not verify the
     ai:
       mode: image
       ref_screenshot: step-02
-      ref_assets: [scatter, free_spin_popup]
+      assets: [symbols.scatter, ui_elements.free_spin_popup]
       prompt: "This is a slot game; the player just finished a base-game spin that should have landed scatters and triggered the free spin bonus. Is the free spin bonus popup visible? How many scatter symbols are on the grid?"
       output_schema:
         popup_visible: { type: boolean }
@@ -1032,7 +1256,7 @@ This *runs* (script is JS in the browser with `steps` injected), but it buries t
     ai:
       mode: image
       ref_screenshot: step-02
-      ref_assets: [bet_label]
+      assets: [ui_elements.bet_label]
       prompt: "Is a bet amount displayed?"
       output_schema:
         bet_displayed: { type: boolean }
@@ -1069,7 +1293,7 @@ Confirms *something* is displayed, not that the *right* value is shown.
     ai:
       mode: image
       ref_screenshot: step-03
-      ref_assets: [bet_label]
+      assets: [ui_elements.bet_label]
       prompt: "This is a slot game at rest on the base-game screen; the bet selector should show the default bet. What is the exact bet amount shown on the bet label? Read the numeric value."
       output_schema:
         bet_value: { type: number }
@@ -1122,7 +1346,7 @@ No setup block — assumes game is already in hold-and-spin state (anti-pattern 
         ai:
           mode: image
           ref_screenshot: step-01
-          ref_assets: [respin_counter]
+          assets: [ui_elements.respin_counter]
           prompt: "This is a slot game in the Hold & Spin bonus, just triggered; the re-spin counter should read 3. Is the game in hold-and-spin mode? What number is displayed on the re-spin counter?"
           output_schema:
             in_hold_and_spin: { type: boolean }

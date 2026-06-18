@@ -161,6 +161,7 @@ class GeminiVideoHelper:
         prompt: str,
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> VideoResult:
         """
         Upload *video_path* to Gemini and analyse it.
@@ -181,7 +182,9 @@ class GeminiVideoHelper:
         self._video_call_count += 1
 
         try:
-            response = self._call_video_api(video_path, prompt, output_schema, ref_images)
+            response = self._call_video_api(
+                video_path, prompt, output_schema, ref_images, reference=reference
+            )
             return self._parse_response(response)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Gemini video API call failed: %s", exc)
@@ -229,6 +232,7 @@ class GeminiVideoHelper:
         prompt: str,
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> Any:
         """
         Upload video, build contents, and call Gemini.
@@ -276,7 +280,8 @@ class GeminiVideoHelper:
 
         # Prepend the symbol/UI reference pack (labeled ground-truth images) BEFORE
         # the video, so the model can identify what it sees in the video that follows.
-        contents: list[Any] = self._reference_parts(Image)
+        # A per-call ``reference`` (scoped selection) overrides the constructor default.
+        contents: list[Any] = self._reference_parts(Image, reference)
         contents.append(video_file)
 
         # Add per-call reference images if provided (e.g. comparison frames)
@@ -297,9 +302,12 @@ class GeminiVideoHelper:
         )
         return response
 
-    def _reference_parts(self, image_cls: Any) -> list[Any]:
-        """Build [header, label, image, ...] reference parts; [] if no reference."""
-        ref = self._reference
+    def _reference_parts(self, image_cls: Any, reference: Any | None = None) -> list[Any]:
+        """Build [header, label, image, ...] reference parts; [] if no reference.
+
+        A per-call ``reference`` (scoped selection) overrides the constructor default.
+        """
+        ref = reference if reference is not None else self._reference
         if ref is None or getattr(ref, "is_empty", True):
             return []
         parts: list[Any] = [ref.header]

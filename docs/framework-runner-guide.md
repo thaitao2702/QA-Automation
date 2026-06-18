@@ -124,6 +124,7 @@ detection:                # standalone symbol-detection config (see §20 — not
 | `GEMINI_VIDEO_RESOLUTION` | base | `LOW` \| `MEDIUM` (default) \| `HIGH` — frame token cost. |
 | `LOCAL_AI_ENDPOINT` | base | HTTP `/analyze` endpoint, used when `AI_PROVIDER=local`. |
 | `CLAUDE_AI_FPS` | base | Video frame-sampling rate for the Claude provider (default `2`). |
+| `CLAUDE_AI_MAX_CONCURRENCY` | base | Max concurrent Claude AI-assert processes (default `2`). Shared cap across at-step image asserts and video asserts; gemini/local are unbounded. |
 | `CLAUDE_CLI_PATH` / `CLAUDE_MODEL` / `CLAUDE_CLI_TIMEOUT` | base | Claude CLI executable / model (default `sonnet`) / per-call timeout (s). |
 | `PLAYSITE_API_URL` / `PLAYSITE_USER` / `PLAYSITE_PASS` | overlay | Playsite login used by `url_script` to resolve the game URL. |
 | `BO_API_BASE` | overlay | Back-office API base URL for the environment (absent in prod). |

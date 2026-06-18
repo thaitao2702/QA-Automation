@@ -236,7 +236,7 @@ của từng môi trường (nó ghi đè `.env` nền). Sao chép các template
 | `GEMINI_IMAGE_MODEL` / `GEMINI_VIDEO_MODEL` | `.env` nền | Ghi đè model AI (mặc định: `gemini-2.5-flash` / `gemini-3-flash-preview`). |
 | `GEMINI_VIDEO_RESOLUTION` | `.env` nền | `LOW` · `MEDIUM` (mặc định) · `HIGH` — chi phí token mỗi khung hình video. |
 | `LOCAL_AI_ENDPOINT` | `.env` nền | Endpoint HTTP `/analyze`, dùng khi `AI_PROVIDER=local`. |
-| `CLAUDE_AI_FPS` / `CLAUDE_MODEL` / `CLAUDE_CLI_TIMEOUT` | `.env` nền | Các tham số của provider Claude (tốc độ lấy mẫu khung hình video, model, timeout). |
+| `CLAUDE_AI_FPS` / `CLAUDE_MODEL` / `CLAUDE_CLI_TIMEOUT` / `CLAUDE_AI_MAX_CONCURRENCY` | `.env` nền | Các tham số của provider Claude (tốc độ lấy mẫu khung hình video, model, timeout, số tiến trình AI-assert chạy song song tối đa — mặc định `2`). |
 | `PLAYSITE_API_URL` / `PLAYSITE_USER` / `PLAYSITE_PASS` | `.env.{suffix}` | Đăng nhập Playsite để giải (resolve) URL game động. |
 | `BO_API_BASE` | `.env.{suffix}` | URL gốc API back-office để điều khiển paytable (không có ở prod). |
 | `BO_TOKEN` / `BO_REFRESH_TOKEN` | `.env.{suffix}` | Token truy cập / làm mới của BO (lấy từ phiên DevTools của BO). |

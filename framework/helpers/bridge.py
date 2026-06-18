@@ -18,7 +18,9 @@ BridgeTimeoutError
     Raised by ``wait_for_state`` / ``wait_for_idle`` when the target app state
     is not reached within the given timeout.
 
-Bridge API reference: zappin-zeus/bridge-api.md
+Bridge API reference: games/zeus/bridge-api.md — this wrapper mirrors the spec's
+Actions, Queries, Wait helpers, and the §5 named event-capture + Hold & Spin
+analyser API.
 """
 
 from __future__ import annotations
@@ -82,6 +84,22 @@ class BridgeHelper:
             )
         return await self.page.evaluate(expr)
 
+    async def _eval_arg(self, js_fn: str, arg: Any) -> Any:
+        """Evaluate a one-argument JS function against the page.
+
+        For bridge methods that take *data* (e.g. ``filterBonusEvent(events)`` and
+        the Hold & Spin analysers) — Playwright JSON-serialises ``arg`` and passes
+        it as the function's single parameter. Verifies bridge presence first, like
+        :meth:`_eval`.
+        """
+        presence = await self.page.evaluate(f"typeof {_BRIDGE} !== 'undefined' && {_BRIDGE} !== null ? true : null")
+        if presence is None:
+            raise BridgeMissingError(
+                "window.__gameTestBridge is not registered on the page. "
+                "Ensure the game URL includes '?bridge=1'."
+            )
+        return await self.page.evaluate(js_fn, arg)
+
     @staticmethod
     def _js_bool(value: bool) -> str:
         return "true" if value else "false"
@@ -94,10 +112,29 @@ class BridgeHelper:
         """Emulate user clicking the Start button. Resolves when AppState reaches idle."""
         await self._eval(f"{_BRIDGE}.startGame()")
 
+    async def dismiss_popups(self) -> list[str]:
+        """Dismiss all currently visible popups; return the names dismissed (bridge-api §1.2)."""
+        result = await self._eval(f"{_BRIDGE}.dismissPopups()")
+        return list(result) if result else []
+
+    async def is_popup_visible(self) -> bool:
+        """Return whether any popup is currently blocking the game (bridge-api §1.3)."""
+        return await self._eval(f"{_BRIDGE}.isPopupVisible()")
+
     async def spin(self, timeout_ms: int | None = None) -> None:
-        """Emulate user touching the spin button. Resolves when state returns to idle."""
+        """Emulate user touching the spin button.
+
+        Per the bridge contract (bridge-api §2.1) ``spin()`` is **fire-and-return** —
+        it triggers the click and does NOT wait for the round to settle. When
+        ``timeout_ms`` is given this instead performs the *spin-and-wait* composite
+        via ``waitForSpinComplete(timeout_ms)``, so a step written
+        ``{name: spin, timeoutMs: N}`` blocks through the whole round (including a
+        triggered Hold & Spin bonus). Omit ``timeout_ms`` and compose your own wait
+        (``spin()`` then ``wait_for_idle()``) when you need to observe intermediate
+        states.
+        """
         if timeout_ms is not None:
-            await self._eval(f"{_BRIDGE}.spin({timeout_ms})")
+            await self._eval(f"{_BRIDGE}.waitForSpinComplete({int(timeout_ms)})")
         else:
             await self._eval(f"{_BRIDGE}.spin()")
 
@@ -123,20 +160,45 @@ class BridgeHelper:
         """Emulate user clicking the auto button to open the auto-spin popup."""
         await self._eval(f"{_BRIDGE}.openAutoPopup()")
 
-    async def start_auto_spin(self, count: int, stop_by_win: bool) -> None:
-        """
-        Emulate user selecting a package in the auto popup and clicking confirm.
+    async def select_auto_spin_package(self, count: int | float = 10) -> None:
+        """Tap a package-count button (10/20/30/50/Infinity) in the open auto popup
+        (bridge-api §2.7.1). Default 10 — the smallest package."""
+        js_count = "Infinity" if count == float("inf") else str(int(count))
+        await self._eval(f"{_BRIDGE}.selectAutoSpinPackage({js_count})")
+
+    async def toggle_auto_spin_stop_at_win(self, enabled: bool) -> None:
+        """Tap the 'stop at any win' toggle in the open auto popup (bridge-api §2.7.2)."""
+        await self._eval(f"{_BRIDGE}.toggleAutoSpinStopAtWin({self._js_bool(enabled)})")
+
+    async def confirm_auto_spin(self) -> None:
+        """Tap Confirm in the open auto popup; the first auto-spin fires immediately
+        with no intervening IDLE (bridge-api §2.7.3)."""
+        await self._eval(f"{_BRIDGE}.confirmAutoSpin()")
+
+    async def start_auto_spin(
+        self, count: int | float, stop_by_win: bool, delay_ms: int | None = None
+    ) -> None:
+        """Composite (bridge-api §2.7.4): select the package, set the stop-at-win
+        toggle, and confirm in one call. **Async** — each inner tap is separated by
+        ``delay_ms`` (JS default 500ms) so the package-select tween plays and the
+        event recorder captures each as a distinct frame; pass ``delay_ms=0`` to fire
+        all three in the same tick.
 
         Parameters
         ----------
         count:
-            Number of auto spins (use ``math.inf`` / ``float('inf')`` for continuous).
+            Number of auto spins (``math.inf`` / ``float('inf')`` for continuous).
         stop_by_win:
             Whether to stop auto-spin on any payout > 0.
+        delay_ms:
+            Pacing between the three inner taps. ``None`` uses the JS default (500ms).
         """
         js_count = "Infinity" if count == float("inf") else str(int(count))
         js_stop = self._js_bool(stop_by_win)
-        await self._eval(f"{_BRIDGE}.startAutoSpin({js_count}, {js_stop})")
+        if delay_ms is not None:
+            await self._eval(f"{_BRIDGE}.startAutoSpin({js_count}, {js_stop}, {int(delay_ms)})")
+        else:
+            await self._eval(f"{_BRIDGE}.startAutoSpin({js_count}, {js_stop})")
 
     async def stop_auto_spin(self) -> None:
         """Emulate user clicking the stop auto button."""
@@ -146,16 +208,38 @@ class BridgeHelper:
         """Emulate user clicking the buy bonus button."""
         await self._eval(f"{_BRIDGE}.openBuyBonusPopup()")
 
-    async def confirm_buy_bonus(self, package_index: int) -> None:
-        """
-        Emulate user confirming a buy bonus purchase.
+    async def select_buy_bonus_package(self, index: int = 0) -> None:
+        """Tap a package toggle (0=Casual, 1=Bold, 2=Epic) in the open buy-bonus
+        popup (bridge-api §2.10.1). Default 0 — the cheapest package."""
+        await self._eval(f"{_BRIDGE}.selectBuyBonusPackage({int(index)})")
+
+    async def increase_buy_bonus_bet(self) -> None:
+        """Tap the next-bet arrow inside the buy-bonus popup (bridge-api §2.10.2).
+        No-op at max bet (button auto-disabled)."""
+        await self._eval(f"{_BRIDGE}.increaseBuyBonusBet()")
+
+    async def decrease_buy_bonus_bet(self) -> None:
+        """Tap the previous-bet arrow inside the buy-bonus popup (bridge-api §2.10.3).
+        No-op at min bet (button auto-disabled)."""
+        await self._eval(f"{_BRIDGE}.decreaseBuyBonusBet()")
+
+    async def confirm_buy_bonus(self, package_index: int, delay_ms: int | None = None) -> None:
+        """Composite (bridge-api §2.10.4): select the package, tap Buy (surfacing the
+        confirmation sub-popup), then tap Confirm. Resolves when bonus mode completes
+        and the game returns to idle.
 
         Parameters
         ----------
         package_index:
-            Zero-based index into the available free spin packages.
+            ``0`` = Casual, ``1`` = Bold, ``2`` = Epic.
+        delay_ms:
+            Pacing between the inner taps for replay distinguishability. ``None`` uses
+            the JS default (500ms); pass ``0`` to fire same-tick.
         """
-        await self._eval(f"{_BRIDGE}.confirmBuyBonus({package_index})")
+        if delay_ms is not None:
+            await self._eval(f"{_BRIDGE}.confirmBuyBonus({int(package_index)}, {int(delay_ms)})")
+        else:
+            await self._eval(f"{_BRIDGE}.confirmBuyBonus({int(package_index)})")
 
     async def set_turbo(self, enabled: bool) -> None:
         """Emulate user clicking the turbo toggle."""
@@ -300,6 +384,28 @@ class BridgeHelper:
         """Return winning lines with ``{symbols, payline, payoutRate, winType}``."""
         return await self._eval(f"{_BRIDGE}.getPaylines()")
 
+    # -- On-screen geometry (bridge-api.md §3.7) ---------------------------
+
+    async def get_button_rect(self, name: str) -> dict | None:
+        """Return a named button's on-screen rectangle in page CSS pixels.
+
+        The returned dict has ``x/y/width/height`` (top-left origin),
+        ``centerX/centerY`` (pass to ``page.mouse.click``), ``visible`` (renderable
+        and on-canvas) and ``interactable``. Returns ``None`` when *name* is unknown
+        or its owning popup is closed. Names: ``spin``, ``stop``, ``auto``,
+        ``buyBonus``, ``nextBet``, ``previousBet``, ``trophy`` (always) plus popup
+        element names while that popup is open (e.g. ``bet:row:2``, ``auto:package:0``).
+        """
+        return await self._eval(f"{_BRIDGE}.getButtonRect({json.dumps(name)})")
+
+    async def get_all_button_rects(self) -> dict[str, dict]:
+        """Return all currently-resolvable button rects keyed by name.
+
+        Includes the main-screen buttons plus the element rects of whichever popups
+        are currently open. See :meth:`get_button_rect` for the rect shape.
+        """
+        return await self._eval(f"{_BRIDGE}.getAllButtonRects()")
+
     async def is_spin_enabled(self) -> bool:
         """Return whether the spin button is interactable."""
         return await self._eval(f"{_BRIDGE}.isSpinEnabled()")
@@ -357,7 +463,9 @@ class BridgeHelper:
         return await self._eval(f"{_BRIDGE}.getSnapshot()")
 
     # ------------------------------------------------------------------
-    # Event collection
+    # Event collection — replay/timeline buffer used by the suite runner.
+    # Distinct from the named-capture API below (bridge-api §5): this is the
+    # single global collector the runner drains per test for the timeline.
     # ------------------------------------------------------------------
 
     async def start_event_collection(self) -> None:
@@ -384,6 +492,76 @@ class BridgeHelper:
         if result is None:
             return []
         return list(result)
+
+    # ------------------------------------------------------------------
+    # Named event capture & Hold & Spin analysers (bridge-api §5)
+    # ------------------------------------------------------------------
+
+    async def start_event_capture(self, label: str) -> None:
+        """Begin a named capture buffer keyed by ``label`` (bridge-api §5.1).
+
+        Multiple labels can run concurrently. Calling with an existing label
+        deliberately **resets** that label's buffer.
+        """
+        await self._eval(f"{_BRIDGE}.startEventCapture({json.dumps(label)})")
+
+    async def end_event_capture(self, label: str) -> list[dict]:
+        """Stop the named capture and return its ``CollectedEvent[]`` (bridge-api §5.1).
+
+        Returns ``[]`` if no capture under that label is active (idempotent).
+        """
+        result = await self._eval(f"{_BRIDGE}.endEventCapture({json.dumps(label)})")
+        return list(result) if result else []
+
+    async def filter_bonus_event(self, events: list[dict]) -> list[dict]:
+        """Pure: slice a captured stream to the ``START_BONUS``..``END_BONUS`` episode
+        (bridge-api §5.2). Returns ``[]`` if no ``START_BONUS`` is present in input."""
+        result = await self._eval_arg(f"(ev) => {_BRIDGE}.filterBonusEvent(ev)", events)
+        return list(result) if result else []
+
+    async def capture_hold_spin_bonus(
+        self,
+        max_spins: int | None = None,
+        timeout_ms: int | None = None,
+        per_spin_timeout_ms: int | None = None,
+    ) -> dict:
+        """Composite recorder (bridge-api §5.2): spin until a Hold & Spin bonus
+        triggers, let it play out, and return the episode as
+        ``{triggered, spinsToTrigger, events, respinCount}``."""
+        opts = self._spin_until_options(max_spins, timeout_ms, per_spin_timeout_ms)
+        return await self._eval_arg(f"(o) => {_BRIDGE}.captureHoldSpinBonus(o)", opts)
+
+    async def verify_hold_spin_coins_held(self, events: list[dict]) -> dict:
+        """Analyser (bridge-api §5.3): every coin in event N is still at the same
+        ``(col, row)`` in event N+1. Returns ``{valid, bonusFound, respinCount, violations}``."""
+        return await self._eval_arg(f"(ev) => {_BRIDGE}.verifyHoldSpinCoinsHeld(ev)", events)
+
+    async def verify_hold_spin_freespin_reset_on_new_coin(self, events: list[dict]) -> dict:
+        """Analyser (bridge-api §5.3): a re-spin that lands new coins resets freespins to 3."""
+        return await self._eval_arg(
+            f"(ev) => {_BRIDGE}.verifyHoldSpinFreespinResetOnNewCoin(ev)", events
+        )
+
+    async def verify_hold_spin_freespin_count_down(self, events: list[dict]) -> dict:
+        """Analyser (bridge-api §5.3): a re-spin with no new coin decrements freespins by 1."""
+        return await self._eval_arg(
+            f"(ev) => {_BRIDGE}.verifyHoldSpinFreespinCountDown(ev)", events
+        )
+
+    @staticmethod
+    def _spin_until_options(
+        max_spins: int | None, timeout_ms: int | None, per_spin_timeout_ms: int | None
+    ) -> dict:
+        """Build the camelCase ``SpinUntilOptions`` dict, omitting unset keys so the
+        bridge applies its own defaults (bridge-api §4.1 / §12)."""
+        opts: dict[str, Any] = {}
+        if max_spins is not None:
+            opts["maxSpins"] = max_spins
+        if timeout_ms is not None:
+            opts["timeoutMs"] = timeout_ms
+        if per_spin_timeout_ms is not None:
+            opts["perSpinTimeoutMs"] = per_spin_timeout_ms
+        return opts
 
     # ------------------------------------------------------------------
     # Wait helpers
@@ -444,18 +622,14 @@ class BridgeHelper:
         """Shorthand for ``wait_for_state('idle')``."""
         await self.wait_for_state("idle", timeout_ms=timeout_ms, poll_interval_ms=poll_interval_ms)
 
-    async def wait_for_spin_complete(
-        self,
-        timeout_ms: int = 30_000,
-    ) -> None:
-        """
-        Trigger a spin and wait for the game to return to idle.
+    async def wait_for_spin_complete(self, timeout_ms: int = 60_000) -> None:
+        """Fire a spin and wait for the whole round to settle (bridge-api §4).
 
-        Equivalent to calling ``spin()`` then ``wait_for_idle()``. This is the
-        most common single-step test operation.
+        Waits for the entire animation, payout, transitions, and any triggered
+        Hold & Spin bonus. Default 60s — bump to 120s+ when the spin may trigger a
+        bonus. Delegates to the bridge's native ``waitForSpinComplete``.
         """
-        await self.spin()
-        await self.wait_for_idle(timeout_ms=timeout_ms)
+        await self._eval(f"{_BRIDGE}.waitForSpinComplete({int(timeout_ms)})")
 
     async def wait_for_ui_settle(self, delay_ms: int = 1000) -> None:
         """
@@ -482,3 +656,19 @@ class BridgeHelper:
             await self._eval(f"{_BRIDGE}.waitForTotalWinPopup({timeout_ms})")
         else:
             await self._eval(f"{_BRIDGE}.waitForTotalWinPopup()")
+
+    async def spin_until_bonus(
+        self,
+        max_spins: int | None = None,
+        timeout_ms: int | None = None,
+        per_spin_timeout_ms: int | None = None,
+    ) -> dict:
+        """Spin repeatedly until a Hold & Spin bonus triggers, resolving the **moment**
+        bonus mode is entered — before the bonus plays out — so the caller can interact
+        with it (bridge-api §4.1). Returns ``{spins, matched}`` (``matched`` is False if
+        the spin/time budget ran out). Leaves the game inside the bonus.
+
+        Does not catch promo-triggered bonuses; check :meth:`is_promo_mode` first.
+        """
+        opts = self._spin_until_options(max_spins, timeout_ms, per_spin_timeout_ms)
+        return await self._eval_arg(f"(o) => {_BRIDGE}.spinUntilBonus(o)", opts)

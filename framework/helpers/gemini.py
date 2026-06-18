@@ -142,6 +142,7 @@ class GeminiImageHelper:
         prompt: str,
         output_schema: dict[str, Any],
         extra_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> GeminiResult:
         """
         Send *image_path* with *prompt* to Gemini and parse the structured response.
@@ -165,7 +166,9 @@ class GeminiImageHelper:
         self._call_count += 1
 
         try:
-            response = self._call_api(image_path, prompt, output_schema, extra_images=extra_images)
+            response = self._call_api(
+                image_path, prompt, output_schema, extra_images=extra_images, reference=reference
+            )
             return self._parse_response(response)
         except Exception as exc:  # noqa: BLE001 — intentional broad catch for resilience
             logger.warning("Gemini API call failed: %s", exc)
@@ -213,6 +216,7 @@ class GeminiImageHelper:
         prompt: str,
         output_schema: dict[str, Any],
         extra_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> Any:
         """
         Execute the Gemini API call and return the raw response object.
@@ -254,8 +258,9 @@ class GeminiImageHelper:
         full_prompt = f"{prompt}\n\n{schema_hint}"
 
         # Prepend the symbol/UI reference pack (labeled ground-truth images) so the
-        # model can identify what it sees in the screenshot(s) that follow.
-        contents: list[Any] = self._reference_parts(Image)
+        # model can identify what it sees in the screenshot(s) that follow. A per-call
+        # ``reference`` (scoped selection) overrides the constructor default.
+        contents: list[Any] = self._reference_parts(Image, reference)
         contents.extend(images)
         contents.append(full_prompt)
         response = client.models.generate_content(
@@ -264,9 +269,13 @@ class GeminiImageHelper:
         )
         return response
 
-    def _reference_parts(self, image_cls: Any) -> list[Any]:
-        """Build [header, label, image, ...] reference parts; [] if no reference."""
-        ref = self._reference
+    def _reference_parts(self, image_cls: Any, reference: Any | None = None) -> list[Any]:
+        """Build [header, label, image, ...] reference parts; [] if no reference.
+
+        A per-call ``reference`` (scoped selection) overrides the constructor default;
+        pass ``None`` to use ``self._reference`` (the full pack).
+        """
+        ref = reference if reference is not None else self._reference
         if ref is None or getattr(ref, "is_empty", True):
             return []
         parts: list[Any] = [ref.header]

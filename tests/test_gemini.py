@@ -331,3 +331,57 @@ class TestCostCalculation:
         assert helper.total_output_tokens == 0
         assert helper.call_count == 0
         assert helper.estimated_cost_usd == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Per-call reference override (scoped selection)
+# ---------------------------------------------------------------------------
+
+
+class _FakeRef:
+    """Minimal SymbolReference stand-in for _reference_parts."""
+
+    def __init__(self, header: str, items: list[tuple[Path, str]]):
+        self.header = header
+        self.items = items
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.items
+
+
+class _FakeImage:
+    """image_cls stub: .open(path) returns a sentinel string."""
+
+    @staticmethod
+    def open(path):
+        return f"IMG:{Path(path).name}"
+
+
+class TestReferenceOverride:
+    def test_per_call_reference_overrides_constructor_default(self):
+        default = _FakeRef("DEFAULT", [(Path("a/coin.jpg"), "Coin")])
+        helper = GeminiImageHelper(api_key="k", reference=default)
+
+        scoped = _FakeRef("SCOPED", [(Path("b/bet.jpg"), "Bet")])
+        parts = helper._reference_parts(_FakeImage, scoped)
+        assert parts[0] == "SCOPED"
+        assert "IMG:bet.jpg" in parts
+        assert "IMG:coin.jpg" not in parts
+
+    def test_none_reference_uses_constructor_default(self):
+        default = _FakeRef("DEFAULT", [(Path("a/coin.jpg"), "Coin")])
+        helper = GeminiImageHelper(api_key="k", reference=default)
+        parts = helper._reference_parts(_FakeImage, None)
+        assert parts[0] == "DEFAULT"
+        assert "IMG:coin.jpg" in parts
+
+    def test_analyse_image_threads_reference_into_call_api(self):
+        helper = GeminiImageHelper(api_key="k")
+        scoped = _FakeRef("SCOPED", [])
+        with patch.object(helper, "_call_api", return_value=_make_mock_response('{"x": 1}')) as m:
+            helper.analyse_image(
+                Path("s.png"), prompt="p", output_schema={"x": {"type": "number"}},
+                reference=scoped,
+            )
+        assert m.call_args.kwargs["reference"] is scoped

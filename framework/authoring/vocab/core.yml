@@ -1,0 +1,367 @@
+# =============================================================================
+# Core (game-agnostic) verb vocabulary for readable .flow.yml authoring.
+#
+# Grounded in:
+#   * test-case.xlsx  — the QA raw test cases (ZZ-01..ZZ-52): UI, Bet, Balance,
+#     History, Paytable, Auto, Turbo, Sound, Reconnect, Free Spin, Buy Bonus,
+#     Spin Mechanism, Multi-Language, Tutorial.
+#   * games/zeus/bridge-api.md — the authoritative bridge contract (mirrored by
+#     framework/helpers/bridge.py): Actions, Queries, Wait helpers, §5 captures.
+#
+# Each entry maps one readable pattern to one-or-more today-style steps. Authors
+# write the pattern's words; {name:type} slots capture values:
+#   int   a number            ident  a NEW variable name (any word)
+#   ref   an EXISTING name     str    a "double-quoted" literal     bool
+#
+# Hard-won rules are baked into the EXPANSIONS so an author cannot violate them:
+#   * "start the game" -> navigate -> wait ready -> startGame, which itself
+#     resolves at IDLE + sceneReady (bridge-api §1.1) — no extra idle wait.
+#   * bet changes use nextBet/previousBet, never selectBet (skips UI sync).
+#   * auto-spin needs the popup open first (also enforced by a lint guard).
+#   * popups are closed in teardown by reloading, not Escape.
+#   * spin() is fire-and-return; "spin and wait" uses waitForSpinComplete.
+#
+# Game-specific verbs (forced result grids, asset-aware AI image checks, the
+# Hold & Spin event-capture analysers, paytable formulas) live in the per-game
+# games/<game>/test-suites/vocab.yml, which may also OVERRIDE a core verb by
+# repeating its exact pattern.
+# =============================================================================
+
+verbs:
+
+  # === Lifecycle ========================================================
+  - pattern: "start the game"
+    expands:
+      - { action: navigate, params: { url_script: get_game_url } }
+      - { action: wait_for_state, params: { state: ready, timeout_ms: 30000 } }
+      - { action: bridge_action, params: { name: startGame } }
+
+  - pattern: "reload the game"          # teardown popup-close: reload, not Escape
+    expands:
+      - { action: navigate, params: { url_script: get_game_url } }
+      - { action: wait_for_state, params: { state: ready, timeout_ms: 30000 } }
+      - { action: bridge_action, params: { name: startGame } }
+
+  # === Spin mechanism (ZZ-44..ZZ-50) ====================================
+  - pattern: "spin"                     # fire-and-return; does NOT wait (bridge-api §2.1)
+    expands:
+      - { action: bridge_action, params: { name: spin } }
+
+  - pattern: "spin and wait for result"  # composite: spins + waits the whole round
+    expands:
+      - { action: bridge_action, params: { name: waitForSpinComplete, timeoutMs: 60000 } }
+
+  - pattern: "press space to spin"
+    expands:
+      - { action: press_key, params: { key: Space } }
+
+  - pattern: "stop the spin"            # sudden stop during the result animation
+    expands:
+      - { action: bridge_action, params: { name: stopSpin } }
+
+  - pattern: "hold the spin button"     # long-press -> continuous auto / hold-spin
+    expands:
+      - { action: bridge_action, params: { name: holdSpinStart } }
+
+  - pattern: "release the spin button"
+    expands:
+      - { action: bridge_action, params: { name: holdSpinRelease } }
+
+  # === Bet (ZZ-02..ZZ-04) ===============================================
+  - pattern: "increase bet"             # never selectBet
+    expands:
+      - { action: bridge_action, params: { name: nextBet } }
+
+  - pattern: "decrease bet"
+    expands:
+      - { action: bridge_action, params: { name: previousBet } }
+
+  - pattern: "go to min bet"            # previousBet loop, NEVER selectBet
+    expands:
+      - action: script
+        params:
+          cmd: |
+            let i = 0;
+            while ((await bridge.isPreviousBetEnabled()) && i++ < 50) {
+              await bridge.previousBet();
+            }
+
+  # === Turbo & sound (ZZ-22, ZZ-24, ZZ-25) ==============================
+  - pattern: "enable turbo"
+    expands:
+      - { action: bridge_action, params: { name: setTurbo, enabled: true } }
+  - pattern: "disable turbo"
+    expands:
+      - { action: bridge_action, params: { name: setTurbo, enabled: false } }
+
+  - pattern: "enable sound"
+    expands:
+      - { action: bridge_action, params: { name: setSound, enabled: true } }
+  - pattern: "disable sound"
+    expands:
+      - { action: bridge_action, params: { name: setSound, enabled: false } }
+
+  # === Auto-spin (ZZ-13..ZZ-21) =========================================
+  - pattern: "open the auto popup"
+    expands:
+      - { action: bridge_action, params: { name: openAutoPopup } }
+
+  - pattern: "select {n:int} auto spins"        # granular: tap a package count
+    expands:
+      - { action: bridge_action, params: { name: selectAutoSpinPackage, count: "{n}" } }
+  - pattern: "toggle stop at any win on"
+    expands:
+      - { action: bridge_action, params: { name: toggleAutoSpinStopAtWin, enabled: true } }
+  - pattern: "toggle stop at any win off"
+    expands:
+      - { action: bridge_action, params: { name: toggleAutoSpinStopAtWin, enabled: false } }
+  - pattern: "confirm auto spin"
+    expands:
+      - { action: bridge_action, params: { name: confirmAutoSpin } }
+
+  - pattern: "start {n:int} auto spins"         # composite; lint: needs open-auto-popup first
+    expands:
+      - { action: bridge_action, params: { name: startAutoSpin, count: "{n}", stopByWin: false } }
+  - pattern: "start {n:int} auto spins, stop on any win"
+    expands:
+      - { action: bridge_action, params: { name: startAutoSpin, count: "{n}", stopByWin: true } }
+  - pattern: "stop auto spin"
+    expands:
+      - { action: bridge_action, params: { name: stopAutoSpin } }
+
+  # === Buy bonus (ZZ-39..ZZ-43) =========================================
+  - pattern: "open the buy bonus popup"
+    expands:
+      - { action: bridge_action, params: { name: openBuyBonusPopup } }
+  - pattern: "select buy bonus package {n:int}"   # 0=Casual, 1=Bold, 2=Epic
+    expands:
+      - { action: bridge_action, params: { name: selectBuyBonusPackage, index: "{n}" } }
+  - pattern: "increase buy bonus bet"
+    expands:
+      - { action: bridge_action, params: { name: increaseBuyBonusBet } }
+  - pattern: "decrease buy bonus bet"
+    expands:
+      - { action: bridge_action, params: { name: decreaseBuyBonusBet } }
+  - pattern: "buy bonus package {n:int}"          # composite: select + Buy + Confirm, waits to idle
+    expands:
+      - { action: bridge_action, params: { name: confirmBuyBonus, args: ["{n}"] } }
+
+  # === Bonus / free spin flow (ZZ-30..ZZ-38) ============================
+  - pattern: "spin until the bonus triggers"     # resolves the moment bonus mode is entered
+    expands:
+      - { action: bridge_action, params: { name: spinUntilBonus } }
+  - pattern: "skip the bonus intro"
+    expands:
+      - { action: bridge_action, params: { name: skipBonusTransition } }
+  - pattern: "wait for the total win popup"
+    expands:
+      - { action: bridge_action, params: { name: waitForTotalWinPopup } }
+  - pattern: "skip the total win popup"
+    expands:
+      - { action: bridge_action, params: { name: skipTotalWin } }
+  - pattern: "skip the big win"
+    expands:
+      - { action: bridge_action, params: { name: skipBigWin } }
+
+  # === Popups / menus (ZZ-09, ZZ-11) ====================================
+  - pattern: "open the paytable"
+    expands:
+      - { action: bridge_action, params: { name: openInfo } }
+  - pattern: "open settings"
+    expands:
+      - { action: bridge_action, params: { name: openSettings } }
+  - pattern: "open history"
+    expands:
+      - { action: bridge_action, params: { name: openHistory } }
+  - pattern: "dismiss popups"
+    expands:
+      - { action: bridge_action, params: { name: dismissPopups } }
+
+  # === Network / reconnect (ZZ-26, ZZ-27) ===============================
+  - pattern: "go offline"
+    expands:
+      - { action: go_offline }
+  - pattern: "go online"
+    expands:
+      - { action: go_online }
+
+  # === Waits & capture ==================================================
+  - pattern: "wait until idle"
+    expands:
+      - { action: wait_for_state, params: { state: idle, timeout_ms: 30000 } }
+  - pattern: "wait for state {state:ident}"
+    expands:
+      - { action: wait_for_state, params: { state: "{state}", timeout_ms: 30000 } }
+  - pattern: "wait {ms:int} ms"
+    expands:
+      - { action: wait_ms, params: { ms: "{ms}" } }
+  - pattern: "take a screenshot as {alias:ident}"
+    capture_alias: "{alias}"
+    expands:
+      - { action: capture }
+
+  # === Variables — capture any author-chosen name =======================
+  - pattern: "remember balance as {var:ident}"
+    capture_alias: "{var}"
+    expands:
+      - { action: bridge_action, params: { name: getBalance }, save: "{var}" }
+  - pattern: "remember bet index as {var:ident}"
+    capture_alias: "{var}"
+    expands:
+      - { action: bridge_action, params: { name: getBetIndex }, save: "{var}" }
+  - pattern: "remember bet amount as {var:ident}"
+    capture_alias: "{var}"
+    expands:
+      - { action: bridge_action, params: { name: getBetAmount }, save: "{var}" }
+  - pattern: "remember last payout as {var:ident}"
+    capture_alias: "{var}"
+    expands:
+      - { action: bridge_action, params: { name: getLastPayout }, save: "{var}" }
+  - pattern: "remember auto spins remaining as {var:ident}"
+    capture_alias: "{var}"
+    expands:
+      - { action: bridge_action, params: { name: getAutoSpinsRemaining }, save: "{var}" }
+
+  # === Exact-value bridge assertions ====================================
+  - pattern: "expect bet index is {n:int}"
+    expands:
+      - { action: bridge_assert, params: { method: getBetIndex, expected: "{n}" } }
+  - pattern: "expect last payout is {n:int}"
+    expands:
+      - { action: bridge_assert, params: { method: getLastPayout, expected: "{n}" } }
+  - pattern: "expect free spins remaining is {n:int}"
+    expands:
+      - { action: bridge_assert, params: { method: getFreeSpinsRemaining, expected: "{n}" } }
+  - pattern: "expect auto spins remaining is {n:int}"
+    expands:
+      - { action: bridge_assert, params: { method: getAutoSpinsRemaining, expected: "{n}" } }
+  - pattern: "expect game state is {state:ident}"   # getAppState is lower-case (idle/betting/result)
+    expands:
+      - { action: bridge_assert, params: { method: getAppState, expected: "{state}" } }
+
+  # spin-state (getSpinState) returns UPPER-CASE enum names — named verbs avoid case issues
+  - pattern: "expect the bonus has started"
+    expands:
+      - { action: bridge_assert, params: { method: getSpinState, expected: START_BONUS } }
+  - pattern: "expect the bonus is running"
+    expands:
+      - { action: bridge_assert, params: { method: getSpinState, expected: IN_BONUS } }
+  - pattern: "expect the bonus has ended"
+    expands:
+      - { action: bridge_assert, params: { method: getSpinState, expected: END_BONUS } }
+
+  # === Button / toggle state assertions =================================
+  - pattern: "expect the spin button is enabled"
+    expands:
+      - { action: bridge_assert, params: { method: isSpinEnabled, expected: true } }
+  - pattern: "expect the spin button is disabled"
+    expands:
+      - { action: bridge_assert, params: { method: isSpinEnabled, expected: false } }
+  - pattern: "expect next bet is enabled"
+    expands:
+      - { action: bridge_assert, params: { method: isNextBetEnabled, expected: true } }
+  - pattern: "expect next bet is disabled"
+    expands:
+      - { action: bridge_assert, params: { method: isNextBetEnabled, expected: false } }
+  - pattern: "expect previous bet is enabled"
+    expands:
+      - { action: bridge_assert, params: { method: isPreviousBetEnabled, expected: true } }
+  - pattern: "expect previous bet is disabled"
+    expands:
+      - { action: bridge_assert, params: { method: isPreviousBetEnabled, expected: false } }
+  - pattern: "expect the buy bonus button is enabled"
+    expands:
+      - { action: bridge_assert, params: { method: isBuyBonusEnabled, expected: true } }
+  - pattern: "expect the buy bonus button is disabled"
+    expands:
+      - { action: bridge_assert, params: { method: isBuyBonusEnabled, expected: false } }
+  - pattern: "expect the auto button is enabled"
+    expands:
+      - { action: bridge_assert, params: { method: isAutoEnabled, expected: true } }
+  - pattern: "expect the auto button is disabled"
+    expands:
+      - { action: bridge_assert, params: { method: isAutoEnabled, expected: false } }
+  - pattern: "expect the stop-auto button is visible"
+    expands:
+      - { action: bridge_assert, params: { method: isStopAutoVisible, expected: true } }
+  - pattern: "expect the stop-auto button is hidden"
+    expands:
+      - { action: bridge_assert, params: { method: isStopAutoVisible, expected: false } }
+  - pattern: "expect turbo is on"
+    expands:
+      - { action: bridge_assert, params: { method: isTurboActive, expected: true } }
+  - pattern: "expect turbo is off"
+    expands:
+      - { action: bridge_assert, params: { method: isTurboActive, expected: false } }
+  - pattern: "expect sound is on"
+    expands:
+      - { action: bridge_assert, params: { method: isSoundEnabled, expected: true } }
+  - pattern: "expect sound is off"
+    expands:
+      - { action: bridge_assert, params: { method: isSoundEnabled, expected: false } }
+  - pattern: "expect music is on"
+    expands:
+      - { action: bridge_assert, params: { method: isMusicEnabled, expected: true } }
+  - pattern: "expect music is off"
+    expands:
+      - { action: bridge_assert, params: { method: isMusicEnabled, expected: false } }
+  - pattern: "expect a popup is visible"
+    expands:
+      - { action: bridge_assert, params: { method: isPopupVisible, expected: true } }
+  - pattern: "expect no popup is visible"
+    expands:
+      - { action: bridge_assert, params: { method: isPopupVisible, expected: false } }
+
+  # === Comparative / typed assertions via script (ZZ-05, ZZ-06) =========
+  - pattern: "expect balance decreased from {var:ref}"
+    expands:
+      - action: script
+        params:
+          cmd: |
+            const now = await bridge.getBalance();
+            assert(now < vars['{var}'],
+              'balance should decrease (before=' + vars['{var}'] + ' now=' + now + ')')
+  - pattern: "expect balance increased from {var:ref}"
+    expands:
+      - action: script
+        params:
+          cmd: |
+            const now = await bridge.getBalance();
+            assert(now > vars['{var}'],
+              'balance should increase (before=' + vars['{var}'] + ' now=' + now + ')')
+  - pattern: "expect last payout is positive"
+    expands:
+      - action: script
+        params:
+          cmd: |
+            const p = await bridge.getLastPayout();
+            assert(p > 0, 'expected a positive payout, got ' + p)
+  - pattern: "expect the last spin was a win"
+    expands:
+      - action: script
+        params:
+          cmd: |
+            const t = await bridge.getLastWinType();
+            assert(t !== 'LOSE', 'expected a win, got win type ' + t)
+  - pattern: "expect the last spin was a loss"
+    expands:
+      - action: script
+        params:
+          cmd: |
+            const t = await bridge.getLastWinType();
+            assert(t === 'LOSE', 'expected a loss, got win type ' + t)
+
+  # === Generic AI visual check (no asset pack; for UI / language / tutorial) ===
+  # Per-game vocab adds asset-aware checks (ref_assets) for sharper assertions.
+  - pattern: "check {shot:ref} shows {claim:str}"
+    expands:
+      - action: assert
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: "@{shot}"
+            prompt: "{claim}"
+            output_schema:
+              matches: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { matches: true, confidence: high }

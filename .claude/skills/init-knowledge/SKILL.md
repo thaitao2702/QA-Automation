@@ -26,6 +26,12 @@ description: |
 
 **Usage:** `/init-knowledge --game=<game-name>`
 
+**Flags:**
+- `--game` (required) — the game folder name under `games/` (e.g. `zeus`). It is used
+  verbatim as `{game}` and resolves every `games/{game}/...` path in this skill (raw
+  docs, `docs/final/`, `.docs-hash.json`, `docs/assets/assets.yml`). See Step 0 for how
+  it is resolved when omitted.
+
 ---
 
 ## Expert Vocabulary Payload
@@ -83,9 +89,21 @@ QA confirmation gate, mechanism detection report, evidence citation (exact quote
 
 ## Behavioral Instructions
 
+### Step 0 — Resolve the game
+
+0a. Bind `{game}` from the `--game` argument and use it verbatim as the game folder name
+    throughout (every `games/{game}/...` path below).
+0b. **If `--game` is absent:** look at the directories under `games/`. If **exactly one**
+    contains a `docs/raw/` folder, use that game and state which one you picked. Otherwise
+    (zero or multiple candidates), list the candidate game directories and **ask the user
+    which game** — do **not** guess.
+0c. **Validate before reading:** confirm `games/{game}/docs/raw/` exists and is non-empty.
+    If it is missing or empty, tell the user to place the raw game docs at
+    `games/{game}/docs/raw/` and **stop** — do not write any output files.
+
 ### Step 1 — Locate and Read Raw Documentation
 
-1. Read every file in `games/{game}/docs/raw/`. Files may be PDF, Excel (.xlsx), images (.png/.jpg), or Markdown.
+1. Using `{game}` resolved in Step 0, read every file in `games/{game}/docs/raw/`. Files may be PDF, Excel (.xlsx), images (.png/.jpg), or Markdown.
 2. For each file, extract:
    - Filename and type
    - Mechanic mentions: coins, bonus, free spins, buy bonus, auto spin, jackpot, scatter, wild

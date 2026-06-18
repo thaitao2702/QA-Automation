@@ -54,9 +54,11 @@ if _dotenv_path.exists():
 from framework.env_files import env_file_suffix, load_env_files, load_game_config
 from framework.helpers.artifact import ArtifactContext, _safe_id
 from framework.helpers.bo import BoHelper
+from framework.helpers.wallet import WalletHelper
 from framework.helpers.bridge import BridgeHelper
 from framework.helpers.gemini import GeminiImageHelper
 from framework.helpers.network import NetworkHelper
+from framework.runner.ai_assert_scheduler import AiAssertScheduler, grade_image, make_ai_semaphore
 from framework.runner.reporter import Reporter, TestResultEntry
 from framework.runner.step_executor import StepExecutor, UnsupportedActionError
 from framework.runner.video_ai_processor import VideoAiProcessor
@@ -250,6 +252,21 @@ def _step_case_ids(step: dict[str, Any]) -> list[str]:
                 if isinstance(cid, str) and cid not in ids:
                     ids.append(cid)
     return ids
+
+
+def _has_video_assert(steps: list[dict[str, Any]]) -> bool:
+    """True if any step carries an ``assert.ai`` VIDEO assertion.
+
+    Video asserts are deferred to the video processor (their clip only exists after
+    the suite's shared recording is finalized). Image asserts are handled at-step by
+    the scheduler, so a record with only image asserts must NOT be dispatched to
+    video batching (it would form an empty group that never completes).
+    """
+    for s in steps:
+        ai = (s.get("assert", {}) or {}).get("ai", {})
+        if isinstance(ai, dict) and ai.get("mode") == "video":
+            return True
+    return False
 
 
 def _attribute_step_to_cases(record: "RunRecord", step: dict[str, Any], result: Any) -> None:
@@ -612,6 +629,12 @@ class SuiteRunner:
         self._suite_doc: dict[str, Any] = {}
         self._game_url: str = ""
         self._records: list[TestRecord] = []
+        # At-step image AI scheduler — created in run() once the provider is known.
+        self._ai_scheduler: Any = None
+        # Scoped-reference cache + asset manifest index (group -> item names), set in
+        # _load_suite / run() and read when resolving each AI assert's selection.
+        self._ref_cache: Any = None
+        self._asset_index: dict[str, set[str]] = {}
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -647,12 +670,15 @@ class SuiteRunner:
         # labeled ground-truth images are prepended to every AI image/video request.
         from framework.helpers.symbol_reference import (
             ScopedReferenceCache,
-            effective_assets,
+            effective_selection,
             load_symbol_reference,
         )
         symbol_reference = load_symbol_reference(self.game, self.base_dir)
-        # Per-test/group scoped reference packs, built lazily from `assets:` selections.
+        # Per-test/group scoped reference packs, built lazily from
+        # `asset_groups`/`assets` selections. Stored on self so _run_one_test /
+        # _run_one_run can resolve each AI assert's effective selection.
         ref_cache = ScopedReferenceCache(self.game, self.base_dir)
+        self._ref_cache = ref_cache
 
         gemini_video_helper: Any | None = None
         gemini_image: Any | None = None  # holds a local helper when provider=local
@@ -693,6 +719,19 @@ class SuiteRunner:
         # actually runs, so suites without BO steps need no BO config.
         bo = BoHelper(self.game, self.env, self.base_dir)
 
+        # Wallet helper for wallet_balance/deposit/withdraw steps. Same lazy contract
+        # as BoHelper: construction never logs in; Playsite creds (PLAYSITE_USER/PASS)
+        # are validated only when a wallet step actually runs.
+        wallet = WalletHelper(self.game, self.env, self.base_dir)
+
+        # Shared AI-assert concurrency limiter: caps claude (one CLI process per
+        # assert) to CLAUDE_AI_MAX_CONCURRENCY (default 2); gemini/local unbounded.
+        # Shared by the at-step image scheduler AND the video processor.
+        ai_sem = make_ai_semaphore(provider)
+        # At-step image AI scheduler — launches image asserts as capped background
+        # tasks the moment their step runs (joined at suite end).
+        self._ai_scheduler = AiAssertScheduler(ai_sem, gemini_image)
+
         # Build video AI processor (must happen before suite execution)
         video_processor = VideoAiProcessor(
             game=self.game,
@@ -703,6 +742,9 @@ class SuiteRunner:
             # --test/--group filter still dispatches video AI instead of hanging
             # in 'pending' waiting for unselected tests in the same ref_assets group.
             run_test_ids=self._compute_run_test_ids(),
+            semaphore=ai_sem,
+            ref_cache=ref_cache,
+            asset_index=self._asset_index,
         )
 
         run_dir = self._make_run_dir(
@@ -788,17 +830,22 @@ class SuiteRunner:
                     page=page,
                     game_url=self._game_url,
                     bo=bo,
+                    wallet=wallet,
                 )
                 ok, err, _ = await _run_steps(executor, steps, label)
                 return ok, err
 
             # Nested per-test runner — timeout handling + result writing.
             async def _execute_test(
-                test_doc: dict[str, Any], idx: int, reference: Any = None
+                test_doc: dict[str, Any], idx: int, reference: Any = None,
+                group_doc: Any = None,
             ) -> TestRecord:
                 record = TestRecord(test_doc, idx)
                 record.video_start_time = video_start_time
                 record.reference = reference
+                # Enclosing group doc — the video processor re-resolves each AI assert's
+                # selection (assert > test > group), so it needs group-level fields.
+                record.group_doc = group_doc
                 try:
                     await asyncio.wait_for(
                         self._run_one_test(
@@ -810,6 +857,7 @@ class SuiteRunner:
                             gemini_image=gemini_image,
                             run_dir=run_dir,
                             bo=bo,
+                            wallet=wallet,
                             reference=reference,
                         ),
                         timeout=test_timeout_ms / 1000.0,
@@ -851,17 +899,19 @@ class SuiteRunner:
                         },
                     )
                 self._records.append(record)
-                if record.ai_pending_steps and record.artifact:
+                if record.artifact and _has_video_assert(record.ai_pending_steps):
                     await video_processor.notify_test_complete(record)
                 return record
 
             # Nested per-run runner — one execution, many case verdicts.
             async def _execute_run(
-                run_doc: dict[str, Any], idx: int, reference: Any = None
+                run_doc: dict[str, Any], idx: int, reference: Any = None,
+                group_doc: Any = None,
             ) -> RunRecord:
                 record = RunRecord(run_doc, idx)
                 record.video_start_time = video_start_time
                 record.reference = reference
+                record.group_doc = group_doc
                 try:
                     await asyncio.wait_for(
                         self._run_one_run(
@@ -873,6 +923,7 @@ class SuiteRunner:
                             gemini_image=gemini_image,
                             run_dir=run_dir,
                             bo=bo,
+                            wallet=wallet,
                             reference=reference,
                         ),
                         timeout=test_timeout_ms / 1000.0,
@@ -911,7 +962,7 @@ class SuiteRunner:
                 # never produced valid footage, so analysing the clip would waste an
                 # AI call (and could hang on a garbage clip) — cases are already red.
                 notify_run = getattr(video_processor, "notify_run_complete", None)
-                if notify_run and record.error is None and record.ai_pending_steps and record.artifact:
+                if notify_run and record.error is None and record.artifact and _has_video_assert(record.ai_pending_steps):
                     await notify_run(record)
                 return record
 
@@ -988,9 +1039,9 @@ class SuiteRunner:
 
                 stop_reason = None
                 for test_doc in selected:
-                    _eff = effective_assets(group, test_doc)
-                    _ref = ref_cache.scoped(_eff) if _eff is not None else None
-                    record = await _execute_test(test_doc, global_idx, _ref)
+                    _sel = effective_selection(group, test_doc, None, self._asset_index)
+                    _ref = ref_cache.for_selection(*_sel) if _sel is not None else None
+                    record = await _execute_test(test_doc, global_idx, _ref, group)
                     global_idx += 1
                     stop_reason = _check_stop_conditions(
                         stop_conditions, self._records, record.final_verdict
@@ -1002,9 +1053,9 @@ class SuiteRunner:
                 # Runs (one execution, many case verdicts) after the group's tests
                 if not stop_reason:
                     for run_doc in selected_runs:
-                        _eff = effective_assets(group, run_doc)
-                        _ref = ref_cache.scoped(_eff) if _eff is not None else None
-                        record = await _execute_run(run_doc, global_idx, _ref)
+                        _sel = effective_selection(group, run_doc, None, self._asset_index)
+                        _ref = ref_cache.for_selection(*_sel) if _sel is not None else None
+                        record = await _execute_run(run_doc, global_idx, _ref, group)
                         global_idx += 1
                         stop_reason = _check_stop_conditions(
                             stop_conditions, self._records, record.final_verdict
@@ -1142,10 +1193,10 @@ class SuiteRunner:
         # Wait for all video AI batches to complete
         await video_processor.wait_all()
 
-        # Process deferred image AI assertions (non-blocking during test execution)
-        if gemini_image:
-            await self._process_pending_image_ai(gemini_image)
-            await self._process_pending_run_image_ai(gemini_image)
+        # Join the at-step image AI tasks (launched during execution, capped by the
+        # shared semaphore). Each task's sink already folded its verdict into the
+        # owning record; this just ensures every task is finished before the summary.
+        await self._ai_scheduler.await_all()
 
         # Write summary.json
         summary = self._build_summary(
@@ -1250,6 +1301,11 @@ class SuiteRunner:
                     "teardown": g.get("teardown") or [],
                     "tests": g.get("tests") or [],
                     "runs": g.get("runs") or [],
+                    # Group-level reference selection (inherited by its tests/asserts
+                    # unless overridden); kept so effective_selection can read them.
+                    "asset_groups": g.get("asset_groups"),
+                    "assets": g.get("assets"),
+                    "ref_assets": g.get("ref_assets"),
                 }
             )
         return groups
@@ -1329,6 +1385,7 @@ class SuiteRunner:
         gemini_image: GeminiImageHelper | None,
         run_dir: Path,
         bo: Any = None,
+        wallet: Any = None,
         reference: Any = None,
     ) -> None:
         """Execute a single test: setup → steps → teardown."""
@@ -1363,7 +1420,14 @@ class SuiteRunner:
             test_start_time=test_start,
             game_url=self._game_url,
             bo=bo,
+            wallet=wallet,
             reference=reference,
+            ai_scheduler=self._ai_scheduler,
+            ai_image_sink=lambda step, result, ri, _rec=record: self._fold_test_image_ai(_rec, step, result, ri),
+            ref_cache=self._ref_cache,
+            group_doc=getattr(record, "group_doc", None),
+            test_doc=test_doc,
+            asset_index=self._asset_index,
         )
 
         bridge_passed = True
@@ -1468,6 +1532,7 @@ class SuiteRunner:
         gemini_image: Any,
         run_dir: Path,
         bo: Any = None,
+        wallet: Any = None,
         reference: Any = None,
     ) -> None:
         """Execute a single run: setup → steps → teardown, fanning each tagged
@@ -1500,7 +1565,14 @@ class SuiteRunner:
             test_start_time=run_start,
             game_url=self._game_url,
             bo=bo,
+            wallet=wallet,
             reference=reference,
+            ai_scheduler=self._ai_scheduler,
+            ai_image_sink=lambda step, result, ri, _rec=record: self._fold_run_image_ai(_rec, step, result, ri),
+            ref_cache=self._ref_cache,
+            group_doc=getattr(record, "group_doc", None),
+            test_doc=run_doc,
+            asset_index=self._asset_index,
         )
 
         # Run-level setup — a setup failure is fatal for the whole run: skip the
@@ -1575,244 +1647,7 @@ class SuiteRunner:
     # Deferred image AI processing
     # ------------------------------------------------------------------
 
-    async def _process_pending_image_ai(
-        self, gemini_image: GeminiImageHelper
-    ) -> None:
-        """
-        Process all deferred image AI assertions after tests complete.
 
-        For each test record with pending AI steps, run the Gemini image
-        analysis, write step-N-ai.json, and update the record's ai_result
-        and final_verdict.
-        """
-        import asyncio
-
-        tasks: list[tuple[TestRecord, dict[str, Any]]] = []
-        for record in self._records:
-            if isinstance(record, RunRecord):
-                continue  # runs handled by _process_pending_run_image_ai
-            if record.ai_result != "pending" or not record.ai_pending_steps:
-                continue
-            for step in record.ai_pending_steps:
-                ai_block = step.get("assert", {}).get("ai", {})
-                if ai_block.get("mode") == "image":
-                    tasks.append((record, step))
-
-        if not tasks:
-            return
-
-        logger.info("\033[1m\033[35m▶ AI Processing\033[0m %d deferred image assertion(s)", len(tasks))
-
-        for record, step in tasks:
-            artifact = record.artifact
-            if not artifact:
-                continue
-
-            ai_block = step["assert"]["ai"]
-            ref_screenshot = ai_block.get("ref_screenshot", "")
-            prompt = ai_block.get("prompt", "")
-            output_schema = ai_block.get("output_schema", {})
-            expected = ai_block.get("expected", {})
-
-            # Normalize ref_screenshot to a list
-            ref_ids = ref_screenshot if isinstance(ref_screenshot, list) else [ref_screenshot]
-
-            # Resolve each ref to a screenshot path
-            screenshot_paths: list[Path] = []
-            missing: list[str] = []
-            for rid in ref_ids:
-                found = None
-                capture_index = 0
-                for tl_entry in record.timeline_steps:
-                    if tl_entry.get("action") == "capture":
-                        capture_index += 1
-                        if tl_entry.get("id") == rid:
-                            found = artifact.screenshot_path(capture_index)
-                            break
-                # Fallback: try direct number extraction
-                if (found is None or not found.exists()) and isinstance(rid, str) and rid.startswith("step-"):
-                    try:
-                        ref_num = int(rid.split("-")[1])
-                        found = artifact.screenshot_path(ref_num)
-                    except (ValueError, IndexError):
-                        pass
-                if found and found.exists():
-                    screenshot_paths.append(found)
-                else:
-                    missing.append(str(rid))
-
-            if missing:
-                record.ai_result = "fail"
-                record.error = record.error or f"AI: screenshot(s) not found: {', '.join(missing)}"
-                record.final_verdict = _compute_verdict(record.bridge_result, record.ai_result)
-                continue
-
-            # Run Gemini API — pass first image (or multiple for comparison)
-            screenshot_path = screenshot_paths[0]
-            gemini_result = await asyncio.to_thread(
-                gemini_image.analyse_image, screenshot_path, prompt, output_schema,
-                extra_images=screenshot_paths[1:] if len(screenshot_paths) > 1 else None,
-            )
-
-            request_info = {
-                "prompt": prompt,
-                "output_schema": output_schema,
-                "expected": expected,
-                "screenshots": [str(p.name) for p in screenshot_paths],
-            }
-
-            if not gemini_result.success:
-                ai_data = {
-                    "passed": False,
-                    "reason": gemini_result.reason,
-                    "request": request_info,
-                    "raw_response": gemini_result.raw_text,
-                }
-                record.ai_result = "fail"
-                record.error = record.error or f"AI image assert failed: {gemini_result.reason}"
-            else:
-                actual_data = gemini_result.data or {}
-                mismatches = []
-                for key, exp_val in (expected or {}).items():
-                    act_val = actual_data.get(key)
-                    if act_val != exp_val:
-                        mismatches.append(f"{key}: got {act_val!r}, expected {exp_val!r}")
-
-                passed = len(mismatches) == 0
-                ai_data = {
-                    "passed": passed,
-                    "data": actual_data,
-                    "expected": expected,
-                    "mismatches": mismatches,
-                    "input_tokens": gemini_result.input_tokens,
-                    "output_tokens": gemini_result.output_tokens,
-                    "request": request_info,
-                    "raw_response": gemini_result.raw_text,
-                }
-                record.ai_result = "pass" if passed else "fail"
-                if not passed:
-                    record.error = record.error or f"AI image assert failed: {'; '.join(mismatches)}"
-
-            # Write step-N-ai.json
-            step_id = step.get("id", "")
-            step_num = None
-            if step_id.startswith("step-"):
-                try:
-                    step_num = int(step_id.split("-")[1])
-                except (ValueError, IndexError):
-                    pass
-            if step_num is not None:
-                ai_path = artifact.ai_result_path(step_num)
-                ai_path.write_text(
-                    json.dumps(ai_data, indent=2, ensure_ascii=False),
-                    encoding="utf-8",
-                )
-
-            # Update verdict
-            record.final_verdict = _compute_verdict(record.bridge_result, record.ai_result)
-
-            # Rewrite result.json with updated ai_result
-            if artifact:
-                artifact.write_result(
-                    bridge_result=record.bridge_result,
-                    ai_result=record.ai_result,
-                    final_verdict=record.final_verdict,
-                    extra={
-                        "error": record.error,
-                        "duration_ms": record.duration_ms,
-                        "timed_out": record.timed_out,
-                    },
-                )
-
-    async def _process_pending_run_image_ai(
-        self, gemini_image: GeminiImageHelper
-    ) -> None:
-        """Resolve deferred IMAGE AI asserts inside runs, attributing each to its case(s).
-
-        One screenshot analysis (one Gemini call per assert step) is evaluated per
-        case via ``expected_by_case`` (or the single ``expected`` for the step's
-        ``case`` tag), so one call can settle several cases.
-        """
-        import asyncio
-
-        for record in self._records:
-            if not isinstance(record, RunRecord) or not record.artifact:
-                continue
-            image_steps = [
-                s for s in record.run_doc.get("steps", [])
-                if s.get("assert", {}).get("ai", {}).get("mode") == "image"
-            ]
-            if not image_steps:
-                continue
-            artifact = record.artifact
-            changed = False
-
-            for step in image_steps:
-                ai_block = step["assert"]["ai"]
-                prompt = ai_block.get("prompt", "")
-                output_schema = ai_block.get("output_schema", {})
-                bindings = _step_case_bindings(ai_block, step)
-                if not bindings:
-                    continue
-
-                paths, missing = self._resolve_ref_screenshots(
-                    record, artifact, ai_block.get("ref_screenshot", "")
-                )
-                if missing:
-                    for cid in bindings:
-                        self._set_run_case_ai(record, cid, "fail", f"screenshot(s) not found: {', '.join(missing)}")
-                    changed = True
-                    continue
-
-                gemini_result = await asyncio.to_thread(
-                    gemini_image.analyse_image, paths[0], prompt, output_schema,
-                    extra_images=paths[1:] if len(paths) > 1 else None,
-                )
-
-                per_case: dict[str, Any] = {}
-                if not gemini_result.success:
-                    for cid in bindings:
-                        self._set_run_case_ai(record, cid, "fail", gemini_result.reason)
-                        per_case[cid] = {"passed": False, "reason": gemini_result.reason}
-                else:
-                    data = gemini_result.data or {}
-                    for cid, subset in bindings.items():
-                        passed, mismatches = _match_expected(data, subset)
-                        self._set_run_case_ai(
-                            record, cid, "pass" if passed else "fail",
-                            "; ".join(mismatches) if mismatches else None,
-                        )
-                        per_case[cid] = {"passed": passed, "mismatches": mismatches}
-                changed = True
-
-                step_num = _step_number(step.get("id", ""))
-                if step_num is not None:
-                    artifact.ai_result_path(step_num).write_text(
-                        json.dumps(
-                            {
-                                "data": gemini_result.data if gemini_result.success else None,
-                                "expected_by_case": bindings,
-                                "per_case": per_case,
-                                "raw_response": gemini_result.raw_text,
-                            },
-                            indent=2, ensure_ascii=False,
-                        ),
-                        encoding="utf-8",
-                    )
-
-            if changed:
-                for cv in record.cases.values():
-                    cv.final_verdict = _compute_verdict(cv.bridge_result, cv.ai_result)
-                artifact.write_run_result(
-                    cases=record.cases_as_dicts(),
-                    extra={
-                        "run_id": record.run_id,
-                        "title": record.run_doc.get("title", ""),
-                        "duration_ms": record.duration_ms,
-                        "timed_out": record.timed_out,
-                        "error": record.error,
-                    },
-                )
 
     @staticmethod
     def _set_run_case_ai(record: "RunRecord", case_id: str, ai_result: str, error: str | None) -> None:
@@ -1823,32 +1658,109 @@ class SuiteRunner:
         if ai_result == "fail" and error and not cv.error:
             cv.error = error
 
-    def _resolve_ref_screenshots(
-        self, record: Any, artifact: Any, ref_screenshot: Any
-    ) -> tuple[list[Path], list[str]]:
-        """Resolve a step's ref_screenshot id(s) to screenshot paths on disk."""
-        ref_ids = ref_screenshot if isinstance(ref_screenshot, list) else [ref_screenshot]
-        paths: list[Path] = []
-        missing: list[str] = []
-        for rid in ref_ids:
-            found = None
-            capture_index = 0
-            for tl_entry in record.timeline_steps:
-                if tl_entry.get("action") == "capture":
-                    capture_index += 1
-                    if tl_entry.get("id") == rid:
-                        found = artifact.screenshot_path(capture_index)
-                        break
-            if (found is None or not found.exists()) and isinstance(rid, str) and rid.startswith("step-"):
-                try:
-                    found = artifact.screenshot_path(int(rid.split("-")[1]))
-                except (ValueError, IndexError):
-                    pass
-            if found and found.exists():
-                paths.append(found)
-            else:
-                missing.append(str(rid))
-        return paths, missing
+
+    # ------------------------------------------------------------------
+    # At-step image AI folding — sinks invoked by the AiAssertScheduler when a
+    # background image task completes (on the event loop; single-threaded → safe).
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _write_step_ai_json(artifact: Any, step: dict[str, Any], ai_data: dict[str, Any]) -> None:
+        """Write a step's AI result audit file (step-N-ai.json)."""
+        if not artifact:
+            return
+        step_num = _step_number(step.get("id", ""))
+        if step_num is not None:
+            artifact.ai_result_path(step_num).write_text(
+                json.dumps(ai_data, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+
+    def _fold_test_image_ai(
+        self, record: "TestRecord", step: dict[str, Any], result: Any, request_info: dict[str, Any]
+    ) -> None:
+        """Fold a TEST image assert result into the record (grade + verdict + json).
+
+        ANDs across multiple image asserts on one record; never resurrects a verdict
+        already finalized by a timeout (audit json is still written).
+        """
+        artifact = record.artifact
+        ai_data, ai_result, error = grade_image(result, request_info)
+        self._write_step_ai_json(artifact, step, ai_data)
+        if record.timed_out:
+            return
+        record.ai_result = "fail" if (ai_result == "fail" or record.ai_result == "fail") else "pass"
+        if ai_result == "fail" and error and not record.error:
+            record.error = error
+        record.final_verdict = _compute_verdict(record.bridge_result, record.ai_result)
+        if artifact:
+            artifact.write_result(
+                bridge_result=record.bridge_result,
+                ai_result=record.ai_result,
+                final_verdict=record.final_verdict,
+                extra={
+                    "error": record.error,
+                    "duration_ms": record.duration_ms,
+                    "timed_out": record.timed_out,
+                },
+            )
+
+    def _fold_run_image_ai(
+        self, record: "RunRecord", step: dict[str, Any], result: Any, request_info: dict[str, Any]
+    ) -> None:
+        """Fold a RUN image assert per case (expected_by_case) into the record.
+
+        One screenshot analysis is judged for each case it serves; each case's
+        verdict is recomputed. Never resurrects a timed-out run.
+        """
+        artifact = record.artifact
+        ai_block = step.get("assert", {}).get("ai", {})
+        bindings = _step_case_bindings(ai_block, step)
+        if not bindings:
+            return
+        per_case: dict[str, Any] = {}
+        if not result.success:
+            for cid in bindings:
+                self._set_run_case_ai(record, cid, "fail", result.reason)
+                per_case[cid] = {"passed": False, "reason": result.reason}
+        else:
+            data = result.data or {}
+            for cid, subset in bindings.items():
+                passed, mismatches = _match_expected(data, subset)
+                self._set_run_case_ai(
+                    record, cid, "pass" if passed else "fail",
+                    "; ".join(mismatches) if mismatches else None,
+                )
+                per_case[cid] = {"passed": passed, "mismatches": mismatches}
+        if artifact:
+            step_num = _step_number(step.get("id", ""))
+            if step_num is not None:
+                artifact.ai_result_path(step_num).write_text(
+                    json.dumps(
+                        {
+                            "data": result.data if result.success else None,
+                            "expected_by_case": bindings,
+                            "per_case": per_case,
+                            "raw_response": result.raw_text,
+                        },
+                        indent=2, ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+        if record.timed_out:
+            return
+        for cv in record.cases.values():
+            cv.final_verdict = _compute_verdict(cv.bridge_result, cv.ai_result)
+        if artifact:
+            artifact.write_run_result(
+                cases=record.cases_as_dicts(),
+                extra={
+                    "run_id": record.run_id,
+                    "title": record.run_doc.get("title", ""),
+                    "duration_ms": record.duration_ms,
+                    "timed_out": record.timed_out,
+                    "error": record.error,
+                },
+            )
 
     # ------------------------------------------------------------------
     # Summary
@@ -1998,7 +1910,15 @@ class SuiteRunner:
         with suite_path.open("r", encoding="utf-8") as fh:
             doc = yaml.safe_load(fh)
 
-        errors = validate_suite(doc, source=suite_path.name)
+        # Index the game's asset manifest (group -> item names) so the validator can
+        # fail fast on a bad `asset_groups`/`assets` reference. Empty index (no/unparseable
+        # manifest) -> pass None so asset validation is skipped. Stored for reuse by run().
+        from framework.helpers.symbol_reference import build_asset_index
+
+        self._asset_index = build_asset_index(self.game, self.base_dir)
+        errors = validate_suite(
+            doc, source=suite_path.name, asset_index=self._asset_index or None
+        )
         if errors:
             msg = f"Suite validation failed ({len(errors)} error(s)):\n" + "\n".join(
                 f"  {e}" for e in errors

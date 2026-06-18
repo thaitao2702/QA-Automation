@@ -1,0 +1,75 @@
+# =============================================================================
+# Zeus per-game verb vocabulary (extends framework/authoring/vocab/core.yml).
+#
+# Holds game-specific knowledge that does not belong in the shared core:
+#   * named forced result grids (symbol-id layouts injected via devmode)
+#   * asset-aware AI image checks (ref_assets are Zeus asset keys)
+#   * the long bonus spin
+#
+# Grids use symbol ids from games/zeus/docs/assets/. Coin = 13.
+# A pattern identical to a core one would override it (not used here).
+# =============================================================================
+
+verbs:
+
+  # --- forced result grids (devmode) ------------------------------------
+  - pattern: 'force grid "no-win"'
+    expands:
+      - { action: bridge_action, params: { name: setDevModeResult, grid: [[1, 1, 1], [3, 3, 3], [4, 4, 4]] } }
+
+  - pattern: 'force grid "3 coins top row"'
+    expands:
+      - { action: bridge_action, params: { name: setDevModeResult, grid: [[13, 13, 13], [1, 1, 1], [3, 3, 3]] } }
+
+  - pattern: "reset forced grid"
+    expands:
+      - { action: bridge_action, params: { name: resetDevMode } }
+
+  # --- long bonus spin --------------------------------------------------
+  - pattern: "spin through the whole bonus"
+    expands:
+      - { action: bridge_action, params: { name: spin, timeoutMs: 120000 } }
+      - { action: wait_for_state, params: { state: idle, timeout_ms: 120000 } }
+
+  # --- asset-aware AI image checks --------------------------------------
+  - pattern: "check that the bet increased between {a:ref} and {b:ref}"
+    expands:
+      - action: assert
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: ["@{a}", "@{b}"]
+            ref_assets: [bet_label]
+            prompt: "Compare the bet value in these two images. Is the bet value in the second image higher than the first? Read both values."
+            output_schema:
+              increased: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { increased: true, confidence: high }
+
+  - pattern: "check that the balance decreased between {a:ref} and {b:ref}"
+    expands:
+      - action: assert
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: ["@{a}", "@{b}"]
+            ref_assets: [balance_label]
+            prompt: "Compare the balance value in these two images. Is the balance in the second image lower than the first? Read both balance values."
+            output_schema:
+              balance_decreased: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { balance_decreased: true, confidence: high }
+
+  - pattern: "check that {shot:ref} shows the bonus has ended"
+    expands:
+      - action: assert
+        assert:
+          ai:
+            mode: image
+            ref_screenshot: "@{shot}"
+            ref_assets: [spin_button]
+            prompt: "Is the Hold & Spin bonus over and the game back in the normal base game (regular spin button visible, no Hold & Spin overlay and no re-spin counter)?"
+            output_schema:
+              bonus_ended: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected: { bonus_ended: true, confidence: high }

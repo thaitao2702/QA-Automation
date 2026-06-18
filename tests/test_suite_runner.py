@@ -1250,3 +1250,37 @@ class TestReportLinks:
         html = out.read_text(encoding="utf-8")
         assert "ZZ-99" in html
         assert "<a href=" not in html  # no link when no report
+
+
+# ---------------------------------------------------------------------------
+# At-step image AI fold — per-case attribution for runs (_fold_run_image_ai)
+# ---------------------------------------------------------------------------
+
+
+def test_fold_run_image_ai_attributes_per_case(tmp_path):
+    from unittest.mock import MagicMock
+
+    from framework.helpers.gemini import GeminiResult
+    from framework.runner.suite_runner import RunRecord, SuiteRunner
+
+    runner = SuiteRunner(game="zeus", suite_name="x", env="dev", base_dir=tmp_path)
+    run_doc = {"id": "R1", "title": "r", "cases": [{"id": "C1", "title": "c1"}, {"id": "C2", "title": "c2"}]}
+    record = RunRecord(run_doc, 0)
+    for cv in record.cases.values():
+        cv.bridge_result = "pass"
+    record.artifact = MagicMock()
+
+    step = {
+        "id": "step-05",
+        "assert": {"ai": {"mode": "image", "expected_by_case": {"C1": {"matches": True}, "C2": {"flag": True}}}},
+    }
+    # One screenshot answer judged per case: C1 wants matches=True (got True -> pass);
+    # C2 wants flag=True (got False -> fail).
+    result = GeminiResult(success=True, data={"matches": True, "flag": False}, reason=None)
+    runner._fold_run_image_ai(record, step, result, {})
+
+    assert record.cases["C1"].ai_result == "pass"
+    assert record.cases["C2"].ai_result == "fail"
+    assert record.cases["C1"].final_verdict == "green"    # bridge pass + ai pass
+    assert record.cases["C2"].final_verdict == "orange"   # bridge pass + ai fail
+    record.artifact.write_run_result.assert_called_once()

@@ -245,6 +245,13 @@ class TestUnsupportedActionType:
             f"Expected error mentioning the invalid action name. Got: {errors}"
         )
 
+    def test_click_button_action_is_supported(self) -> None:
+        doc = _minimal_valid_suite()
+        doc["tests"][0]["steps"].append(
+            {"id": "step-03", "action": "click_button", "params": {"name": "spin"}}
+        )
+        assert validate_suite(doc, source="ok.yml") == []
+
     def test_invalid_action_error_has_step_path(self) -> None:
         doc = _minimal_valid_suite()
         doc["tests"][0]["steps"][0]["action"] = "teleport"
@@ -598,3 +605,83 @@ class TestRunsAndCases:
         )
         errors = validate_suite(doc, source="t.yml")
         assert any("expected_by_case" in e.path and "only valid in a run" in e.message for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# Reference selection: asset_groups / assets / ref_assets validation
+# ---------------------------------------------------------------------------
+
+
+_ASSET_INDEX = {
+    "symbols": {"coin", "wild"},
+    "ui_elements": {"bet_label", "win_label"},
+    "ui": {"base_game", "free_spin"},
+}
+
+
+class TestReferenceSelectionValidation:
+    def test_skipped_when_no_asset_index(self):
+        # Without an index, even nonsense references pass (unit-test mode).
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["assets"] = ["totally.bogus"]
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["asset_groups"] = ["nope"]
+        assert validate_suite(doc, source="t.yml") == []
+
+    def test_valid_selection_passes(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["asset_groups"] = ["symbols"]
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["assets"] = ["ui_elements.bet_label"]
+        assert validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX) == []
+
+    def test_unknown_asset_group_fails(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["asset_groups"] = ["symbols", "bogus"]
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("asset_groups" in e.path and "bogus" in e.message for e in errors)
+
+    def test_unqualified_asset_fails(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["assets"] = ["coin"]
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("assets" in e.path and "group" in e.message.lower() for e in errors)
+
+    def test_unknown_group_in_qualified_asset_fails(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["assets"] = ["nope.coin"]
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("assets" in e.path for e in errors)
+
+    def test_unknown_item_in_qualified_asset_fails(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["assets"] = ["symbols.nope"]
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("assets" in e.path and "nope" in e.message for e in errors)
+
+    def test_ref_assets_unknown_name_does_not_fail_load(self):
+        # Deprecated alias is lenient: unknown bare names never fail the load.
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["ref_assets"] = ["hold_spin_overlay"]
+        assert validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX) == []
+
+    def test_ref_assets_wrong_shape_fails(self):
+        doc = _suite_with_image_assert()
+        doc["tests"][0]["steps"][-1]["assert"]["ai"]["ref_assets"] = "coin"  # not a list
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("ref_assets" in e.path for e in errors)
+
+    def test_group_level_selection_validated(self):
+        doc = _minimal_valid_suite()
+        del doc["tests"]
+        doc["groups"] = [
+            {
+                "id": "grp",
+                "asset_groups": ["bogus"],
+                "tests": [
+                    {"id": "ZZ-9", "title": "t", "steps": [
+                        {"id": "s1", "action": "bridge_action", "params": {"name": "spin"}}
+                    ]}
+                ],
+            }
+        ]
+        errors = validate_suite(doc, source="t.yml", asset_index=_ASSET_INDEX)
+        assert any("asset_groups" in e.path and "bogus" in e.message for e in errors)

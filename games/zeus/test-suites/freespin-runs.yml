@@ -111,7 +111,7 @@ groups:
           - id: step-03
             description: "Let the bonus play out; wait for the end-of-bonus total-win popup"
             action: bridge_action
-            params: { name: waitForTotalWinPopup, args: [] }
+            params: { name: waitForBonusTotalWinPopup, args: [] }
           - id: step-04
             description: "Return to base-game idle (counter has counted 3->2->1->0)"
             action: bridge_action
@@ -166,7 +166,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-04 }
-                ref_assets: [coin, free_spin_counter, hold_spin_overlay]
+                assets: [symbols.coin, ui_elements.free_spin_counter, ui.free_spin]
                 prompt: >
                   IMPORTANT — the clip has TWO phases. It STARTS with one or more ordinary
                   base-game spins (the whole reel set spins freely, nothing is locked); then

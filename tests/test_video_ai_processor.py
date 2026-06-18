@@ -2,8 +2,10 @@
 Tests for framework/runner/video_ai_processor.py
 
 Acceptance criteria:
-- Tests are correctly grouped by sorted ref_assets key.
-- notify_test_complete dispatches a batch only when ALL tests in a group are done.
+- Standalone video tests are discovered (_extract_video_test_ids) and processed each
+  on its own — no ref_assets batching.
+- notify_test_complete queues a test; wait_all dispatches + awaits it and never leaves
+  a verdict at 'pending' (safety net).
 - Video trimming uses correct start/end from timeline timestamps.
 - Gemini failure marks test as ai_result=fail with a reason.
 - Standalone CLI finds result.json files with ai_result=pending.
@@ -23,8 +25,7 @@ import pytest
 
 from framework.runner.video_ai_processor import (
     VideoAiProcessor,
-    _group_key,
-    _extract_video_tests,
+    _extract_video_test_ids,
     _iter_suite_runs,
     _resolve_trim_timestamps,
     _trim_video,
@@ -46,25 +47,20 @@ def _make_suite_doc(tests: list[dict]) -> dict:
     }
 
 
-def _make_video_test(test_id: str, ref_assets: list[str]) -> dict:
+def _make_video_test(test_id: str, assets: list[str] | None = None) -> dict:
+    ai: dict = {
+        "mode": "video",
+        "video_trim": {"from_step": "step-01", "to_step": "step-02"},
+        "prompt": "Did reels spin?",
+        "output_schema": {"spun": {"type": "boolean"}},
+        "expected": {"spun": True},
+    }
+    if assets:
+        ai["assets"] = assets
     return {
         "id": test_id,
         "title": f"Test {test_id}",
-        "steps": [
-            {
-                "id": "step-01",
-                "assert": {
-                    "ai": {
-                        "mode": "video",
-                        "video_trim": {"from_step": "step-01", "to_step": "step-02"},
-                        "ref_assets": ref_assets,
-                        "prompt": "Did reels spin?",
-                        "output_schema": {"spun": {"type": "boolean"}},
-                        "expected": {"spun": True},
-                    }
-                },
-            }
-        ],
+        "steps": [{"id": "step-01", "assert": {"ai": ai}}],
     }
 
 
@@ -109,38 +105,18 @@ def _make_stub_record(
 
 
 # ---------------------------------------------------------------------------
-# Group key
+# extract_video_test_ids
 # ---------------------------------------------------------------------------
 
 
-class TestGroupKey:
-    def test_sorted_assets(self) -> None:
-        assert _group_key(["wild", "scatter"]) == "scatter,wild"
-
-    def test_single_asset(self) -> None:
-        assert _group_key(["coin"]) == "coin"
-
-    def test_empty(self) -> None:
-        assert _group_key([]) == ""
-
-
-# ---------------------------------------------------------------------------
-# extract_video_tests
-# ---------------------------------------------------------------------------
-
-
-class TestExtractVideoTests:
-    def test_groups_tests_by_ref_assets(self) -> None:
+class TestExtractVideoTestIds:
+    def test_collects_ids_of_video_tests(self) -> None:
         suite = _make_suite_doc([
-            _make_video_test("ZZ-01", ["scatter", "wild"]),
-            _make_video_test("ZZ-02", ["scatter", "wild"]),
-            _make_video_test("ZZ-03", ["coin"]),
+            _make_video_test("ZZ-01", ["symbols.scatter"]),
+            _make_video_test("ZZ-02"),
+            _make_video_test("ZZ-03", ["symbols.coin"]),
         ])
-        groups = _extract_video_tests(suite)
-        assert "scatter,wild" in groups
-        assert "coin" in groups
-        assert len(groups["scatter,wild"]) == 2
-        assert len(groups["coin"]) == 1
+        assert _extract_video_test_ids(suite) == {"ZZ-01", "ZZ-02", "ZZ-03"}
 
     def test_non_video_tests_excluded(self) -> None:
         suite = _make_suite_doc([
@@ -150,8 +126,7 @@ class TestExtractVideoTests:
                 "steps": [{"id": "step-01", "action": "capture"}],
             }
         ])
-        groups = _extract_video_tests(suite)
-        assert len(groups) == 0
+        assert _extract_video_test_ids(suite) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -260,84 +235,71 @@ class TestTrimVideo:
 
 
 # ---------------------------------------------------------------------------
-# VideoAiProcessor — batch dispatch
+# VideoAiProcessor — per-test dispatch (no batching)
 # ---------------------------------------------------------------------------
 
 
-class TestVideoAiProcessorBatchDispatch:
-    def test_batch_not_dispatched_until_all_complete(self, tmp_path: Path) -> None:
-        suite = _make_suite_doc([
-            _make_video_test("ZZ-01", ["scatter"]),
-            _make_video_test("ZZ-02", ["scatter"]),
-        ])
+def _proc(suite: dict, tmp_path: Path) -> VideoAiProcessor:
+    return VideoAiProcessor(
+        game="zeus", suite_doc=suite, base_dir=tmp_path, gemini_video_helper=None
+    )
 
-        tasks_created = []
-        processor = VideoAiProcessor(
-            game="zeus",
-            suite_doc=suite,
-            base_dir=tmp_path,
-            gemini_video_helper=None,
-        )
 
+class TestVideoAiProcessorDispatch:
+    def test_notify_queues_test_without_dispatching(self, tmp_path: Path) -> None:
+        suite = _make_suite_doc([_make_video_test("ZZ-01")])
+        processor = _proc(suite, tmp_path)
         record1 = _make_stub_record("ZZ-01", suite["tests"][0])
-        record1.ai_pending_steps = [suite["tests"][0]["steps"][0]]
 
-        # Notify only first test — batch should NOT be dispatched yet
-        asyncio.get_event_loop().run_until_complete(
-            processor.notify_test_complete(record1)
-        )
+        asyncio.get_event_loop().run_until_complete(processor.notify_test_complete(record1))
+        # Queued, not yet dispatched — tasks are created in wait_all().
+        assert processor._ready_tests == [record1]
         assert len(processor._tasks) == 0
 
-    def test_batch_dispatched_when_all_complete(self, tmp_path: Path) -> None:
-        suite = _make_suite_doc([
-            _make_video_test("ZZ-01", ["scatter"]),
-            _make_video_test("ZZ-02", ["scatter"]),
-        ])
+    def test_unknown_test_id_not_queued(self, tmp_path: Path) -> None:
+        suite = _make_suite_doc([_make_video_test("ZZ-01")])
+        processor = _proc(suite, tmp_path)
+        other = _make_stub_record("ZZ-99", {"id": "ZZ-99", "steps": []})
 
-        processor = VideoAiProcessor(
-            game="zeus",
-            suite_doc=suite,
-            base_dir=tmp_path,
-            gemini_video_helper=None,  # no Gemini — process_group handles gracefully
-        )
+        asyncio.get_event_loop().run_until_complete(processor.notify_test_complete(other))
+        assert processor._ready_tests == []
 
-        record1 = _make_stub_record("ZZ-01", suite["tests"][0])
-        record1.ai_pending_steps = [suite["tests"][0]["steps"][0]]
+    def test_wait_all_processes_each_queued_test(self, tmp_path: Path) -> None:
+        suite = _make_suite_doc([_make_video_test("ZZ-01"), _make_video_test("ZZ-02")])
+        processor = _proc(suite, tmp_path)
+        r1 = _make_stub_record("ZZ-01", suite["tests"][0])
+        r2 = _make_stub_record("ZZ-02", suite["tests"][1])
+        loop = asyncio.get_event_loop()
 
-        record2 = _make_stub_record("ZZ-02", suite["tests"][1])
-        record2.ai_pending_steps = [suite["tests"][1]["steps"][0]]
-
-        asyncio.get_event_loop().run_until_complete(
-            processor.notify_test_complete(record1)
-        )
-        asyncio.get_event_loop().run_until_complete(
-            processor.notify_test_complete(record2)
-        )
-        # After both, a task should have been created
-        assert len(processor._tasks) == 1
+        loop.run_until_complete(processor.notify_test_complete(r1))
+        loop.run_until_complete(processor.notify_test_complete(r2))
+        loop.run_until_complete(processor.wait_all())
+        # Each test processed independently; with no Gemini both fail (never pending).
+        assert r1.ai_result == "fail"
+        assert r2.ai_result == "fail"
 
     def test_no_gemini_marks_tests_as_fail(self, tmp_path: Path) -> None:
-        suite = _make_suite_doc([
-            _make_video_test("ZZ-01", ["scatter"]),
-        ])
-
-        processor = VideoAiProcessor(
-            game="zeus",
-            suite_doc=suite,
-            base_dir=tmp_path,
-            gemini_video_helper=None,
-        )
-
+        suite = _make_suite_doc([_make_video_test("ZZ-01")])
+        processor = _proc(suite, tmp_path)
         record1 = _make_stub_record("ZZ-01", suite["tests"][0])
-        record1.ai_pending_steps = [suite["tests"][0]["steps"][0]]
+        loop = asyncio.get_event_loop()
 
-        asyncio.get_event_loop().run_until_complete(
-            processor.notify_test_complete(record1)
-        )
-        asyncio.get_event_loop().run_until_complete(processor.wait_all())
+        loop.run_until_complete(processor.notify_test_complete(record1))
+        loop.run_until_complete(processor.wait_all())
 
         assert record1.ai_result == "fail"
         assert "GeminiVideoHelper" in (record1.error or "")
+
+    def test_safety_net_fails_unresolved_pending(self, tmp_path: Path) -> None:
+        # The wait_all safety net must never leave a dispatched video assert at 'pending'.
+        suite = _make_suite_doc([_make_video_test("ZZ-01")])
+        processor = _proc(suite, tmp_path)
+        record1 = _make_stub_record("ZZ-01", suite["tests"][0])
+        record1.ai_result = "pending"
+
+        processor._fail_if_still_pending(record1)
+        assert record1.ai_result == "fail"
+        assert "did not complete" in (record1.error or "")
 
     def test_wait_all_completes_without_tasks(self, tmp_path: Path) -> None:
         suite = _make_suite_doc([])
@@ -349,6 +311,66 @@ class TestVideoAiProcessorBatchDispatch:
         )
         # Should not raise
         asyncio.get_event_loop().run_until_complete(processor.wait_all())
+
+    def test_helper_without_cost_api_folds_to_verdict_not_pending(self, tmp_path: Path) -> None:
+        # Regression: the claude provider's video helper exposes analyse_video but (pre-fix)
+        # had no `model` / `cost_for_tokens`. _process_test's cost bookkeeping runs OUTSIDE
+        # its try, so an AttributeError there propagated, was swallowed by wait_all's gather,
+        # and left the test silently 'pending' for the safety net to mark "did not complete"
+        # — even though the AI call succeeded. See HANDOFF-video-ai-fold.md.
+        from framework.helpers.artifact import ArtifactContext
+        from framework.helpers.gemini_video import VideoResult
+
+        class _ClaudeLikeHelper:
+            """A video helper that, like the real ClaudeVideoHelper, exposes analyse_video
+            but deliberately NO `model` / `cost_for_tokens` — so _process_test must resolve
+            them defensively (getattr) instead of crashing."""
+
+            def __init__(self, data: dict) -> None:
+                self._data = data
+                self.calls = 0
+
+            def analyse_video(self, *args: Any, **kwargs: Any) -> VideoResult:
+                self.calls += 1
+                return VideoResult(
+                    success=True, data=self._data, reason=None,
+                    input_tokens=0, output_tokens=0, raw_text=json.dumps(self._data),
+                )
+
+        suite = _make_suite_doc([_make_video_test("ZZ-31")])
+        helper = _ClaudeLikeHelper({"spun": True})  # expected {"spun": True} -> pass
+        processor = VideoAiProcessor("zeus", suite, tmp_path, gemini_video_helper=helper)
+
+        artifact = ArtifactContext(run_dir=tmp_path, test_id="ZZ-31")
+        artifact.timeline_path.write_text(
+            json.dumps({
+                "video_event_offset": 0.0,
+                "steps": [
+                    {"id": "step-01", "start_ms": 0, "end_ms": 1000},
+                    {"id": "step-02", "start_ms": 1000, "end_ms": 2000},
+                ],
+            }),
+            encoding="utf-8",
+        )
+        rec = _make_stub_record("ZZ-31", suite["tests"][0])
+        rec.artifact = artifact
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(processor.notify_test_complete(rec))
+        with patch("framework.runner.video_ai_processor._trim_video", return_value=True):
+            loop.run_until_complete(processor.wait_all())
+
+        # A real verdict from the successful AI call — NOT the safety-net 'pending'->fail.
+        assert helper.calls == 1
+        assert rec.ai_result == "pass"
+        assert rec.final_verdict == "green"
+        assert "did not complete" not in (rec.error or "")
+        # step-01-ai.json is written (the crash used to happen before this), and the
+        # missing-model fallback is recorded rather than raising.
+        ai_json = json.loads(artifact.ai_result_path(1).read_text(encoding="utf-8"))
+        assert ai_json["passed"] is True
+        assert ai_json["model"] == "unknown"
+        assert ai_json["cost_usd"] == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -495,3 +517,58 @@ class TestProcessRunPerCase:
         assert rec.cases["ZZ-32"].ai_result == "fail"
         assert rec.cases["ZZ-33"].ai_result == "fail"
         gemini.analyse_video.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Scoped reference resolution for video AI asserts (_video_reference_for)
+# ---------------------------------------------------------------------------
+
+
+def _video_cache_and_index(tmp_path: Path):
+    from framework.helpers.symbol_reference import ScopedReferenceCache, build_asset_index
+
+    assets = tmp_path / "games" / "g" / "docs" / "assets"
+    (assets / "ui").mkdir(parents=True)
+    (assets / "symbols").mkdir(parents=True)
+    (assets / "ui" / "bet.jpg").write_bytes(b"x")
+    (assets / "symbols" / "coin.jpg").write_bytes(b"x")
+    (assets / "assets.yml").write_text(
+        "ui_elements:\n  bet_label: { file: ui/bet.jpg, name: Bet }\n"
+        "symbols:\n  coin: { file: symbols/coin.jpg, name: Coin }\n",
+        encoding="utf-8",
+    )
+    return ScopedReferenceCache("g", tmp_path), build_asset_index("g", tmp_path)
+
+
+class TestVideoReferenceFor:
+    def _proc(self, tmp_path, with_cache=True):
+        kwargs = {}
+        if with_cache:
+            cache, index = _video_cache_and_index(tmp_path)
+            kwargs = {"ref_cache": cache, "asset_index": index}
+        return VideoAiProcessor(
+            game="g", suite_doc=_make_suite_doc([]), base_dir=tmp_path,
+            gemini_video_helper=MagicMock(), **kwargs,
+        )
+
+    def test_no_cache_falls_back_to_record_reference(self, tmp_path: Path):
+        proc = self._proc(tmp_path, with_cache=False)
+        rec = _make_stub_record("ZZ-1", {})
+        rec.reference = "RECORD_REF"
+        assert proc._video_reference_for(rec, {"mode": "video"}) == "RECORD_REF"
+
+    def test_assert_level_selection_scopes_reference(self, tmp_path: Path):
+        proc = self._proc(tmp_path)
+        rec = _make_stub_record("ZZ-1", {})
+        rec.group_doc = None
+        rec.reference = None
+        ref = proc._video_reference_for(rec, {"mode": "video", "assets": ["symbols.coin"]})
+        assert [Path(p).name for p, _l in ref.items] == ["coin.jpg"]
+
+    def test_group_level_default_applies_when_assert_unset(self, tmp_path: Path):
+        proc = self._proc(tmp_path)
+        rec = _make_stub_record("ZZ-1", {})
+        rec.group_doc = {"asset_groups": ["ui_elements"]}
+        rec.reference = None
+        ref = proc._video_reference_for(rec, {"mode": "video"})
+        assert [Path(p).name for p, _l in ref.items] == ["bet.jpg"]

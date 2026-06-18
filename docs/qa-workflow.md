@@ -235,7 +235,7 @@ The base `.env` holds cross-environment secrets; `.env.{suffix}` overlays enviro
 | `GEMINI_IMAGE_MODEL` / `GEMINI_VIDEO_MODEL` | base `.env` | Override AI models (defaults: `gemini-2.5-flash` / `gemini-3-flash-preview`). |
 | `GEMINI_VIDEO_RESOLUTION` | base `.env` | `LOW` · `MEDIUM` (default) · `HIGH` — video frame token cost. |
 | `LOCAL_AI_ENDPOINT` | base `.env` | HTTP `/analyze` endpoint, used when `AI_PROVIDER=local`. |
-| `CLAUDE_AI_FPS` / `CLAUDE_MODEL` / `CLAUDE_CLI_TIMEOUT` | base `.env` | Claude-provider knobs (video sample rate, model, timeout). |
+| `CLAUDE_AI_FPS` / `CLAUDE_MODEL` / `CLAUDE_CLI_TIMEOUT` / `CLAUDE_AI_MAX_CONCURRENCY` | base `.env` | Claude-provider knobs (video sample rate, model, timeout, max concurrent AI-assert processes — default `2`). |
 | `PLAYSITE_API_URL` / `PLAYSITE_USER` / `PLAYSITE_PASS` | `.env.{suffix}` | Playsite login used to resolve the game URL dynamically. |
 | `BO_API_BASE` | `.env.{suffix}` | Back-office API base for paytable control (absent in prod). |
 | `BO_TOKEN` / `BO_REFRESH_TOKEN` | `.env.{suffix}` | BO access / refresh tokens (grab from the BO DevTools session). |

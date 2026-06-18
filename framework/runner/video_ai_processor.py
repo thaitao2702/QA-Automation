@@ -1,22 +1,25 @@
 """
-Video AI streaming batch processor for the QA platform.
+Video AI processor for the QA platform.
 
-Groups tests by their sorted ref_assets set. When all tests in a group
-complete, the processor uploads the shared reference assets via Gemini context
-caching, trims each test's video with ffmpeg, sends trimmed video to Gemini,
-and updates result.json with the AI verdict.
+Each standalone test (and each run) that carries a video AI assert is processed
+independently the moment it completes: the processor trims the test's video with
+ffmpeg, sends the trimmed clip to the AI helper (with the assert's scoped reference
+pack attached inline), and updates result.json with the AI verdict. There is no
+batch grouping — that previously keyed off the deprecated ``ref_assets`` field only
+to share a Gemini context-cache upload, which is now a no-op.
 
 Public interface
 ----------------
 VideoAiProcessor(game, suite_doc, base_dir, gemini_video_helper)
-    Streaming batch manager. Call notify_test_complete() as tests finish.
+    Manager. Call notify_test_complete() / notify_run_complete() as work finishes.
 
     notify_test_complete(record) -> None
-        Mark a test as complete. Dispatches the batch if all tests in the
-        group are now done.
+        Queue a completed standalone test (with a video assert) for processing.
 
     wait_all() -> None
-        Await all in-flight batch tasks. Call after suite execution finishes.
+        Dispatch + await all queued analyses. Call after suite execution finishes.
+        A safety net marks any record whose verdict never resolved as fail (never
+        leaves a video assert silently 'pending').
 
 Standalone CLI
 --------------
@@ -181,13 +184,8 @@ def _resolve_trim_timestamps(
 
 
 # ---------------------------------------------------------------------------
-# Batch grouping
+# Video test discovery
 # ---------------------------------------------------------------------------
-
-
-def _group_key(ref_assets: list[str]) -> str:
-    """Stable string key for a ref_assets set (sorted, comma-joined)."""
-    return ",".join(sorted(ref_assets))
 
 
 def _iter_suite_tests(suite_doc: dict[str, Any]):
@@ -204,88 +202,27 @@ def _iter_suite_runs(suite_doc: dict[str, Any]):
         yield from group.get("runs") or []
 
 
-def _extract_video_tests(suite_doc: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+def _has_video_assert_step(doc: dict[str, Any]) -> bool:
+    """True if any of the doc's steps carry an ``assert.ai.mode == 'video'`` block."""
+    for step in doc.get("steps", []):
+        if step.get("assert", {}).get("ai", {}).get("mode") == "video":
+            return True
+    return False
+
+
+def _extract_video_test_ids(suite_doc: dict[str, Any]) -> set[str]:
+    """Ids of standalone ``tests:`` (not runs) that contain a video AI assert.
+
+    Each such test is processed on its own the moment it completes — there is no batch
+    grouping. (Grouping previously keyed off ``ref_assets`` only to share a Gemini
+    context-cache upload; references are now attached inline per call, so it added
+    nothing but a fragile dependency on a deprecated field.)
     """
-    Scan suite_doc and return a mapping of group_key -> list of test info dicts.
-
-    Each test info dict has: test_id, steps (the video AI assert steps).
-    """
-    groups: dict[str, list[dict[str, Any]]] = {}
-
-    for test in _iter_suite_tests(suite_doc):
-        test_id = test.get("id", "")
-        video_steps = []
-
-        for step in test.get("steps", []):
-            assert_block = step.get("assert", {})
-            ai_block = assert_block.get("ai", {})
-            if ai_block.get("mode") == "video":
-                ref_assets = ai_block.get("ref_assets", [])
-                video_steps.append({"step": step, "ref_assets": ref_assets})
-
-        for vs in video_steps:
-            key = _group_key(vs["ref_assets"])
-            if key not in groups:
-                groups[key] = []
-            groups[key].append({"test_id": test_id, "ref_assets": vs["ref_assets"]})
-
-    return groups
-
-
-# ---------------------------------------------------------------------------
-# Asset manifest loading
-# ---------------------------------------------------------------------------
-
-
-def _load_asset_paths(
-    game: str,
-    ref_assets: list[str],
-    base_dir: Path,
-) -> list[Path]:
-    """
-    Resolve ref_asset keys to image file paths via the game's assets.yml manifest
-    (legacy name: symbols.yml).
-
-    Returns a list of resolved image Paths. Missing assets are logged and skipped.
-    """
-    asset_dir = base_dir / "games" / game / "docs" / "assets"
-    # Prefer assets.yml; fall back to the legacy symbols.yml.
-    manifest_path = asset_dir / "assets.yml"
-    if not manifest_path.exists():
-        manifest_path = asset_dir / "symbols.yml"
-    if not manifest_path.exists():
-        logger.warning("Asset manifest (assets.yml / symbols.yml) not found in: %s", asset_dir)
-        return []
-
-    import yaml  # lazy — standard lib not available at module level without install
-
-    with manifest_path.open("r", encoding="utf-8") as fh:
-        manifest = yaml.safe_load(fh)
-
-    asset_dir = manifest_path.parent
-
-    # Combine symbols and ui_elements into one lookup
-    all_assets: dict[str, Any] = {}
-    all_assets.update(manifest.get("symbols", {}))
-    all_assets.update(manifest.get("ui_elements", {}))
-
-    paths: list[Path] = []
-    for key in ref_assets:
-        entry = all_assets.get(key)
-        if entry is None:
-            logger.warning("ref_asset '%s' not found in manifest", key)
-            continue
-        file_rel = entry.get("file", "")
-        if not file_rel:
-            logger.warning("ref_asset '%s' has no 'file' field in manifest", key)
-            continue
-        img_path = asset_dir / file_rel
-        if not img_path.exists():
-            logger.warning("ref_asset '%s' image not found: %s", key, img_path)
-            continue
-        paths.append(img_path)
-
-    return paths
+    return {
+        test["id"]
+        for test in _iter_suite_tests(suite_doc)
+        if isinstance(test.get("id"), str) and _has_video_assert_step(test)
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -295,17 +232,18 @@ def _load_asset_paths(
 
 class VideoAiProcessor:
     """
-    Manages streaming batch video AI processing.
+    Manages deferred video AI processing.
 
-    Groups tests by shared ref_assets. When all tests in a group complete
-    test execution, dispatches Gemini processing for the group asynchronously.
+    Each standalone test (and each run) that carries a video assert is dispatched on
+    its own when it completes — no batching. ``wait_all`` awaits them all and never
+    leaves a verdict at 'pending'.
 
     Parameters
     ----------
     game:
         Game identifier (e.g. "zeus").
     suite_doc:
-        Parsed suite YAML document (used to discover video AI test groups).
+        Parsed suite YAML document (used to discover video AI tests).
     base_dir:
         qa-platform repository root.
     gemini_video_helper:
@@ -319,118 +257,117 @@ class VideoAiProcessor:
         base_dir: Path,
         gemini_video_helper: Any | None = None,
         run_test_ids: set[str] | None = None,
+        semaphore: "asyncio.Semaphore | None" = None,
+        ref_cache: Any = None,
+        asset_index: dict[str, set[str]] | None = None,
     ) -> None:
         self._game = game
         self._suite_doc = suite_doc
         self._base_dir = base_dir
         self._gemini = gemini_video_helper
-        # The video helper's default (suite-wide, full) reference pack. A test/run with a
-        # scoped `assets:` selection carries its own `record.reference`, which we point the
-        # helper at before analysing that clip (otherwise this full pack is used).
-        self._full_reference = getattr(gemini_video_helper, "_reference", None)
+        # Shared AI-assert concurrency limiter (claude → CLAUDE_AI_MAX_CONCURRENCY,
+        # shared with the at-step image scheduler). None (standalone CLI use) →
+        # effectively unbounded so the CLI entrypoint keeps working.
+        self._sem = semaphore if semaphore is not None else asyncio.Semaphore(1000)
+        # Shared ScopedReferenceCache + asset index. With these, each video AI assert
+        # gets its own scoped reference (assert > test > group), passed per-call. Without
+        # them (standalone CLI), fall back to the record's reference / helper full pack.
+        self._ref_cache = ref_cache
+        self._asset_index = asset_index
 
-        # group_key -> list of test info dicts expected in this group
-        self._groups = _extract_video_tests(suite_doc)
-        # Restrict each group's expected tests to those actually being run. Under a
-        # --test / --group filter a ref_assets group is otherwise never completed
-        # (the unselected tests never run), so its batch never dispatches and the
-        # selected tests' video AI stays 'pending' forever.
+        # Ids of standalone tests carrying a video assert. Each is processed on its own
+        # the moment it completes — no batch grouping. Restricted to the tests that will
+        # actually run under the --test/--group filter so we never wait on something that
+        # won't execute.
+        self._video_test_ids = _extract_video_test_ids(suite_doc)
         if run_test_ids is not None:
-            self._groups = {
-                k: [t for t in tests if t["test_id"] in run_test_ids]
-                for k, tests in self._groups.items()
-            }
-            self._groups = {k: v for k, v in self._groups.items() if v}
-        # group_key -> set of completed test_ids (with their records)
-        self._completed: dict[str, dict[str, Any]] = {k: {} for k in self._groups}
-        # Asyncio tasks for in-flight batches
+            self._video_test_ids &= run_test_ids
+        # Asyncio tasks for in-flight video AI analyses.
         self._tasks: list[asyncio.Task[None]] = []
-        self._ready_groups: list[tuple[str, dict[str, Any]]] = []
+        # Completed test records (standalone tests) awaiting video AI processing.
+        self._ready_tests: list[Any] = []
         # Completed runs awaiting video AI processing (each run is self-contained).
         self._ready_runs: list[Any] = []
 
-    def _apply_reference(self, record: Any) -> None:
-        """Point the video helper at this record's scoped reference (or the full pack)."""
-        if self._gemini is None or not hasattr(self._gemini, "_reference"):
-            return
-        scoped = getattr(record, "reference", None)
-        self._gemini._reference = scoped if scoped is not None else self._full_reference
+    def _video_reference_for(self, record: Any, ai_block: Any) -> Any:
+        """Resolve the scoped reference pack for one video AI assert.
+
+        Computes the effective ``asset_groups``/``assets`` selection (assert > test >
+        group) and returns the cached scoped SymbolReference. Falls back to the record's
+        test/group-scoped ``reference`` (and ultimately the helper's full-pack default
+        via ``None``) when no cache is wired (standalone CLI) or nothing is selected.
+        """
+        if self._ref_cache is None:
+            return getattr(record, "reference", None)
+        from framework.helpers.symbol_reference import effective_selection
+
+        doc = getattr(record, "test_doc", None) or getattr(record, "run_doc", None)
+        sel = effective_selection(
+            getattr(record, "group_doc", None), doc, ai_block, self._asset_index
+        )
+        if sel is None:
+            return getattr(record, "reference", None)
+        return self._ref_cache.for_selection(*sel)
 
     async def notify_test_complete(self, record: "TestRecord") -> None:
-        """
-        Mark a test as complete and dispatch its batch if the group is ready.
-
-        Parameters
-        ----------
-        record:
-            Completed TestRecord from SuiteRunner.
-        """
-        test_id = record.test_id
-        for key, test_list in self._groups.items():
-            group_ids = {t["test_id"] for t in test_list}
-            if test_id in group_ids:
-                self._completed[key][test_id] = record
-                # Check if all tests in this group are done
-                if set(self._completed[key].keys()) == group_ids:
-                    logger.info(
-                        "Video AI group '%s' complete (%d tests) — dispatching batch",
-                        key,
-                        len(group_ids),
-                    )
-                    self._ready_groups.append((key, dict(self._completed[key])))
+        """Queue a completed standalone test for video AI processing (no batching)."""
+        if record.test_id in self._video_test_ids:
+            self._ready_tests.append(record)
 
     async def notify_run_complete(self, record: Any) -> None:
         """Queue a completed run for video AI processing (runs are self-contained)."""
         self._ready_runs.append(record)
 
     async def wait_all(self) -> None:
-        """Process all ready groups + runs and await completion."""
-        # Dispatch now (video files are copied by this point)
-        for key, records in self._ready_groups:
-            task = asyncio.create_task(
-                self._process_group(key, records)
-            )
-            self._tasks.append(task)
-        self._ready_groups.clear()
+        """Dispatch + await every queued test/run's video AI analysis.
+
+        After the gather, a safety net marks any dispatched record whose AI verdict is
+        still ``pending`` as ``fail`` — so a crashed/cancelled analysis can never leave a
+        video assert silently unresolved.
+        """
+        dispatched: list[Any] = []
+        for record in self._ready_tests:
+            dispatched.append(record)
+            self._tasks.append(asyncio.create_task(self._process_test(record, context_id=None)))
+        self._ready_tests.clear()
 
         for run_record in self._ready_runs:
+            dispatched.append(run_record)
             self._tasks.append(asyncio.create_task(self._process_run(run_record)))
         self._ready_runs.clear()
 
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
 
+        # Safety net: a dispatched record must end with a real verdict, never 'pending'.
+        for record in dispatched:
+            self._fail_if_still_pending(record)
+
+    def _fail_if_still_pending(self, record: Any) -> None:
+        """Mark a record (and any of a run's cases) as fail if its video verdict never set."""
+        reason = "video AI did not complete (no verdict produced)"
+        cases = getattr(record, "cases", None)
+        if cases is not None:
+            # Run record: cases is a dict[case_id -> case verdict].
+            pending = [cv for cv in cases.values() if getattr(cv, "ai_result", None) == "pending"]
+            if pending:
+                logger.warning("Run %s: %d case(s) left video AI pending — marking fail",
+                               getattr(record, "run_id", "?"), len(pending))
+                self._fail_run_cases_ai(record, reason)
+        elif getattr(record, "ai_result", None) == "pending":
+            logger.warning("Test %s: video AI left pending — marking fail",
+                           getattr(record, "test_id", "?"))
+            self._update_ai_result(record, "fail", reason)
+
     # ------------------------------------------------------------------
-    # Batch processing
+    # Per-test / per-run processing
     # ------------------------------------------------------------------
 
-    async def _process_group(
-        self,
-        group_key: str,
-        records: dict[str, Any],
-    ) -> None:
-        """
-        Process a completed batch group:
-        1. Upload shared ref_assets via Gemini context caching.
-        2. For each test: trim video, send to Gemini, update result.json.
-        3. Release cached context.
-        """
-        if self._gemini is None:
-            logger.warning(
-                "Video AI skipped for group '%s': GeminiVideoHelper not available", group_key
-            )
-            for record in records.values():
-                self._update_ai_result(record, "fail", "GeminiVideoHelper not configured")
-            return
-
-        # Reference assets (the full symbols.yml manifest) are prepended to every
-        # request by the AI helper itself (framework.helpers.symbol_reference), so no
-        # per-group asset upload is needed here. Process each test in the group.
-        for record in records.values():
-            await self._process_test(record, context_id=None)
-
-    async def _process_test(self, record: Any, context_id: str) -> None:
+    async def _process_test(self, record: Any, context_id: str | None) -> None:
         """Trim video for one test and send to Gemini for analysis."""
+        if self._gemini is None:
+            self._update_ai_result(record, "fail", "GeminiVideoHelper not configured")
+            return
         artifact = record.artifact
         if artifact is None:
             logger.warning("No artifact for test %s — skipping video AI", record.test_id)
@@ -465,8 +402,6 @@ class VideoAiProcessor:
         ai_cost = 0.0
 
         # Scope the helper's reference pack to this test's `assets:` (if any).
-        self._apply_reference(record)
-
         for step in video_ai_steps:
             ai_block = step["assert"]["ai"]
             video_trim = ai_block.get("video_trim", {})
@@ -500,15 +435,21 @@ class VideoAiProcessor:
                 )
                 continue
 
-            # Send to Gemini
+            # Resolve the scoped reference + send to the model (gated by the shared AI
+            # concurrency cap). Reference resolution is inside the try so a failure there
+            # produces a verdict too, instead of propagating and leaving the test pending.
             try:
-                gemini_result = await asyncio.to_thread(
-                    self._gemini.analyse_video,
-                    trimmed_path,
-                    context_id,
-                    prompt,
-                    output_schema,
-                )
+                reference = self._video_reference_for(record, ai_block)
+                async with self._sem:
+                    gemini_result = await asyncio.to_thread(
+                        self._gemini.analyse_video,
+                        trimmed_path,
+                        context_id,
+                        prompt,
+                        output_schema,
+                        None,  # ref_images (unused; reference pack carries the assets)
+                        reference,
+                    )
             except Exception as exc:  # noqa: BLE001
                 logger.error("Gemini video analysis failed for %s: %s", record.test_id, exc)
                 self._update_ai_result(record, "fail", f"Gemini API error: {exc}")
@@ -551,14 +492,19 @@ class VideoAiProcessor:
                     "raw_response": gemini_result.raw_text,
                 }
 
-            # Token usage + estimated price for this assert (a failed-judgment call still bills).
-            call_cost = self._gemini.cost_for_tokens(
+            # Token usage + estimated price for this assert (a failed-judgment call still
+            # bills). Resolved defensively (like _process_run): this bookkeeping runs
+            # OUTSIDE the try above, so a helper missing cost_for_tokens/model (e.g. the
+            # claude provider) must NOT raise here — that would propagate, get swallowed by
+            # wait_all's gather, and silently leave the test 'pending' for the safety net.
+            cost_fn = getattr(self._gemini, "cost_for_tokens", None)
+            call_cost = cost_fn(
                 gemini_result.input_tokens, gemini_result.output_tokens
-            )
+            ) if cost_fn else 0.0
             ai_data["input_tokens"] = gemini_result.input_tokens
             ai_data["output_tokens"] = gemini_result.output_tokens
             ai_data["cost_usd"] = round(call_cost, 6)
-            ai_data["model"] = self._gemini.model
+            ai_data["model"] = getattr(self._gemini, "model", "unknown")
             ai_calls += 1
             ai_in_tokens += gemini_result.input_tokens
             ai_out_tokens += gemini_result.output_tokens
@@ -601,7 +547,7 @@ class VideoAiProcessor:
                     "ai_input_tokens": ai_in_tokens,
                     "ai_output_tokens": ai_out_tokens,
                     "ai_cost_usd": round(ai_cost, 6),
-                    "ai_model": self._gemini.model,
+                    "ai_model": getattr(self._gemini, "model", "unknown"),
                 })
             artifact.write_result(
                 bridge_result=record.bridge_result,
@@ -743,22 +689,14 @@ class VideoAiProcessor:
             self._fail_run_cases_ai(record, "GeminiVideoHelper not configured")
             return
 
-        # Upload shared ref assets once for the whole run.
-        ref_assets = sorted({
-            a for s in video_steps for a in s["assert"]["ai"].get("ref_assets", [])
-        })
-        asset_paths = _load_asset_paths(self._game, ref_assets, self._base_dir) if ref_assets else []
-        try:
-            context_id = await asyncio.to_thread(self._gemini.create_cached_context, asset_paths)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Run %s: context creation failed (%s); proceeding inline", record.run_id, exc)
-            context_id = "inline"
+        # References are attached inline per call (the scoped reference pack), so there is
+        # no shared per-run asset upload — context caching is a no-op kept only for the
+        # helper's API signature.
+        context_id = "inline"
 
         video_path = artifact.video_path
         ai_calls = ai_in = ai_out = 0
         ai_cost = 0.0
-        # Scope the helper's reference pack to this run's `assets:` (if any).
-        self._apply_reference(record)
         try:
             for step in video_steps:
                 ai_block = step["assert"]["ai"]
@@ -784,10 +722,13 @@ class VideoAiProcessor:
                         self._set_case_ai(record, cid, "fail", f"ffmpeg trimming failed for step {step_id}")
                     continue
 
+                reference = self._video_reference_for(record, ai_block)
                 try:
-                    gemini_result = await asyncio.to_thread(
-                        self._gemini.analyse_video, trimmed_path, context_id, prompt, output_schema
-                    )
+                    async with self._sem:
+                        gemini_result = await asyncio.to_thread(
+                            self._gemini.analyse_video,
+                            trimmed_path, context_id, prompt, output_schema, None, reference,
+                        )
                 except Exception as exc:  # noqa: BLE001
                     logger.error("Run %s video AI failed: %s", record.run_id, exc)
                     for cid in bindings:

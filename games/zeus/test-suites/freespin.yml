@@ -145,7 +145,7 @@ groups:
                 # with the counter at 3); step-03 onward plays the respins down to 0, which
                 # would make the AI read the counter mid-count-down (e.g. 2) instead of 3.
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, free_spin_counter, hold_spin_overlay]
+                assets: [symbols.coin, ui_elements.free_spin_counter, ui.free_spin]
                 prompt: "Watch the spin trigger the Hold & Spin bonus. Did the game enter the bonus screen? How many gold coins are locked on the 3x3 grid at the start of the bonus? What number does the re-spin counter show when the bonus begins?"
                 output_schema:
                   entered_bonus: { type: boolean }
@@ -216,7 +216,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, hold_spin_overlay]
+                assets: [symbols.coin, ui.free_spin]
                 prompt: "Across the re-spins of this Hold & Spin bonus, do the 3 gold coins stay locked in the exact same grid positions? Did any locked coin move to a different cell or disappear?"
                 output_schema:
                   coins_stay_locked: { type: boolean }
@@ -284,7 +284,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, hold_spin_overlay]
+                assets: [symbols.coin, ui.free_spin]
                 prompt: "During each re-spin of this Hold & Spin bonus, do ONLY the cells without a coin spin/animate, while the cells holding gold coins stay completely still? Did any coin cell re-spin?"
                 output_schema:
                   only_noncoin_cells_spin: { type: boolean }
@@ -353,7 +353,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [free_spin_counter, hold_spin_overlay]
+                assets: [ui_elements.free_spin_counter, ui.free_spin]
                 prompt: "Watch the re-spin counter through this Hold & Spin bonus. Does it count down 3 then 2 then 1 then 0 (one step per re-spin), never resetting back to 3, and then the bonus ends?"
                 output_schema:
                   counted_down_to_zero: { type: boolean }
@@ -421,7 +421,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [bonus_result_popup, hold_spin_overlay]
+                assets: [ui_elements.bonus_result_popup, ui.free_spin]
                 prompt: "When the re-spin counter reached 0, did a bonus-result / total-win popup appear showing the accumulated payout, and did the game then return to the base-game reels?"
                 output_schema:
                   total_win_popup_shown: { type: boolean }
@@ -486,7 +486,7 @@ groups:
               ai:
                 mode: image
                 ref_screenshot: step-02
-                ref_assets: [hold_spin_overlay, free_spin_counter, bet_label, auto_button]
+                assets: [ui.free_spin, ui_elements.free_spin_counter, ui_elements.bet_label, ui_elements.auto_button]
                 prompt: "Is the Hold & Spin bonus screen active (re-spin counter visible on a grid of locked coins)? Are the bet + and bet - buttons and the Autoplay button greyed-out / disabled?"
                 output_schema:
                   bonus_screen_active: { type: boolean }
@@ -607,7 +607,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, free_spin_counter, hold_spin_overlay]
+                assets: [symbols.coin, ui_elements.free_spin_counter, ui.free_spin]
                 prompt: "During this Hold & Spin bonus, when a new gold coin lands on a re-spin, does the re-spin counter jump back up to 3 (instead of continuing to count down), and does the newly landed coin stay locked in place?"
                 output_schema:
                   counter_reset_to_3: { type: boolean }
@@ -674,7 +674,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, hold_spin_overlay, bonus_result_popup]
+                assets: [symbols.coin, ui.free_spin, ui_elements.bonus_result_popup]
                 prompt: "Did the grid fill completely with 9 gold coins, causing the Hold & Spin bonus to end immediately (even though re-spins remained), then show a total-win / bonus-result popup, and return to the base game?"
                 output_schema:
                   grid_filled_9_coins: { type: boolean }
@@ -764,7 +764,7 @@ groups:
               ai:
                 mode: video
                 video_trim: { from_step: step-01, to_step: step-02 }
-                ref_assets: [coin, hold_spin_overlay, bonus_result_popup]
+                assets: [symbols.coin, ui.free_spin, ui_elements.bonus_result_popup]
                 prompt: "Did the trigger spin land 9 gold coins filling the entire 3x3 grid, then show a total-win / bonus-result popup, and return to the base game without any re-spins?"
                 output_schema:
                   grid_filled_9_coins: { type: boolean }

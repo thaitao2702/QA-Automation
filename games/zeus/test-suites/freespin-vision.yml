@@ -72,10 +72,10 @@ groups:
   # =========================================================================
   - id: fs-trigger3-countdown
     title: "3-coin trigger, respins count down (no new coin)"
-    # Load these asset categories (inline images + descriptions) into every AI prompt
+    # Load these asset groups (inline images + descriptions) into every AI prompt
     # for this group — the do:/check: agent and the AI video assert. Scopes the
     # reference pack so the model has ground truth for the coin, counter and overlay.
-    assets: [ui, ui_elements]
+    asset_groups: [ui, ui_elements]
     setup:
       - id: gsetup-01
         description: "BRIDGE (BO API): force 3-coin trigger + count-down respins for this group"

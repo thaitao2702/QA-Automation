@@ -188,6 +188,7 @@ class _LocalAIClient:
         mime: str,
         prompt: str,
         output_schema: dict[str, Any],
+        reference: Any | None = None,
     ) -> tuple[dict[str, Any] | None, str]:
         """
         POST *file_path* + schema-hinted *prompt* to the endpoint.
@@ -195,12 +196,15 @@ class _LocalAIClient:
         Returns ``(data, raw_text)`` where *data* is the parsed JSON object
         (or None if extraction failed) and *raw_text* is the model's full
         ``result`` string. Raises on HTTP/transport errors — callers wrap.
+
+        A per-call *reference* (scoped selection) overrides the constructor default.
         """
         import requests  # lazy — only needed in local mode
 
         # Prepend the symbol/UI reference descriptions (text only) to the task.
-        if self._reference is not None and not getattr(self._reference, "is_empty", True):
-            prompt = f"{self._reference.descriptions_text()}\n\n{prompt}"
+        ref = reference if reference is not None else self._reference
+        if ref is not None and not getattr(ref, "is_empty", True):
+            prompt = f"{ref.descriptions_text()}\n\n{prompt}"
         full_prompt = _build_schema_prompt(prompt, output_schema)
 
         with file_path.open("rb") as fh:
@@ -266,6 +270,7 @@ class LocalVideoHelper(_LocalAIClient):
         prompt: str,
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> VideoResult:
         """Send *video_path* to the local endpoint and parse the response."""
         self._call_count += 1
@@ -278,7 +283,7 @@ class LocalVideoHelper(_LocalAIClient):
 
         try:
             data, raw_text = self._post_analyze(
-                video_path, "video/mp4", prompt, output_schema
+                video_path, "video/mp4", prompt, output_schema, reference=reference
             )
         except Exception as exc:  # noqa: BLE001 — resilience contract: never raise
             logger.warning("Local video analysis failed: %s", exc)
@@ -347,6 +352,7 @@ class LocalImageHelper(_LocalAIClient):
         prompt: str,
         output_schema: dict[str, Any],
         extra_images: list[Path] | None = None,
+        reference: Any | None = None,
     ) -> GeminiResult:
         """Send *image_path* to the local endpoint and parse the response."""
         self._call_count += 1
@@ -359,7 +365,7 @@ class LocalImageHelper(_LocalAIClient):
 
         try:
             data, raw_text = self._post_analyze(
-                image_path, "image/png", prompt, output_schema
+                image_path, "image/png", prompt, output_schema, reference=reference
             )
         except Exception as exc:  # noqa: BLE001 — resilience contract: never raise
             logger.warning("Local image analysis failed: %s", exc)
