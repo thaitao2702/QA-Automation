@@ -811,30 +811,38 @@ a literal you can hardcode while authoring.
    `expected_by_case` field for one partitioned AI call). Record runs/tests in the plan file (schema
    in item 9).
 
-   **(b) Show the WHOLE plan to the user** — the deterministic tree below (group → paytable →
-   execution → step flow → which case each assert proves). This is a **PLAN-level gate**: the user
-   approves the set, grouping, paytables, and **run consolidation**, or asks to change it. (The
-   detailed, per-execution review happens later in Step 5 — this overview does NOT replace it.)
+   **(b) Show the WHOLE plan to the user — in plain, everyday language.** Present the tree below
+   (group → paytable → execution → what each case proves), but **write every description the way you'd
+   explain it to a non-technical teammate**: no method names, field names, or step ids in the prose.
+   For each group's paytable, say in one line **what outcome it forces** (e.g. "every spin triggers
+   the free-spin bonus with 3 coins"). For each execution say **what it plays through**, and for each
+   case **what it proves**, in spoken language. This is a **PLAN-level gate**: the user approves the
+   set, grouping, paytables, and **run consolidation**, or asks to change it. (The detailed,
+   per-execution review happens later in Step 5 — this overview does NOT replace it.)
 
    ```
    === Test Plan for {game} / {suite} ===
-   Goal: fewest executions — cases sharing one setup→steps→teardown are merged into one run.
+   Goal: fewest play-throughs — cases that can be checked in one play are merged into one run.
 
-   GROUP {group-id}   paytable: {ref}  (forced: {forced_outcome})
+   GROUP {group-id}
+     Forced result: {plain-language — what the paytable makes the game do,
+                     e.g. "every spin triggers 3 free spins; re-spins add no new coin; bonus ends with 3 coins"}
 
-     RUN {run-id}  (1 execution -> {K} verdicts)
-       flow: {step-01} -> {step-02} -> … -> {step-NN}
-       {ZZ-a} "{title}"   <= {step-02 bridge getX==3}
-       {ZZ-b} "{title}"   <= {step-05 analyser} + {step-07 AI <field>}
+     RUN {run-id}  (play once -> {K} things checked)
+       Plays through: {plain-language, e.g. "spin until the bonus starts, let all re-spins play out,
+                      then return to the base game"}
+       Checks:
+         - {ZZ-a} "{title}"   — {what it proves, in plain words}
+         - {ZZ-b} "{title}"   — {what it proves, in plain words}
 
-     TEST {ZZ-c} "{title}"  — own execution ({own_execution_reason, e.g. different trigger/bet})
-       flow: {step-01} -> {step-02} -> assert {…}
+     TEST {ZZ-c} "{title}"  — runs on its own ({why, in plain words, e.g. "needs a different bet"})
+       Plays through: {plain-language} -> checks {what, in plain words}
 
-   UNGROUPED (bridge injection)
+   UNGROUPED (no forced paytable — results set directly in the client)
      RUN/TEST … (same shape)
 
-   Summary: {C} cases -> {E} executions ({C-E} replays saved).
-   Approve, or change (merge/split a run, move a case to/from a run, regroup, change a paytable or forced outcome, adjust coverage).
+   Summary: {C} cases -> {E} play-throughs ({C-E} replays saved).
+   Approve, or change (merge/split a run, move a case, regroup, change a paytable or forced outcome, adjust coverage).
    ```
 
    **(c) Wait for the user.** Apply their changes (merge/split a run, move a case, regroup, change
@@ -944,24 +952,33 @@ IF docs are unclear about a behavior: use the most common default for the mechan
 > (10a). Step 5 is the **detailed** gate: confirm each **execution**'s steps/assertions (a run with
 > its cases, or a standalone test) ONE AT A TIME before its YAML is written.
 
-11. Present each **execution** (a run, or a standalone test) in compact readable format, ONE AT A
-    TIME. Do NOT output raw YAML at this stage. **Show its paytable**: which group/forced outcome it
-    uses and whether it needs its **own** paytable. For a **run**, also show all its cases and which
-    step/assert proves each (the `case:` / `expected_by_case` mapping the QA must confirm).
+11. Present each **execution** (a run, or a standalone test) ONE AT A TIME. Do NOT output raw YAML at
+    this stage. Show **every step on two lines: first `intent:` — what it does in plain spoken
+    language, then `action:` — the real action(s) underneath** — e.g.
+    `intent: spin once and wait for the result` / `action: bridge_action spin → wait_for_state idle`.
+    QA reads the intent and can still verify the exact action. **Explain the paytable in plain
+    language**: one short line saying what outcome it forces — e.g. *"this spin triggers 3 free spins,
+    each re-spin lands no new coin, and the bonus ends with 3 coins."* Say whether the execution needs
+    its **own** paytable. For a **run**, also list its cases and, in plain words, what proves each (the
+    underlying `case:` / `expected_by_case` mapping the QA must confirm).
 
 **Standalone test** (one execution → one verdict):
 ```
 -------------------------------------
 TEST {id} - {title}
 -------------------------------------
-GROUP    -> {group id}  (forced outcome: {group forced_outcome})
 PAYTABLE -> {paytable_ref}   [own paytable: yes/no]
+            Does: {plain-language — what this paytable makes the game do,
+                   e.g. "every spin triggers 3 free spins; re-spins add no new coin; bonus ends with 3 coins"}
             {why this test needs its own paytable, if needs_own_paytable=true}
-SETUP    -> {bridge injections and state setup}
-STEP {n} -> {action description}
-            assert (bridge) {method} = {expected}
-            assert (AI/{mode}) {screenshot ref} -> "{prompt summary}"
-TEARDOWN -> {teardown actions}
+SETUP    -> intent: {what we prepare, in plain words}
+            action: {the real setup action(s)}
+STEP {n} -> intent: {what this step does, in plain words}
+            action: {the real action(s), e.g. bridge_action spin → wait_for_state idle}
+            check (game data): {plain: fact + what it should be}  ->  bridge_assert {method} == {expected}
+            check (AI {mode}):  {plain: what the AI should see}    ->  {ref_screenshot|video_trim} "{prompt}" expected {…}
+TEARDOWN -> intent: {how we clean up, in plain words}
+            action: {the real teardown action(s)}
 -------------------------------------
 Approve? (yes / change: <describe fix> / paytable: <describe paytable change> / skip)
 ```
@@ -969,24 +986,30 @@ Approve? (yes / change: <describe fix> / paytable: <describe paytable change> / 
 **Run** (one execution → many case verdicts):
 ```
 -------------------------------------
-RUN {run-id} - {title}   ({K} cases, 1 execution)
+RUN {run-id} - {title}   ({K} cases, played once)
 -------------------------------------
-GROUP    -> {group id}  (forced outcome: {group forced_outcome})
 PAYTABLE -> {paytable_ref}   [own paytable: yes/no]
+            Does: {plain-language — what this paytable makes the game do}
 CASES    -> {ZZ-a} "{title}";  {ZZ-b} "{title}";  ...
-SETUP    -> {shared setup}
-STEP {n} -> {action}                              [plain — every case depends on it]
-STEP {n} -> {action}   case: {ZZ-a}              assert (bridge) {method} = {expected}
-STEP {n} -> {action}   case: [{ZZ-a},{ZZ-b}]     assert (bridge analyser) {method} path:{p} = {expected}
-STEP {n} -> AI/{mode} (one call) expected_by_case:
-              {ZZ-a}: {expected subset}
-              {ZZ-b}: {expected subset}
-TEARDOWN -> {shared teardown}
+SETUP    -> intent: {what we prepare, in plain words}
+            action: {the real setup action(s)}
+STEP {n} -> intent: {what this step does, in plain words}              [needed by every case]
+            action: {the real action(s)}
+STEP {n} -> intent: {what this step does}   proves {ZZ-a}
+            action: {the real action(s)}  ->  bridge_assert {method} == {expected}
+STEP {n} -> intent: {what this step does}   proves {ZZ-a},{ZZ-b}
+            action: {the real action(s)}  ->  bridge_assert {method} path:{p} == {expected}
+STEP {n} -> intent: one AI look that proves the cases below
+            action: AI {mode} {video_trim|ref_screenshot} expected_by_case:
+              {ZZ-a}: {plain: what the AI should see}  ->  {real: expected subset}
+              {ZZ-b}: {plain: what the AI should see}  ->  {real: expected subset}
+TEARDOWN -> intent: {how we clean up, in plain words}
+            action: {the real teardown action(s)}
 -------------------------------------
 Approve? (yes / change: <describe fix> / paytable: <...> / split: <case-id to break into its own test> / skip[: <case-id> to drop one case, or the whole run])
 ```
 
-   - For **ungrouped** (bridge-injection only) executions, show `PAYTABLE -> none (bridge injection)`.
+   - For **ungrouped** (bridge-injection only) executions, show `PAYTABLE -> none (result set directly in the client)`.
    - For a run, confirm that every case is covered by a `case:` tag or an `expected_by_case` key,
      and that only steps **all** cases need are left untagged (an untagged failure fails all cases).
    - If the agent judges an execution needs its own paytable, say so and explain the forced outcome.

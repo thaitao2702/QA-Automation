@@ -10,7 +10,7 @@ and test ideas, and three Claude **skills** do the heavy lifting:
 
 | Skill | Command | Turns … | … into |
 |-------|---------|---------|--------|
-| **init-knowledge** | `/init-knowledge --game=<g>` | the raw game docs you dropped in `docs/raw/` | structured `game-knowledge.md` + `paytable.md` + `symbols.yml` |
+| **init-knowledge** | `/init-knowledge --game=<g>` | the raw game docs you dropped in `docs/raw/` | structured `game-knowledge.md` + `paytable.md` + `assets.yml` |
 | **write-test** | `/write-test --game=<g> --suite=<s>` | your test ideas (xlsx/csv/text/`--raw`) + the knowledge | an executable YAML suite + forced-result paytable fixtures |
 | **run-test** | `/run-test --game=<g> --suite=<s> --env=<e>` | the YAML suite | a run with green/orange/red verdicts + replays + a failure diagnosis |
 
@@ -32,10 +32,10 @@ and test ideas, and three Claude **skills** do the heavy lifting:
 │                                                                                    │
 │  2. /init-knowledge       →  games/{game}/docs/final/game-knowledge.md             │
 │                              games/{game}/docs/final/paytable.md                    │
-│                              games/{game}/docs/assets/symbols.yml                   │
+│                              games/{game}/docs/assets/assets.yml                    │
 │                                                                                    │
 │  3. Add reference images  →  games/{game}/docs/assets/symbols/*.jpg                 │
-│       (paths MUST match the file: entries in symbols.yml)   docs/assets/ui/*.jpg    │
+│       (paths MUST match the file: entries in assets.yml)    docs/assets/ui/*.jpg    │
 │                                                                                    │
 │  4. Add the bridge API    →  games/{game}/bridge-api.md   (from the client team)    │
 │                                                                                    │
@@ -132,7 +132,7 @@ it.** Only after your response does it write the knowledge artifacts:
 |--------|---------|
 | `games/{game}/docs/final/game-knowledge.md` | The structured source of truth: overview, symbols, paylines, mechanics (with per-mechanic Matches/Deviates), limitations, source index. |
 | `games/{game}/docs/final/paytable.md` | Symbol payouts, special/bonus pays, paytable rules — extracted from the raw docs (only created if a paytable was documented). |
-| `games/{game}/docs/assets/symbols.yml` | The **asset manifest** — every symbol/UI element, each with a `file:` path and a `ref_asset` key (used later in test YAML). |
+| `games/{game}/docs/assets/assets.yml` | The **asset manifest** — top-level groups (`symbols:`, `ui_elements:`, `ui:`); each item has a `file:` path and a key referenced from test YAML via `asset_groups:` / `assets:`. |
 | `games/{game}/.docs-hash.json` | SHA-256 manifest of the source corpus, so `/update-knowledge` can detect when the raw docs drift. |
 
 Review `game-knowledge.md` and `paytable.md` for accuracy before moving on — they feed test
@@ -145,7 +145,7 @@ generation directly, so a wrong value here becomes a wrong test later.
 
 ## Stage 3 — Add reference assets (`docs/assets/`)
 
-`init-knowledge` writes the **manifest** (`symbols.yml`), but the actual reference **images** —
+`init-knowledge` writes the **manifest** (`assets.yml`), but the actual reference **images** —
 the cropped symbol and UI snapshots taken from the game client — are something **you** add. They
 live under:
 
@@ -154,13 +154,15 @@ games/{game}/docs/assets/symbols/     # symbol crops:   Coin.jpg, Wild.jpg, Pent
 games/{game}/docs/assets/ui/          # UI crops:       spin-button.jpg, free-spin-counter.jpg, …
 ```
 
-**The file paths must exactly match the `file:` entries in `symbols.yml`.** That manifest is a
-dict keyed by `ref_asset` name; each entry's `file:` is **relative to `docs/assets/`**:
+**The file paths must exactly match the `file:` entries in `assets.yml`.** The manifest is grouped
+into top-level sections (`symbols:`, `ui_elements:`, `ui:`); each item is keyed by name, and its
+`file:` is **relative to `docs/assets/`**. A test selects what an AI assert sees with
+`asset_groups: [<group>]` (a whole section) or `assets: ["<group>.<name>"]` (specific items):
 
 ```yaml
-# games/zeus/docs/assets/symbols.yml  (excerpt)
+# games/zeus/docs/assets/assets.yml  (excerpt)
 symbols:
-  coin:                                    # <- this key is the ref_asset used in test YAML
+  coin:                                    # <- select via assets: [symbols.coin]
     file: symbols/Coin.jpg                 # <- must exist at docs/assets/symbols/Coin.jpg
     name: "Coin (Hold & Spin)"
     type: bonus
@@ -173,8 +175,14 @@ ui_elements:
     description: "Remaining re-spin count shown during the bonus."
 ```
 
+> **Reference selection** (`asset_groups` / `assets`) can be set on an `assert.ai` block or as a
+> test- / group-level default (precedence **assert > test > group**). Unset everywhere → the full
+> pack is sent (backward-compatible). Selections are validated at suite load, so a typo like
+> `symbols.wld` fails fast. The bare-name `ref_assets:` field is **deprecated** (warns) — use
+> `asset_groups:` / `assets:`.
+
 **Why this matters:** at run time the framework builds a **symbol reference pack** from
-`symbols.yml` and prepends those labelled images to *every* AI assertion, so the model has
+`assets.yml` and prepends those labelled images to the AI assertions, so the model has
 ground-truth for what each symbol/UI element looks like. The rule is strict but quiet:
 
 > **Only assets whose `file:` actually exists on disk are loaded into the AI reference pack.**
@@ -185,6 +193,11 @@ ground-truth for what each symbol/UI element looks like. The rule is strict but 
 So: for any symbol/UI element a test will visually assert on, make sure its image is present and
 its path matches the manifest. Snip the asset from the game client, save it to the right folder
 under `docs/assets/`, and keep the filename identical to the manifest's `file:`.
+
+> **Provider note:** the reference pack is attached to AI asserts under whichever `AI_PROVIDER` is
+> configured — Gemini, the local Claude CLI sub-agent (`claude`), or a local endpoint. For video
+> asserts the runner trims the clip, samples frames, and sends them with the scoped reference pack
+> inline; see [framework-runner-guide.md](framework-runner-guide.md) for the per-provider details.
 
 ---
 
@@ -313,7 +326,7 @@ suite through an approval loop. Provide intent in whichever form suits you:
 
 **What the skill does (and where it pauses for you):**
 
-1. **Loads knowledge** — `game-knowledge.md`, `paytable.md`, `symbols.yml`, `bridge-api.md`, and
+1. **Loads knowledge** — `game-knowledge.md`, `paytable.md`, `assets.yml`, `bridge-api.md`, and
    `framework/schema_reference.md` (the authoritative action/schema reference).
 2. **Plans the suite** — writes a `{suite}.plan.json`, groups tests by the paytable/forced outcome
    they need, and **shows you the whole plan to approve** (set, grouping, paytables).
@@ -336,8 +349,43 @@ or **back-office paytables** (real server result path); the skill chooses per te
 paytable switches so they happen once per group, not once per test.
 
 > If a test needs a bridge method that isn't in `bridge-api.md`, or references an asset key missing
-> from `symbols.yml`, the skill flags it during the loop — fix the source (Stage 3 / Stage 4)
+> from `assets.yml`, the skill flags it during the loop — fix the source (Stage 3 / Stage 4)
 > rather than forcing the test through.
+
+### Readable authoring with `.flow.yml` (hand-written alternative)
+
+`/write-test` is the AI-assisted path. There is also a **human-friendly** path: write a
+`{suite}.flow.yml` of one-line **verbs** — the way a tester thinks about the game — and **compile**
+it into the same runnable `{suite}.yml`:
+
+```yaml
+# games/zeus/test-suites/sample.flow.yml
+setup:
+  - start the game            # -> navigate + wait ready + startGame + wait idle
+tests:
+  - id: ZZ-05
+    title: "Balance Deduction on Bet"
+    setup: [ force grid "no-win" ]
+    steps:
+      - remember balance as before
+      - spin and wait for result
+      - expect last payout is 0
+      - expect balance decreased from before
+    teardown: [ reset forced grid ]
+```
+
+```bash
+# compile -> games/zeus/test-suites/sample.yml (GENERATED, schema-valid, runnable)
+python -m framework.authoring.compile --game zeus --suite sample
+python -m framework.authoring.compile --game zeus --suite sample --check   # CI drift guard
+```
+
+Core verbs live in `framework/authoring/vocab/core.yml`; each game adds its own (forced grids, the
+long bonus spin, asset-aware AI checks) in `games/{game}/test-suites/vocab.yml`. Anything not yet a
+verb — a bespoke **AI-video** assert or a **back-office paytable** op — drops in verbatim under a
+`raw:` block. The compiler never guesses: an unknown verb fails loudly, and a compiled suite that
+would fail schema validation is not written. **Edit the `.flow.yml` and recompile — never hand-edit
+the generated `.yml`.** Full reference: [authoring-flow.md](authoring-flow.md).
 
 ---
 
@@ -393,15 +441,16 @@ mis-scoped AI prompt, infra (token/bridge), or a possible game bug.
 qa-platform/
 ├── .env, .env.dev, .env.stg, …          # secrets + AI provider (Stage 5a)
 ├── framework/                            # the runner + helpers (don't edit to write tests)
-│   └── schema_reference.md / .yml        # authoritative action & schema reference
+│   ├── schema_reference.md / .yml        # authoritative action & schema reference
+│   └── authoring/                        # .flow.yml verb compiler (+ vocab/core.yml)
 ├── shared-mechanisms/                    # canonical patterns: hold-and-spin, free-spin, …
 ├── scripts/get_game_url_playsite.py      # URL resolver used by url_script
 ├── games/{game}/
 │   ├── docs/raw/                         # 1. source docs: game doc + paytable.json + paytable.md
 │   ├── docs/final/                       # 2. init-knowledge output: game-knowledge.md, paytable.md
 │   ├── docs/assets/
-│   │   ├── symbols.yml                   #    asset manifest (ref_asset keys + file: paths)
-│   │   ├── symbols/*.jpg                 # 3. symbol reference images (match symbols.yml)
+│   │   ├── assets.yml                    #    asset manifest (groups: symbols/ui_elements/ui)
+│   │   ├── symbols/*.jpg                 # 3. symbol reference images (match assets.yml file:)
 │   │   └── ui/*.jpg                      #    UI reference images
 │   ├── bridge-api.md                     # 4. bridge method surface (from client team)
 │   ├── env.config.{suffix}.yml           # 5. per-env game config (url, playsite, bo)
@@ -409,8 +458,10 @@ qa-platform/
 │   │   ├── base.json, paytable.md        #    base data + rules used to derive fixtures
 │   │   └── {ref}.json
 │   └── test-suites/
+│       ├── vocab.yml                     #    per-game verbs for .flow.yml authoring
+│       ├── {suite}.flow.yml              #    readable verb source (optional, hand-written)
 │       ├── {suite}.plan.json             #    write-test plan artifact
-│       └── {suite}.yml                   # 6. the executable suite
+│       └── {suite}.yml                   # 6. the executable suite (hand/AI-written or compiled)
 └── test-results/{game}/{env}/{suite}-{DD-MM-YYYY-HHMM}/   # 7. run output + replay.html
 ```
 
@@ -426,6 +477,10 @@ qa-platform/
 /write-test --game=zeus --suite=suite-02-freespin --scope="free spin"
 /write-test --game=zeus --suite=suite-02-freespin --raw="<your test description>"
 
+# …or hand-write a readable {suite}.flow.yml and compile it to {suite}.yml
+python -m framework.authoring.compile --game=zeus --suite=sample
+python -m framework.authoring.compile --game=zeus --suite=sample --check   # CI drift guard
+
 # Run it
 /run-test  --game=zeus --suite=suite-02-freespin --env=dev
 /run-test  --game=zeus --suite=suite-02-freespin --env=dev --test=ZZ-30   # one test/case
@@ -438,5 +493,6 @@ qa-platform/
 ---
 
 *Related docs: [framework-runner-guide.md](framework-runner-guide.md) (runner internals),
-`framework/schema_reference.md` (suite schema), [bo-integration.md](bo-integration.md)
+`framework/schema_reference.md` (suite schema), [authoring-flow.md](authoring-flow.md)
+(readable `.flow.yml` verb authoring), [bo-integration.md](bo-integration.md)
 (back-office paytable API).*
