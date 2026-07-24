@@ -17,7 +17,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from framework.helpers.gemini_video import GeminiVideoHelper, VideoResult
+from framework.helpers.gemini_video import (
+    GeminiVideoHelper,
+    VideoResult,
+    _MONTAGE_COLS,
+    _MONTAGE_INTERVAL_S,
+    _MONTAGE_SAMPLE_FPS,
+    _build_montage,
+    _montage_filter,
+    _montage_preamble,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +237,59 @@ class TestVideoTokenTracking:
 # ---------------------------------------------------------------------------
 # Graceful failure
 # ---------------------------------------------------------------------------
+
+
+class TestMontagePacking:
+    """The trimmed clip is packed into a 1fps montage of 0.25s-spaced sub-frames."""
+
+    def test_sample_fps_is_four(self) -> None:
+        # 4 sub-frames at 0.25s spacing -> sample at 4 fps, tile down to 1 fps.
+        assert _MONTAGE_COLS == 4
+        assert _MONTAGE_INTERVAL_S == 0.25
+        assert _MONTAGE_SAMPLE_FPS == 4
+
+    def test_filter_samples_then_tiles_left_to_right(self) -> None:
+        f = _montage_filter()
+        # Sample at 4fps first, then a 4-wide / 1-tall tile = left-to-right in time.
+        assert "fps=4" in f
+        assert "tile=4x1" in f
+        # fps must come before tile so the tile consumes the sampled frames.
+        assert f.index("fps=4") < f.index("tile=4x1")
+        # Even dimensions for yuv420p/libx264.
+        assert "scale=trunc(iw/2)*2:trunc(ih/2)*2" in f
+
+    def test_preamble_explains_left_to_right_and_interval(self) -> None:
+        p = _montage_preamble().lower()
+        assert "left" in p and "right" in p
+        assert "0.25" in p
+        # Mentions each sub-frame timestamp up to the last panel (+0.75s).
+        assert "+0.75s" in _montage_preamble()
+
+    def test_build_montage_missing_source_returns_false(self, tmp_path: Path) -> None:
+        assert _build_montage(tmp_path / "nope.webm", tmp_path / "out.mp4") is False
+
+    def test_build_montage_success(self, tmp_path: Path) -> None:
+        src = _make_video_path(tmp_path)
+        dest = tmp_path / "out.mp4"
+
+        def _fake_run(cmd, **kwargs):
+            # ffmpeg would write the output; simulate it so the exists() check passes.
+            dest.write_bytes(b"MP4_STUB")
+            m = MagicMock()
+            m.returncode = 0
+            m.stderr = ""
+            return m
+
+        with patch("framework.helpers.gemini_video.subprocess.run", side_effect=_fake_run):
+            assert _build_montage(src, dest) is True
+        assert dest.exists()
+
+    def test_build_montage_ffmpeg_failure_returns_false(self, tmp_path: Path) -> None:
+        src = _make_video_path(tmp_path)
+        dest = tmp_path / "out.mp4"
+        failed = MagicMock(returncode=1, stderr="boom")
+        with patch("framework.helpers.gemini_video.subprocess.run", return_value=failed):
+            assert _build_montage(src, dest) is False
 
 
 class TestVideoGracefulFailure:

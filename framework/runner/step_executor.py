@@ -391,6 +391,13 @@ class StepExecutor:
         Supports two param forms:
           params.url          — navigate to a literal URL.
           params.url_script   — resolve to the game URL set at construction time.
+
+        When the URL carries ``bridge=1``, waits for ``window.__gameTestBridge``
+        to register before returning. ``networkidle`` fires while the game is
+        still booting — the bridge appears seconds later — so without this wait
+        the first bridge call races the game and fails with "bridge is not
+        registered". ``wait_for_state`` polls through that error and hides the
+        race; suites that skip it (Mystic) hit it head-on.
         """
         params = step.get("params") or {}
         url = params.get("url", "")
@@ -402,6 +409,28 @@ class StepExecutor:
                 error="navigate action requires 'params.url' or 'params.url_script' (with game_url set on executor)",
             )
         await self._page.goto(url, wait_until="networkidle")
+
+        if "bridge=1" in url:
+            # Local import: the executor keeps `page` duck-typed and never imports
+            # playwright at module level (see suite_runner._run_suite).
+            from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+            timeout_ms = int(params.get("bridge_timeout_ms", 30_000))
+            try:
+                await self._page.wait_for_function(
+                    "() => window.__gameTestBridge != null", timeout=timeout_ms
+                )
+            except PlaywrightTimeoutError:
+                return StepResult(
+                    success=False,
+                    error=(
+                        f"navigate: window.__gameTestBridge did not register within "
+                        f"{timeout_ms}ms of page load. The page loaded but the bridge "
+                        f"never appeared — check that the build ships the QA bridge and "
+                        f"that '?bridge=1' reached the game (raise 'bridge_timeout_ms' "
+                        f"if this build is legitimately slower to boot)."
+                    ),
+                )
         return StepResult(success=True)
 
     async def _handle_wait_for_state(self, step: dict[str, Any]) -> StepResult:
@@ -430,6 +459,12 @@ class StepExecutor:
         ``save:`` field (use ``"$$"`` to escape a literal leading ``$`` —
         ``"$$5"`` → ``"$5"``). A saved variable may appear at any position.
 
+        A string may also **embed** saved values with ``{{name}}`` placeholders —
+        ``"bet:row:{{targetRow}}"`` → ``"bet:row:3"``. ``"$name"`` replaces the whole
+        element (keeping its type); ``{{name}}`` interpolates into a larger string.
+        Without this, ``waitForButtonClickable`` args and ``click_button params.name``
+        would read identically in YAML but only the latter would resolve.
+
         Returns ``(arg_values, error)``; *error* is ``None`` on success. Shared
         by ``bridge_action`` and ``bridge_assert`` so both have identical
         variable-substitution semantics.
@@ -448,6 +483,11 @@ class StepExecutor:
                 arg_values.append(self.vars[name])
             elif isinstance(item, str) and item.startswith("$$"):
                 arg_values.append(item[1:])  # escaped literal: drop one '$'
+            elif isinstance(item, str) and "{{" in item:
+                resolved, err = self._resolve_text_vars(item)
+                if err is not None:
+                    return [], err
+                arg_values.append(resolved)
             else:
                 arg_values.append(item)
         return arg_values, None
@@ -633,8 +673,15 @@ class StepExecutor:
         """
         params = step.get("params") or {}
         method_name = params.get("method", "")
-        expected = params.get("expected")
         path = params.get("path")
+
+        # Resolve a "$name" in `expected` to a variable saved by an earlier step,
+        # so a value a prior step computed can be the comparison target (same rule
+        # as `args` and the wallet `amount`). Lets a `script` step compute a value
+        # and a following case-tagged `bridge_assert` own the verdict.
+        expected, err = self._resolve_param(params.get("expected"))
+        if err is not None:
+            return StepResult(success=False, error=f"bridge_assert: {err}")
 
         if not method_name:
             return StepResult(
@@ -926,8 +973,13 @@ class StepExecutor:
         }})()
         """
         try:
-            await self._page.evaluate(js)
-            return StepResult(success=True)
+            # Capture the IIFE's resolved value so a script's `return X` can be kept
+            # with `save:` (like bridge_action). Previously discarded, so `save:` on a
+            # script stored None. Purely additive — a script with no `return` yields
+            # None, unchanged. Note: mutating the injected `vars` copy does NOT persist
+            # back; produce values via `return` + `save:`, not `vars.X = ...`.
+            value = await self._page.evaluate(js)
+            return StepResult(success=True, result=value)
         except Exception as exc:  # noqa: BLE001
             return StepResult(success=False, error=self._clean_eval_error(str(exc)))
 
@@ -986,6 +1038,14 @@ class StepExecutor:
         name = params.get("name", "")
         if not name:
             return StepResult(success=False, error="click_button action requires 'params.name'")
+
+        # Resolve {{var}} tokens so a button name can be derived at run time from a
+        # value an earlier step saved -- e.g. name: "bet:row:{{targetRow}}" taps the
+        # denomination row computed from the server's config instead of a hardcoded
+        # index. Same substitution AI prompts use; a missing variable fails the step.
+        name, err = self._resolve_text_vars(name)
+        if err:
+            return StepResult(success=False, error=f"click_button: {err}")
 
         try:
             rect = await self._bridge.get_button_rect(name)

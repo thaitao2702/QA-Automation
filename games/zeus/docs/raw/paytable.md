@@ -81,61 +81,66 @@ Controls **Hold & Spin respins** — what happens *after* a bonus is triggered.
 
 #### `CoinDistributions[].CoinWeight`
 
-A **weighted distribution over the next coin count** the server samples
-on every respin.
+A **per-empty-cell coin-landing probability**, looked up by the board's
+current coin count, that the server rolls **independently for every empty
+cell** on each respin.
 
-- **Outer key** = the **trigger coin count** — how many coins were on
-  the board when this bonus started. Fixed for the whole bonus.
-- **Inner key** = a candidate **next coin count** — the resulting count
-  on the board after this respin.
-- **Value** = the weight of that next-count outcome, out of
-  `TotalCoinWeight` (typically `1000`).
-- **Implicit "9" key** = `TotalCoinWeight − sum(inner weights)`. The
-  residual weight maps to "next = 9 → instant fill, bonus ends." The
-  structure carries inner keys only up to `"8"`; the 9-outcome is
-  encoded exclusively in this gap and never appears in the JSON.
+- **Outer key** = the **trigger coin count** — how many coins were on the
+  board when this bonus started. Fixed for the whole bonus; it selects
+  which row is active.
+- **Inner key** = the **current coin count on the board** — the state at
+  the start of this respin. As coins accumulate, the active inner key
+  advances (`3 → 4 → …`).
+- **Value** = a weight; `p = value / TotalCoinWeight` (typically out of
+  `1000`) is the probability that **one empty cell** turns into a new coin
+  on this respin. **Every** empty (non-coin) cell is rolled
+  **independently** with this same `p`.
 
-For the active trigger row, with current count `current`:
+There is **no "next coin count" and no implicit "9" gap** — the value is a
+per-cell probability, not a weight on a particular resulting total.
 
-  `P(stay at current)   = CoinWeight[trigger][current]      / TotalCoinWeight`
-  `P(next = N | N > current)
-                        = CoinWeight[trigger][N]            / TotalCoinWeight`
-  `P(fill to 9)         = (TotalCoinWeight − sum(inner))    / TotalCoinWeight`
-  `P(any new coin)      = 1 − P(stay at current)`
+For the active trigger row, on a respin with `current` coins on the board
+there are `9 − current` empty cells, each an independent trial at
+`p = CoinWeight[trigger][current] / TotalCoinWeight`:
+
+  `p (one empty cell gets a coin)      = CoinWeight[trigger][current] / TotalCoinWeight`
+  `Expected new coins this respin      = (9 − current) × p`
+  `P(no new coin — counter ticks down) = (1 − p) ^ (9 − current)`
+  `P(instant fill to 9)                = p ^ (9 − current)`
 
 ```
 CoinWeight = {
-  "3": {              // bonus triggered with 3 coins
-    "3": 210,         //   21% — next = 3 (stay, no new coin)
-    "4": 200,         //   20% — next = 4 (1 new coin)
-    "5": 120,         //   12% — next = 5
-    "6": 120,         //   12% — next = 6
-    "7": 100,         //   10% — next = 7
-    "8":  75,         //   7.5% — next = 8
-  },                  //   implicit gap: 175 → 17.5% fill to 9
+  "3": {              // bonus triggered with 3 coins…
+    "3": 210,         //   board at 3: each of the 6 empty cells fills with p = 210/1000 = 21%
+    "4": 200,         //   board at 4: each of the 5 empty cells, p = 20%
+    "5": 120,         //   board at 5: p = 12%
+    "6": 120,         //   board at 6: p = 12%
+    "7": 100,         //   board at 7: p = 10%
+    "8":  75,         //   board at 8 (1 empty cell): p = 7.5% it fills to 9
+  },
   "4": { "4": 240, "5": 250, … },   // bonus triggered with 4 coins
   …
-  "8": { "8": 750 },                 // 75% stay at 8, 25% fill to 9
+  "8": { "8": 750 },                 // triggered at 8: at 8 coins, p = 75% the last cell fills
 }
 TotalCoinWeight = 1000
 ```
 
-> **Placement of new coins is server-random.** When the sampled
-> `next > current`, the **positions** of the `next − current` new coins
-> across the empty cells are decided by the server and not exposed
-> through this config. Treat the placement as random.
+> **Coin count and positions both fall out of the per-cell rolls.** Each
+> empty cell is its own Bernoulli trial at probability `p`; how many new
+> coins land, and where, is simply which of those independent rolls
+> succeed — there is no separate server choice.
 
-> **Unreachable cells.** Entries where the inner key is less than
-> `trigger` (e.g. `["5"]["3"]`) carry weight `0`. They represent
-> impossible "next < trigger" outcomes, since coins only accumulate
-> during a bonus.
+> **Inner keys `< trigger` are never used.** The board never holds fewer
+> coins than it triggered with, so those states never occur; they carry
+> weight `0` (or are absent) and are never looked up.
 
 Each `CoinDistribution` entry has its own top-level `Weight`, and one
 distribution is picked at the start of the bonus by that weight.
 
-> **Source:** semantics confirmed for `Packages.CoinDistributions`.
-> `FreeSpinGame.CoinDistributions` uses the identical JSON shape and is
-> expected to follow the same next-count-distribution model.
+> **Source:** the per-empty-cell probability model above is confirmed by
+> live dev runs — `FreeSpinGame.CoinWeight` all-`0` counts down, all-`1000`
+> fills to 9 on the first respin. `Packages.CoinDistributions` uses the
+> identical JSON shape and the same per-cell model.
 
 #### `CoinPrize[]`
 
@@ -249,19 +254,25 @@ distribution-set pick doesn't reintroduce variance.
 
 ### 3.2 `FreeSpinGame` / `Packages` — controlling respins
 
-Because `CoinWeight` is a distribution over next coin counts (§2), every
-respin's outcome is determined by routing weight into a single
-inner-key slot — or into the implicit "9" gap:
+Because `CoinWeight[trigger][current]` is the **per-empty-cell** coin
+probability (§1.2), you steer the bonus by setting `p` to 0, 1, or
+in-between — the **same value in every inner cell**, since the board walks
+through the inner keys `trigger → … → 8` as coins land:
 
-| Desired bonus behaviour | `CoinWeight` collapse |
+| Desired bonus behaviour | `CoinWeight` setting (active trigger row) |
 |---|---|
-| **No new coin per respin** — counter counts down to 0 | In the active trigger row, set `inner[trigger] = TotalCoinWeight` and every other inner cell to `0` → `P(next = trigger) = 1` → board stays at the trigger count → counter decrements every respin → bonus ends by running out of spins. |
-| **New coin on every respin** — counter resets each time | In the active trigger row, set `inner[trigger] = 0` (no "stay" outcome) and route `TotalCoinWeight` into one reachable inner key `N > trigger` (or distribute across several) → every respin advances → counter resets. To avoid early fill, keep weight off the implicit "9" gap by ensuring `sum(inner) = TotalCoinWeight`. |
-| **Bonus runs out of respins → payout** | Same as "no new coin" — guarantee count-down. |
-| **Fill to 9 (instant-end)** | In the active trigger row, set every inner cell to `0` while keeping `TotalCoinWeight > 0`. All weight collapses into the implicit "9" outcome (§2) → every respin instantly fills. Alternatively, trigger with 9 coins via `BaseGame.ReelDistributions` (§3.1) to short-circuit the respin loop entirely. |
+| **No new coin — counter counts down to 0** | Set **every** inner cell to `0` → `p = 0` → no empty cell ever fills → the board stays at the trigger count → the free-spin counter decrements each respin until it hits 0. |
+| **New coin on every respin — instant fill to 9** | Set **every** inner cell to `TotalCoinWeight` (e.g. `1000`) → `p = 1` → every empty cell fills on the first respin → the board jumps straight to 9 and the bonus ends. |
+| **Bonus runs out of respins → payout** | Same as "no new coin" — all inner cells `0`. |
+| **Gradual / realistic accumulation** | Set each inner cell between `0` and `TotalCoinWeight`; higher `p` = coins land faster. `p` may differ per current-count row (e.g. taper as the board fills, like the shipped values). |
 
-Inner cells with key `< trigger` carry weight `0` in the shipped JSON
-(unreachable "next < trigger" outcomes) and can be left alone.
+> **This is the reverse of a "next-count distribution".** All-zero here is
+> **count-down**, not fill-to-9; and all-`TotalCoinWeight` is **instant
+> fill**, not "stay". To fill to 9 without touching respins, trigger with 9
+> coins via `BaseGame.ReelDistributions` (§3.1) instead.
+
+Inner cells with key `< trigger` are unreachable (the board never holds
+fewer coins than it triggered with) and can be left `0`.
 
 If `Packages` is in play (Buy Bonus), apply the same collapse to each
 package's `CoinDistributions[].CoinWeight`. The bonus's trigger count
@@ -292,8 +303,8 @@ one file ad-hoc.
 | `coins-3.json` | 1 column COIN-exclusive → trigger with exactly 3 coins |
 | `coins-6.json` | 2 columns COIN-exclusive → trigger with exactly 6 coins |
 | `coins-9.json` | all 3 columns COIN-exclusive → instant 9-coin fill |
-| `respin-no-coin.json` | `FreeSpinGame.CoinWeight` collapsed to "stay" → guaranteed count-down |
-| `respin-add-coin.json` | `FreeSpinGame.CoinWeight` collapsed to "+1" → new coin on every respin |
+| `respin-no-coin.json` | `FreeSpinGame.CoinWeight` all cells `0` → `p = 0` → guaranteed count-down |
+| `respin-add-coin.json` | `FreeSpinGame.CoinWeight` all cells `1000` → `p = 1` → instant fill to 9 |
 | `coin-grand.json` | `CoinPrize` collapsed to `Multiplier: 500` → all coins land as GRAND |
 
 Naming is illustrative — pick whatever convention fits the deployment
@@ -305,28 +316,34 @@ pipeline. The principle is: one file per behavioural axis you want to pin.
 
 ### 4.1 Per-respin coin count
 
-When a respin lands at least one new coin, the exact number is
-server-decided and not exposed by this config. Treat as random for
-test-generation purposes.
+The number of new coins on a respin is **how many of the `9 − current`
+independent per-cell rolls succeed**, each at
+`p = CoinWeight[trigger][current] / TotalCoinWeight` — expected
+`(9 − current) × p`. Their positions are whichever empty cells hit. Both
+the count and the placement are emergent from the per-cell rolls, not a
+separate server draw.
 
-### 4.2 9-coin fill is deterministic from `CoinWeight`
+### 4.2 Reaching 9 coins
 
-The 8 → 9 instant-fill transition is encoded as the **weight gap** between
-`sum(CoinWeight[trigger]_inner)` and `TotalCoinWeight`; there is no
-separate server-side roll for it.
+Reaching 9 is not a special roll — it is just the case where every
+remaining empty cell happened to hit on the same respin
+(`P = p ^ (9 − current)`).
 
-**Worked example** — bonus triggered with 8 coins, current count 8 (the
-only reachable cell for trigger=8):
+**Worked example** — bonus triggered with 8 coins, board currently at 8
+(one empty cell, the only reachable state for trigger=8):
 
 ```json
 "8": { "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 750 }
 ```
 
-`TotalCoinWeight = 1000`. Inner weights sum to 750, so 250 weight is
-implicitly allocated to the "fill to 9" outcome:
+`p = 750 / 1000 = 0.75`. With a single empty cell:
 
-- 750 / 1000 = 75% → no new coin, counter decrements
-- 250 / 1000 = 25% → fill to 9, bonus ends instantly
+- 750 / 1000 = 75% → that cell fills → **9 coins, bonus ends**
+- 250 / 1000 = 25% → no new coin → counter decrements
+
+(Only when exactly one cell is empty does the per-cell probability line up
+with a simple stay-vs-fill split; with more empty cells each is rolled
+independently, so more than one coin can land at once.)
 
 ### 4.3 `ReelDistributionThreshold`
 

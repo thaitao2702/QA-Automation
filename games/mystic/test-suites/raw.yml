@@ -1,0 +1,698 @@
+suite: "Mystic — CSV-derived test suite (raw)"
+game: mystic
+version: 1
+
+# Source: games/mystic/test-case.csv
+# Plan (source of truth for what is approved): games/mystic/test-suites/raw.plan.json
+#
+# This file contains ONLY the executions QA has approved one-by-one.
+# 6 cases across 3 executions. The remaining 30 cases are still 'planned'
+# in the plan file and are deliberately NOT written here.
+#
+# Conventions used throughout, and why:
+#   * NO wait_for_state anywhere. It polls getAppState(), and bridge-qa-api.md is
+#     explicit: never gate on appState ("reaches playing and stays there forever").
+#     All waiting goes through waitForStableGameState / waitForDeterministicStart /
+#     waitUntilApplicable / waitForButtonClickable.
+#   * Every bridge call passes an explicit `args: []` so the JS method is invoked
+#     directly, rather than depending on a Python wrapper existing for Mystic's
+#     method names.
+#   * Start sequence. EVERY execution, load-run included, uses startGame(), which
+#     invokes the Start handler directly and skips the input pipeline. load-run used to
+#     use the REAL three-step form (waitForGameReady -> click_button startButton ->
+#     waitForDeterministicStart) because MY-01 is about the game becoming playable — but
+#     on the 2026-07-21 dev build a genuine tap on Start leaves the game unplayable
+#     forever: appState reaches 'playing' and the Start button disappears, yet sceneReady
+#     stays false indefinitely and canDo('spin') returns {ok:false, reason:'scene_not_ready'},
+#     so every wait after it hangs until the run times out. startGame() reaches
+#     sceneReady:true. NOTE the coverage this costs: the real-input start path is now
+#     untested, and the stall above is an open finding for the game devs — not something
+#     this suite proves any more. Either way, waitForStableGameState runs before any assertion.
+#   * startGame() calls waitForDeterministicStart() internally at the game-side default of
+#     180000ms, and takes no arguments — the YAML cannot bound it. config.test_timeout_ms
+#     is also 180000, so the harness kills the run at the exact moment the bridge would
+#     have rejected with its "last blocking reason + snapshot" diagnostic. Lowering that
+#     internal default to 60s needs a change in the game's bridge build.
+#   * Bet rows use the ordinary waitForButtonClickable("bet:row:<i>"). The list renders all
+#     20 denominations at once in two columns, so nothing needs scrolling into view — the
+#     bridge also exposes waitForBetRowClickable(i) / scrollBetRowIntoView(i) for that, but
+#     they are not needed here. The CURRENT row stays deliberately interactable:false, so
+#     always target a DIFFERENT index (step-14 asks the bridge which rows are tappable).
+#   * No `assets:` / `asset_groups:` — every entry in docs/assets/assets.yml is inert
+#     (no reference images on disk yet), so AI asserts judge from the capture alone.
+
+config:
+  test_timeout_ms: 180000
+  suite_timeout_ms: 1800000
+  video: true
+  detection_method: both
+
+runs:
+  # ===========================================================================
+  - id: load-run
+    title: "Enter the game once -> verify a clean base state, then change the bet"
+    cases:
+      - id: MY-01
+        title: "The game loads to a clean, playable base state"
+        description: "CSV L2 — Check UI Game / Follow Design"
+      - id: MY-03
+        title: "The stake control opens the denomination list"
+        description: "CSV L8 — Bấm +, - (the 'direct increment' reading is stale; +/- opens the list)"
+      - id: MY-04
+        title: "Selecting a denomination row sets that bet amount"
+        description: "CSV L7 — Denomination đúng config"
+    # No setup: the cold load IS what this run tests, so the loading sequence lives
+    # in the steps where video_trim can see it.
+    steps:
+      - id: step-01
+        description: "Open the game fresh via the Playsite login flow"
+        action: navigate
+        params: { url_script: "get_game_url" }
+
+      # startGame() instead of the real three-step tap — see the Start-sequence note in
+      # the file header. It collapses waitForGameReady -> Start -> waitForDeterministicStart
+      # into one call, invoking the Start handler directly.
+      - id: step-02
+        description: "Get into the game (Start handler invoked directly, not tapped)"
+        action: bridge_action
+        params: { name: startGame, args: [] }
+
+      - id: step-03
+        description: "Wait until the game is genuinely settled before asserting"
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+
+      - id: step-04
+        case: MY-01
+        description: "The game is ready to accept a new spin"
+        action: bridge_assert
+        params: { method: getSnapshot, args: [], path: roundState, expected: "READY" }
+
+      - id: step-05
+        case: MY-01
+        description: "The spin control is actually usable"
+        action: bridge_assert
+        params: { method: isSpinEnabled, args: [], expected: true }
+
+      # sceneReady is the flag that actually gates playability: canDo('spin') answers
+      # {ok:false, reason:'scene_not_ready'} while it is false, and on the real-tap start
+      # path it never flips. Asserting it pins "genuinely playable", not just "past loading".
+      - id: step-06
+        case: MY-01
+        description: "The gameplay scene finished initialising"
+        action: bridge_assert
+        params: { method: getSnapshot, args: [], path: sceneReady, expected: true }
+
+      # The loading screen is destroyed when the game starts, so the Start button must be
+      # gone. Cheap corroboration that the game really transitioned past loading.
+      - id: step-07
+        case: MY-01
+        description: "The loading screen is gone (Start no longer exists)"
+        action: bridge_assert
+        params: { method: getButtonRect, args: ["startButton"], expected: null }
+
+      # MY-02 ("the bet on entry is the BO-configured default level") was REMOVED
+      # 2026-07-21. QA: the configured default only applies to a brand-new account —
+      # once the player has bet once, re-entering restores the LAST bet, so the
+      # expectation was never valid for this account. Live evidence from the dev run:
+      # before start betAmount 3 / betIndex 2 / isAtDefaultBet true, after start
+      # betAmount 100 / betIndex 10 / isAtDefaultBet false, while defaultStake and
+      # defaultBetLevel both stayed 3. Not a game bug — a wrong expectation. The
+      # expectedBet derivation script and its assert went with it.
+
+      # ---- Bet phase: formerly the separate bet-run, folded in 2026-07-21 so one game
+      # ---- entry serves MY-01, MY-03 and MY-04 instead of loading the game twice.
+      - id: step-08
+        description: "Note the bet we start from"
+        action: bridge_action
+        params: { name: getBetAmount, args: [] }
+        save: betBefore
+
+      - id: step-09
+        description: "Note which row is currently selected (restored in teardown)"
+        action: bridge_action
+        params: { name: getBetIndex, args: [] }
+        save: startRow
+
+      - id: step-10
+        description: "Wait until the stake control is genuinely tappable"
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["stakeIncrease"] }
+
+      - id: step-11
+        description: "A real player tap on the stake control"
+        action: click_button
+        params: { name: stakeIncrease }
+
+      - id: step-12
+        description: "Settle so the tap is a distinct moment in the recording"
+        action: wait_ms
+        params: { ms: 300 }
+
+      - id: step-13
+        case: MY-03
+        description: "The denomination list is now on screen"
+        action: bridge_assert
+        params: { method: isPopupVisible, args: ["denominations"], expected: true }
+
+      # The row to switch TO is chosen by ASKING THE BRIDGE which rows are tappable rather
+      # than assuming one: the CURRENT row is deliberately interactable:false, and
+      # isButtonClickable folds in the hit test, so it reports honestly whether a row is
+      # covered by another control (getButtonRect does not — it reported visible:true /
+      # interactable:true for rows that were provably untappable on 2026-07-21).
+      # No dependency on defaultBetLevel or getDefaultBetIndex() (whose base is still in
+      # question — see plan OPEN-1); this stays correct whatever the game opened on.
+      # Two single-return scripts (a script's `return` is what `save:` keeps; a
+      # `vars.X = ...` mutation does NOT persist back to the runner).
+      - id: step-14
+        description: "Ask the bridge for a denomination row that is genuinely tappable"
+        action: script
+        save: targetRow
+        params:
+          cmd: |
+            const s = bridge.getGameSettings();
+            assert(s.denominations.length > 1,
+                   'need at least 2 denominations to test switching');
+            const cur = vars.startRow;            // live betIndex read in step-09
+            assert(cur >= 0,
+                   'betIndex is ' + cur + ' (unknown) — cannot pick a different row');
+            for (let i = 0; i < s.denominations.length; i++) {
+              if (i === cur) continue;            // current row is interactable:false
+              if (bridge.isButtonClickable('bet:row:' + i)) return i;
+            }
+            assert(false,
+                   'no denomination row is clickable other than the current one (' + cur +
+                   ') — every other row is covered by another control');
+
+      - id: step-15
+        description: "Look up that row's denomination (the bet it should produce)"
+        action: script
+        save: targetBet
+        params:
+          cmd: |
+            const bet = bridge.getGameSettings().denominations[vars.targetRow];
+            assert(typeof bet === 'number',
+                   'denominations[] entries are not plain numbers (got ' +
+                   JSON.stringify(bet) + ') — the bet assert needs a different field');
+            return bet;
+
+      - id: step-16
+        description: "Wait until that derived row is tappable"
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["bet:row:{{targetRow}}"] }
+
+      - id: step-17
+        description: "A real player tap on the derived denomination row"
+        action: click_button
+        params: { name: "bet:row:{{targetRow}}" }
+
+      - id: step-18
+        action: wait_ms
+        params: { ms: 300 }
+
+      # MY-04: two case-tagged asserts, each comparing a live bridge value to a value
+      # saved earlier (the row we chose, and its denomination). Both must hold for the
+      # case to pass — the run ANDs a case's tagged asserts.
+      - id: step-19
+        case: MY-04
+        description: "The game switched to the row we tapped"
+        action: bridge_assert
+        params: { method: getBetIndex, args: [], expected: "$targetRow" }
+
+      - id: step-20
+        case: MY-04
+        description: "...at that row's denomination"
+        action: bridge_assert
+        params: { method: getBetAmount, args: [], expected: "$targetBet" }
+
+      # ONE video call over the whole entry-then-bet-change clip, partitioned across the
+      # three cases. Each question names the moment it is about, so the load questions are
+      # judged on the base game as it first appears and not on the final (post-bet) frame.
+      - id: step-21
+        description: "One look: the game arrives playable, the list opens, the bet changes"
+        assert:
+          ai:
+            mode: video
+            video_trim: { from_step: step-01, to_step: step-20 }
+            prompt: >-
+              Mystic is a 7x7 cluster-pays slot. This clip runs from a cold start through
+              to a bet change: the loading screen completes and the base game appears,
+              then the player taps the stake control and picks a different bet from the
+              list that opens. Answer each question about the moment it names.
+              (1) When the base game first appears, is the reel grid fully drawn, and are
+              the spin button and the balance visible? (2) After the stake control is
+              tapped, does a denomination / bet list open on screen? (3) At the very end
+              of the clip, does the bet / stake label read {{targetBet}} (it started at
+              {{betBefore}})?
+            output_schema:
+              grid_rendered: { type: boolean }
+              spin_button_visible: { type: boolean }
+              balance_visible: { type: boolean }
+              denomination_list_opened: { type: boolean }
+              bet_label_matches: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected_by_case:
+              MY-01:
+                grid_rendered: true
+                spin_button_visible: true
+                balance_visible: true
+                confidence: high
+              MY-03:
+                denomination_list_opened: true
+                confidence: high
+              MY-04:
+                bet_label_matches: true
+                confidence: high
+    teardown:
+      # The bet is persistent state. A reload does NOT restore it — CSV L127-134
+      # documents a Last-bet feature that restores the LAST bet on load — so the
+      # starting row is tapped back explicitly, or the changed bet leaks into every
+      # later test (anti-pattern #2). Restoring to the row we actually STARTED on
+      # (step-09), not to a recomputed default, so this puts back exactly what it found.
+      - id: teardown-01
+        action: bridge_action
+        params: { name: dismissPopups, args: [] }
+      - id: teardown-02
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["stakeIncrease"] }
+      - id: teardown-03
+        action: click_button
+        params: { name: stakeIncrease }
+      - id: teardown-04
+        action: wait_ms
+        params: { ms: 300 }
+      - id: teardown-05
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["bet:row:{{startRow}}"] }
+      - id: teardown-06
+        action: click_button
+        params: { name: "bet:row:{{startRow}}" }
+      - id: teardown-07
+        action: wait_ms
+        params: { ms: 300 }
+      - id: teardown-08
+        description: "Confirm the bet really is back where it started"
+        action: bridge_assert
+        params: { method: getBetAmount, args: [], expected: "$betBefore" }
+      - id: teardown-09
+        description: "Leave a clean base screen for whatever runs next"
+        action: bridge_action
+        params: { name: dismissPopups, args: [] }
+
+  # ===========================================================================
+  - id: spin-win-run
+    title: "One funded, forced-win spin -> 2 verdicts"
+    cases:
+      - id: MY-05
+        title: "The balance is debited by the bet the moment the spin starts"
+        description: "CSV L11 — Bấm bet -> Balance = Balance hiện tại - Bet Amount (trừ luôn)"
+      - id: MY-06
+        title: "The payout is credited once the reels resolve"
+        description: "CSV L12 — Quay xong có kết quả -> Balance + Payout"
+    setup:
+      - id: setup-01
+        action: navigate
+        params: { url_script: "get_game_url" }
+      - id: setup-02
+        action: bridge_action
+        params: { name: startGame, args: [] }
+      - id: setup-03
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+      - id: setup-04
+        description: "Snapshot the REAL balance — test-scoped, restored in this run's teardown"
+        action: wallet_balance
+        save: origBalance
+      # Fund from the LIVE bet, not from denominations[defaultBetLevel - 1]. The configured
+      # default only applies to a brand-new account; once the player has bet once, entering
+      # the game restores the LAST bet (the same fact that invalidated MY-02). On 2026-07-21
+      # the default was 3 while the restored bet was 100, so funding 10x the DEFAULT gave a
+      # balance of 30 against a stake of 100 — the game correctly refused the spin and showed
+      # the insufficient-balance message popup, and every downstream assert failed.
+      - id: setup-05
+        description: "Fund the player comfortably above the stake they will actually bet"
+        action: script
+        save: fundedBalance
+        params:
+          cmd: |
+            const stake = bridge.getBetAmount();
+            assert(typeof stake === 'number' && stake > 0,
+                   'getBetAmount() returned ' + JSON.stringify(stake) +
+                   ' — cannot size the funding without a live stake');
+            return stake * 10;
+      - id: setup-06
+        action: wallet_set
+        params: { amount: "$fundedBalance" }
+      - id: setup-07
+        description: "Reload so the client reads the new balance"
+        action: navigate
+        params: { url_script: "get_game_url" }
+      - id: setup-08
+        action: bridge_action
+        params: { name: startGame, args: [] }
+      - id: setup-09
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+    steps:
+      # stake and balBefore are saved SEPARATELY (a script persists only its single
+      # `return`, so one script per value).
+      - id: step-01
+        description: "Note the stake now that we are funded"
+        action: script
+        save: stake
+        params:
+          cmd: "return bridge.getBetAmount();"
+
+      - id: step-02
+        description: "Note the balance before the spin"
+        action: script
+        save: balBefore
+        params:
+          cmd: |
+            const bal = bridge.getBalance();
+            // Fail HERE with a readable message rather than letting an unaffordable spin
+            // surface three steps later as 'expected -70, got 30' plus a message popup.
+            assert(bal >= vars.stake,
+                   'balance ' + bal + ' is below the stake ' + vars.stake +
+                   ' — the spin cannot be placed (funding in setup-05 was sized wrong)');
+            return bal;
+
+      # Precompute the two comparison targets so the verdicts can be plain, case-tagged
+      # bridge_asserts (and so the timing-sensitive mid-flight check is a bare balance
+      # read, with nothing to evaluate in the critical moment).
+      - id: step-03
+        description: "Expected balance right after the debit"
+        action: script
+        save: expectedAfterDebit
+        params:
+          cmd: "return vars.balBefore - vars.stake;"
+
+      # The forced payload is BUILT AT RUN TIME, not loaded from a fixture: it carries
+      # a `balance` field which must agree with the wallet we just set, so a static
+      # file would fight it. Grid + cluster are copied VERBATIM from QA's real winning
+      # sample (2026-07-20) so the cluster is known-valid; only stake / payout /
+      # balance are recomputed.
+      #   payout = multiplier x stake x multiplierLevel   (verified against 3 samples)
+      #   result[] = cascade steps; the LAST step is always winnings:[] payout:0
+      #   NOTE views[].id is 1-BASED (reel 1-7) but positions[].x is 0-BASED (reel 0-6)
+      - id: step-04
+        description: "Inject a known winning result so the payout is not left to chance"
+        action: script
+        save: expectedPayout
+        params:
+          cmd: |
+            const stake = vars.stake, mult = 0.3, level = 1;   // B cluster of 5
+            const payout = mult * stake * level;
+            bridge.setForcedResult({
+              result: [
+                {
+                  views: [
+                    { id: 1, value: ["C","P1","A","D","C","C","D"] },
+                    { id: 2, value: ["P2","P3","A","B","B","B","A"] },
+                    { id: 3, value: ["P2","C","B","D","B","C","A"] },
+                    { id: 4, value: ["B","B","C","C","B","P3","B"] },
+                    { id: 5, value: ["D","P1","P1","D","P2","C","P2"] },
+                    { id: 6, value: ["B","P3","P1","P1","P2","P1","B"] },
+                    { id: 7, value: ["D","P2","A","P2","A","A","P2"] }
+                  ],
+                  winnings: [{
+                    symbol: "B", type: "X", multiplier: mult, clusterSize: 5,
+                    positions: [{x:1,y:3},{x:1,y:4},{x:2,y:4},{x:3,y:4},{x:1,y:5}],
+                    payout: payout
+                  }],
+                  multiplierLevel: 1, payout: payout
+                },
+                {
+                  views: [
+                    { id: 1, value: ["C","P1","A","D","C","C","D"] },
+                    { id: 2, value: ["P3","P2","P1","P2","P3","A","A"] },
+                    { id: 3, value: ["C","P2","C","B","D","C","A"] },
+                    { id: 4, value: ["B","B","B","C","C","P3","B"] },
+                    { id: 5, value: ["D","P1","P1","D","P2","C","P2"] },
+                    { id: 6, value: ["B","P3","P1","P1","P2","P1","B"] },
+                    { id: 7, value: ["D","P2","A","P2","A","A","P2"] }
+                  ],
+                  winnings: [], multiplierLevel: 2, payout: 0
+                }
+              ],
+              freeSpins: 0, totalFreeSpin: 0, totalFreeSpinPayout: 0, paylines: null,
+              baseStake: stake, stake: stake,
+              rawPayout: payout, payout: payout, accumulatedWinAmount: payout,
+              winlose: payout - stake,
+              balance: vars.balBefore - stake + payout,
+              betLines: 0, jackpot: 0, hasReachedMaxWin: false, maxWin: 0,
+              gameState: 1, promoResult: null
+            });
+            return payout;
+
+      - id: step-05
+        description: "Expected balance after the win lands (debit + payout)"
+        action: script
+        save: expectedAfterWin
+        params:
+          cmd: "return vars.balBefore - vars.stake + vars.expectedPayout;"
+
+      - id: step-06
+        description: "Wait until the spin control is genuinely tappable"
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["spin"] }
+
+      - id: step-07
+        description: "A real player tap on Spin"
+        action: click_button
+        params: { name: spin }
+
+      # TIMING-SENSITIVE: reads the balance while the round is in flight, to catch the
+      # immediate debit (CSV L11 "trừ luôn"). Forcing fixes the OUTCOME, not the TIMING —
+      # if the client debits a beat after the pointer event this will flake. Kept a bare
+      # balance read (no computation) so as little as possible happens before the read.
+      - id: step-08
+        case: MY-05
+        description: "The stake has already left the balance"
+        action: bridge_assert
+        params: { method: getBalance, args: [], expected: "$expectedAfterDebit" }
+
+      - id: step-09
+        description: "Let the round finish, cascades and all"
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+
+      - id: step-10
+        case: MY-06
+        description: "The forced payout is what the game reports"
+        action: bridge_assert
+        params: { method: getLastPayout, args: [], expected: "$expectedPayout" }
+
+      - id: step-11
+        case: MY-06
+        description: "...and it landed on the debited balance"
+        action: bridge_assert
+        params: { method: getBalance, args: [], expected: "$expectedAfterWin" }
+
+      - id: step-12
+        description: "One look at the round: stake off, symbols clear and refill, win on"
+        assert:
+          ai:
+            mode: video
+            video_trim: { from_step: step-06, to_step: step-11 }
+            prompt: >-
+              Mystic is a 7x7 cluster-pays slot. The player has a balance of {{balBefore}}
+              and a stake of {{stake}}. They spin once and win {{expectedPayout}}. Watch
+              the balance readout. Does it drop when the spin starts? Do symbols visibly
+              clear and new ones fall in from above (a cascade)? Does the balance rise by
+              the win once the round settles?
+            output_schema:
+              balance_dropped_on_spin: { type: boolean }
+              cascade_visible: { type: boolean }
+              balance_rose_by_win: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected_by_case:
+              MY-05:
+                balance_dropped_on_spin: true
+                confidence: high
+              MY-06:
+                cascade_visible: true
+                balance_rose_by_win: true
+                confidence: high
+    teardown:
+      - id: teardown-01
+        description: "Clear the one-shot injection"
+        action: bridge_action
+        params: { name: setForcedResult, args: [null] }
+      - id: teardown-02
+        action: bridge_action
+        params: { name: dismissPopups, args: [] }
+      # MANDATORY (anti-pattern #18). setForcedResult sends nothing to the server, so
+      # the server wallet stayed at fundedBalance regardless of what the round appeared
+      # to pay — wallet_set applies only the delta and lands back on the original.
+      - id: teardown-03
+        description: "Restore the REAL balance"
+        action: wallet_set
+        params: { amount: "$origBalance" }
+
+tests:
+  # ===========================================================================
+  - id: MY-07
+    title: "Betting with insufficient balance is refused with a popup"
+    description: >-
+      CSV L13-14 — Hết số dư / Bấm bet -> Popup thông báo hết số dư (chặn phía client).
+      Absorbs the former MY-50 (QA: the two are not different).
+      This game does NOT disable the spin button on a low balance: it opens the generic
+      MessagePopup on tap (title "oops", msg "not_enough_money", only message:ok live).
+    setup:
+      - id: setup-01
+        action: navigate
+        params: { url_script: "get_game_url" }
+      - id: setup-02
+        action: bridge_action
+        params: { name: startGame, args: [] }
+      - id: setup-03
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+      - id: setup-04
+        description: "Snapshot the REAL balance — test-scoped, restored in this test's teardown"
+        action: wallet_balance
+        save: origBalance
+      # The LIVE bet, not denominations[defaultBetLevel - 1]. The stake this test must
+      # under-fund is whatever the player will actually bet, and entering the game restores
+      # the LAST bet (the fact that invalidated MY-02). Deriving from the default only
+      # happened to work while default (3) < last bet (100): had the player last bet 1, a
+      # balance of half the DEFAULT (1.5) would sit ABOVE the stake and the test would be
+      # vacuous — it would fund the player well enough to spin and then expect a refusal.
+      # Saved separately because it is used in the AI prompt via {{stake}}, and a script
+      # persists only its `return`.
+      - id: setup-05
+        description: "The stake the player will actually bet (last bet, restored on entry)"
+        action: script
+        save: stake
+        params:
+          cmd: |
+            const stake = bridge.getBetAmount();
+            assert(typeof stake === 'number' && stake > 0,
+                   'getBetAmount() returned ' + JSON.stringify(stake) +
+                   ' — cannot size an under-funded balance without a live stake');
+            return stake;
+      - id: setup-06
+        description: "A balance just below that stake"
+        action: script
+        save: lowBalance
+        params:
+          cmd: |
+            const low = vars.stake / 2;   // wallet takes any precision — no rounding
+            assert(low > 0 && low < vars.stake,
+                   'cannot pick a balance between 0 and the stake ' + vars.stake +
+                   ' — a 0 balance would test an empty wallet instead');
+            return low;
+      - id: setup-07
+        action: wallet_set
+        params: { amount: "$lowBalance" }
+      - id: setup-08
+        description: "Reload so the client reads the new balance"
+        action: navigate
+        params: { url_script: "get_game_url" }
+      - id: setup-09
+        action: bridge_action
+        params: { name: startGame, args: [] }
+      - id: setup-10
+        action: bridge_action
+        params: { name: waitForStableGameState, args: [] }
+    steps:
+      - id: step-01
+        description: "Vacuity guard: the balance really is below the stake"
+        action: script
+        save: balBefore
+        params:
+          cmd: |
+            const bal = bridge.getBalance();
+            assert(bal < bridge.getBetAmount(),
+                   'balance ' + bal + ' is not below the bet ' + bridge.getBetAmount() +
+                   ' — MY-07 would pass vacuously');
+            return bal;
+
+      # Asserting the button IS clickable looks backwards for a test about blocked
+      # betting, but it pins the actual mechanism: if someone later "fixes" this by
+      # disabling the button, this test fails and forces the conversation instead of
+      # silently passing on different behaviour.
+      - id: step-02
+        description: "The spin control stays enabled — this game blocks with a popup, not a grey-out"
+        action: bridge_assert
+        params: { method: isButtonClickable, args: ["spin"], expected: true }
+
+      - id: step-03
+        action: bridge_action
+        params: { name: waitForButtonClickable, args: ["spin"] }
+
+      - id: step-04
+        description: "The player taps Spin anyway"
+        action: click_button
+        params: { name: spin }
+
+      - id: step-05
+        description: "Settle so the dialog has appeared"
+        action: wait_ms
+        params: { ms: 300 }
+
+      - id: step-06
+        description: "The generic message dialog is showing"
+        action: bridge_assert
+        params: { method: isPopupVisible, args: ["message"], expected: true }
+
+      # The clip STOPS here, at the popup. message:ok reloads the page and would take
+      # the bridge with it, so nothing past this point belongs in the recording.
+      - id: step-07
+        description: "The player sees a not-enough-money dialog and the reels never move"
+        assert:
+          ai:
+            mode: video
+            video_trim: { from_step: step-03, to_step: step-06 }
+            prompt: >-
+              Mystic is a 7x7 cluster-pays slot at rest in the base game. The player's
+              balance is {{lowBalance}}, below their bet of {{stake}}. In
+              this clip they tap the spin button. Does a dialog appear telling the player
+              they do not have enough money / insufficient balance? Does that dialog show
+              a single confirm button (OK) and no cancel button? Do the reels stay still —
+              that is, no spin starts?
+            output_schema:
+              not_enough_money_dialog: { type: boolean }
+              single_ok_button_only: { type: boolean }
+              reels_did_not_spin: { type: boolean }
+              confidence: { type: string, enum: [high, medium, low] }
+            expected:
+              not_enough_money_dialog: true
+              single_ok_button_only: true
+              reels_did_not_spin: true
+              confidence: high
+
+      # MessagePopup is the generic dialog for EVERY message in the game, so
+      # isPopupVisible('message') alone is not specific. Pinning the configuration
+      # (ok live, cancel absent) is what identifies it as the insufficient-funds one.
+      - id: step-08
+        description: "OK is the only way out, exactly as documented"
+        action: bridge_assert
+        params: { method: isButtonClickable, args: ["message:ok"], expected: true }
+
+      # isButtonClickable, not getButtonRect == null: the cancel node EXISTS on the message
+      # dialog, it is just not shown, so getButtonRect does not return null for it — on
+      # 2026-07-21 it returned a degenerate rect
+      # {x: NaN, y: NaN, width: 0, height: 0, visible: false, interactable: true}.
+      # "not live" is a clickability question anyway, so ask the method that folds in the
+      # hit test — and it mirrors step-08's check on message:ok.
+      - id: step-09
+        description: "No bet was taken — balance untouched, still ready for a new round"
+        action: script
+        params:
+          cmd: |
+            assert_equal(bridge.getBalance(), vars.balBefore);
+            assert_equal(bridge.getSnapshot().roundState, 'READY');
+    teardown:
+      # message:ok is deliberately NOT used: it reloads the page, ending the session and
+      # taking the bridge with it. dismissPopups() hides the dialog without the reload —
+      # documented as the right way to clear the screen (wrong only if the reload
+      # itself is what you are testing).
+      - id: teardown-01
+        action: bridge_action
+        params: { name: dismissPopups, args: [] }
+      - id: teardown-02
+        description: "Restore the REAL balance — mandatory (anti-pattern #18)"
+        action: wallet_set
+        params: { amount: "$origBalance" }

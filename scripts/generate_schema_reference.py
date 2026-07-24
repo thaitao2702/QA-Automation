@@ -20,6 +20,7 @@ to keep skills in sync with the framework.
 from __future__ import annotations
 
 import inspect
+import json
 import re
 import sys
 from datetime import datetime
@@ -53,9 +54,16 @@ def _extract_action_params() -> dict[str, dict]:
     action_params = {
         "navigate": {
             "required": [],
-            "optional": ["url", "url_script"],
+            "optional": ["url", "url_script", "bridge_timeout_ms"],
             "description": "Navigate browser to URL. Use 'url' for static URL or 'url_script' to resolve dynamically.",
-            "note": "Provide either 'url' or 'url_script', not both.",
+            "defaults": {"bridge_timeout_ms": 30000},
+            "note": (
+                "Provide either 'url' or 'url_script', not both. When the URL carries "
+                "'bridge=1', navigate waits for window.__gameTestBridge to register "
+                "before the step succeeds (networkidle fires while the game is still "
+                "booting), so the next bridge call cannot race the game. Raise "
+                "'bridge_timeout_ms' only for a build that is legitimately slow to boot."
+            ),
         },
         "wait_for_state": {
             "required": ["state"],
@@ -73,7 +81,7 @@ def _extract_action_params() -> dict[str, dict]:
             "required": ["method", "expected"],
             "optional": ["args", "path"],
             "description": "Call a bridge method and assert its return value equals expected. Arguments may reference variables saved by earlier steps — the assertion logic lives in the game bridge (deterministic).",
-            "note": "With no 'args', calls a BridgeHelper getter (e.g. isSpinEnabled). 'args: [..]' is an ordered argument list: each element is a literal, except a string '$name' which resolves to the variable saved as <name> (use '$$' to escape a literal leading $). A saved variable can appear at any position. When 'args' is given the bridge JS method is called directly, so game-exposed assert functions (e.g. testFreeSpin, verifyHoldSpinCoinsHeld) need no Python wrapper. Optional 'path' drills into a nested field of the returned value before the equality check (dot-separated; integer segments index lists) — e.g. an analyser returning {valid, bonusFound, respinCount, violations} is asserted with 'path: valid, expected: true' without pinning non-deterministic siblings.",
+            "note": "With no 'args', calls a BridgeHelper getter (e.g. isSpinEnabled). 'args: [..]' is an ordered argument list: each element is a literal, except a string '$name' which resolves to the variable saved as <name> (use '$$' to escape a literal leading $). A saved variable can appear at any position. When 'args' is given the bridge JS method is called directly, so game-exposed assert functions (e.g. testFreeSpin, verifyHoldSpinCoinsHeld) need no Python wrapper. 'expected' also resolves a '$name' to a saved variable, so a value an earlier step computed can be the comparison target — letting a 'script' compute a value and a following case-tagged 'bridge_assert' own the verdict. Optional 'path' drills into a nested field of the returned value before the equality check (dot-separated; integer segments index lists) — e.g. an analyser returning {valid, bonusFound, respinCount, violations} is asserted with 'path: valid, expected: true' without pinning non-deterministic siblings.",
         },
         "capture": {
             "required": [],
@@ -117,7 +125,7 @@ def _extract_action_params() -> dict[str, dict]:
             "required": ["name"],
             "optional": ["require_visible"],
             "description": "Click a named game button at its real on-screen coordinates (a genuine user tap), not by invoking its bridge action.",
-            "note": "Resolves 'name' to a screen rect via the bridge's getButtonRect(name) (bridge-api.md §3.7), then page.mouse.click(centerX, centerY). Names: spin, stop, auto, buyBonus, nextBet, previousBet, trophy (always), plus popup element names while that popup is open (e.g. bet:row:2, auto:package:0, buyBonus:confirm). Fails if the button is absent (unknown name or its popup is closed) or — unless require_visible: false — if the rect is not visible/clickable. The resolved rect is the step result (save:-able). Pair with a wait_for_state/wait_ms afterwards if the tap opens a popup or starts a spin.",
+            "note": "Resolves 'name' to a screen rect via the bridge's getButtonRect(name) (bridge-api.md §3.7), then page.mouse.click(centerX, centerY). Names: spin, stop, auto, buyBonus, nextBet, previousBet, trophy (always), plus popup element names while that popup is open (e.g. bet:row:2, auto:package:0, buyBonus:confirm). Fails if the button is absent (unknown name or its popup is closed) or — unless require_visible: false — if the rect is not visible/clickable. The resolved rect is the step result (save:-able). Pair with a wait_for_state/wait_ms afterwards if the tap opens a popup or starts a spin. 'name' supports {{var}} substitution, so a button can be derived at run time from a value an earlier step captured with 'save:' — e.g. name 'bet:row:{{targetRow}}' taps the denomination row computed from the server's config instead of a hardcoded index (a {{var}} that was never saved fails the step).",
         },
         "agent_action": {
             "required": ["goal"],
@@ -209,7 +217,7 @@ def _generate_yml(action_params: dict) -> str:
     for action in sorted(SUPPORTED_ACTIONS):
         info = action_params.get(action, {})
         lines.append(f"  {action}:")
-        lines.append(f"    description: \"{info.get('description', '')}\"")
+        lines.append(f"    description: {json.dumps(info.get('description', ''))}")
 
         req = info.get("required", [])
         lines.append(f"    required_params: [{', '.join(req)}]")
@@ -225,7 +233,7 @@ def _generate_yml(action_params: dict) -> str:
 
         note = info.get("note")
         if note:
-            lines.append(f"    note: \"{note}\"")
+            lines.append(f"    note: {json.dumps(note)}")
 
         lines.append("")
 
@@ -516,7 +524,11 @@ def _generate_md(action_params: dict) -> str:
     lines.append("Add `save: <name>` to any result-producing step (typically `bridge_action`)")
     lines.append("to capture its result into a per-test variable. Assert on it later with")
     lines.append("`bridge_assert`: its `args` list passes arguments to a bridge function, where")
-    lines.append("a string `\"$name\"` resolves to a saved variable (any position). The function's")
+    lines.append("a string `\"$name\"` resolves to a saved variable (any position), and a string")
+    lines.append("containing `{{name}}` interpolates saved values into a larger string —")
+    lines.append("`\"bet:row:{{targetRow}}\"` -> `\"bet:row:3\"`. Use `\"$name\"` to pass a value")
+    lines.append("(type preserved), `{{name}}` to build one. The same `{{name}}` works in")
+    lines.append("`click_button params.name` and in AI prompts. The function's")
     lines.append("return is compared to `expected`. The assertion logic lives in the game")
     lines.append("bridge, so it is deterministic. Variables are scoped to a single test")
     lines.append("(setup → steps → teardown).")
