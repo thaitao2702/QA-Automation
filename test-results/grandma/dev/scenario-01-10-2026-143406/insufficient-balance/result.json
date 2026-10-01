@@ -1,0 +1,99 @@
+{
+  "kind": "run",
+  "scenario": "insufficient-balance",
+  "description": "Force a balance-below-stake state, then attempt a spin \u2014 the client should block it with an out-of-money popup. Tries the WALLET first (a whole-unit Playsite withdrawal down below the min bet); if the balance can't be shrunk that far, RAISES the stake above the balance instead. Restores the wallet/bet at the end. Needs PLAYSITE_* config for the wallet path.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    141.65858578681946,
+    157.70745968818665
+  ],
+  "shots": [],
+  "facts": {
+    "mode": "wallet",
+    "spin_balance": 0.44,
+    "chosen_bet": 3.0,
+    "min_bet": 0.1,
+    "orig_balance": 15141.44
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-008",
+      "title": "With too little balance the spin is blocked and the player is told",
+      "stream": [
+        {
+          "spec": "{facts.spin_balance} < {facts.chosen_bet}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            141.65858578681946,
+            157.70745968818665
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the player presses spin once.\n(1) message_shown: does the game show a message telling the player they have insufficient funds? (2) reels_spun: do the reels spin? (3) message_text: read the message exactly as printed, as a string. If there is none, answer \"none\". (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "message_shown": {
+              "type": "boolean"
+            },
+            "reels_spun": {
+              "type": "boolean"
+            },
+            "message_text": {
+              "type": "string"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "message_shown": true,
+            "reels_spun": false,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621312",
+          "data": {
+            "message_shown": true,
+            "reels_spun": false,
+            "message_text": "Oops! Insufficient balance. Please recharge and try again.",
+            "ui_broken": false,
+            "notes": "The player reloads the game, which results in a balance of 0.44. They then increase the bet to 3.00 and attempt to spin, which triggers the error message.",
+            "confidence": "high",
+            "reason": "At around 00:15, the player clicks the spin button. Since the current bet (3.00) exceeds the balance (0.44), a popup message with the text 'Oops! Insufficient balance. Please recharge and try again.' appears, and the reels do not spin."
+          },
+          "mismatches": [],
+          "reason": "At around 00:15, the player clicks the spin button. Since the current bet (3.00) exceeds the balance (0.44), a popup message with the text 'Oops! Insufficient balance. Please recharge and try again.' appears, and the reels do not spin.",
+          "note": "At around 00:15, the player clicks the spin button. Since the current bet (3.00) exceeds the balance (0.44), a popup message with the text 'Oops! Insufficient balance. Please recharge and try again.' appears, and the reels do not spin.",
+          "tokens": [
+            1744,
+            1372
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

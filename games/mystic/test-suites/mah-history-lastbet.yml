@@ -1,0 +1,250 @@
+# Mystic — History (Mah_012/013) + the Last Bet FLASH (Mah_087) from test-case-mahjong.csv.
+# The other Last Bet rows live in mah-lastbet.yml — they reopen the game (see below).
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-history-lastbet.yml
+#
+# ── WHAT IS AUTOMATED HERE ─────────────────────────────────────────────────────────────
+#   Mah_012  in-game History  -> spin-then-history. Now an EXACT check: the panel's rendered rows are
+#            read back through the bridge (getHistoryRows) and the newest one is matched to the round
+#            just played BY ROUND ID. The AI is left to judge the panel's UI, which is the only part
+#            of the case a getter cannot answer.
+#   Mah_087  Last Bet before each bonus round -> last-bet-before-rounds. This is the one case in the
+#            module that is about the panel DRAWING ITSELF: per the spec it flashes for ~0.5s before
+#            every free-spin round, which is why it is graded here on a high-fps clip.
+#
+# ── THE REST OF THE MODULE MOVED — AND WHY ─────────────────────────────────────────────
+#   Mah_081 / 082 / 084 / 085 are now in `mah-lastbet.yml`. They were parked here as "not
+#            automatable" because each begins "Mở Last Bet", which was read as *open the Last Bet
+#            panel*, and this bridge exposes no `lastBet` button.
+#            **That reading was wrong. Last Bet is a RESUME behaviour, not a panel** — "Mở Last Bet"
+#            is *reopen the game*, and the session must come back on the round last played. No button
+#            is needed, so the cases run on `last-bet-restore` /
+#            `bonus-resume-denomination-swap`. Mah_085's in-bonus half used to ride the clip below;
+#            it is now the resume case there, where the reopen actually happens.
+#   Mah_086  Last Bet of a promo round — still blocked on a promo-provisioned player, like Mah_074-080.
+#   Mah_083  Last Bet for Buy Bonus — **buyBonus is not supported by this game** (bridge-qa-api.md
+#            Gotchas: "the button exists but does nothing"). Not a defect and not automatable here.
+#   Mah_013  History on BO — the BO API client can post to an endpoint, but the bet-history endpoint
+#            is not known to this repo and dev BO auth is currently rejected (see the session summary).
+#            Left MANUAL. The Mah_012 run below exposes the round's identity (facts.round_id / stake /
+#            payout / balance) so the manual BO comparison is a copy-paste rather than a hunt.
+
+runs:
+  # ── Mah_012 : History + bet detail, across all three outcome shapes ─────────────────
+  # ONE run, three cases. The scenario spins until it has seen each of a LOSING spin, a NORMAL win
+  # (one winning cascade step) and a CASCADE win (two or more) — inspecting each the moment it
+  # happens: open History, open the newest row's detail, scroll it by ONE PAGE PER CLUSTER WIN (0 for
+  # a loss, 1 for a normal win, N for a cascade), then close up and keep hunting. One spin sequence
+  # covers all three, so this costs far fewer spins than three separate runs.
+  #
+  # Each inspection is MARKED, and each case targets its own clip with `at: no_win|normal_win|
+  # cascade_win`. A round's clip spans its own spin through its own History walk.
+  #
+  # Bonus rounds are drained and skipped — a free-spin ticket is a different shape (one sub-ticket per
+  # free spin) and is the Mah_012-fs run below. facts.bonuses_drained counts them.
+  #
+  # ⚠ A red `<outcome>_found` means the outcome never OCCURRED in the spin budget (default 80), not
+  #   that the game is broken. Raise it with `params: {max_spins: 150}`, or narrow the hunt with
+  #   `params: {outcomes: [cascade_win]}` and drop the other two cases.
+  #
+  # It also waits ~2s after each round before opening History (the row is written server-side and the
+  # list is built on open, so a late row cannot be recovered by dwelling), then waits for the list and
+  # the detail to actually load rather than trusting a fixed dwell.
+  - run:
+      scenario: spin-then-history
+      teardown: return-to-base
+      cases:
+        - id: Mah_012-nowin
+          title: "History and bet detail are correct for a LOSING round"
+          assert:
+            - stream: "{facts.no_win_found} == True"       # the outcome occurred within the budget
+            - stream: "{facts.no_win_detail_opened} == True"
+            - video:
+                at: no_win                    # this round's spin -> History -> detail walk
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip shows ONE base round and how it appears
+                  in History. The round was a LOSING spin — no cluster paid: stake {facts.no_win_stake}, win
+                  {facts.no_win_payout}, {facts.no_win_cluster_wins} winning cascade step(s) in the
+                  server result. After the round the clip opens the in-game History panel, clicks the
+                  NEWEST (top) row to open that bet's detail, and does not scroll it, because a round with no win has nothing below the fold. The ACTION TIMELINE below
+                  gives the exact time of each action — line it up with the burned-in timestamps.
+                  Answer: (1) does the History panel open and render as a proper list, not blank or an
+                  error (history_opened)? (2) is its top entry this round — stake {facts.no_win_stake}
+                  and win {facts.no_win_payout} (top_row_matches)? (3) does clicking it open a bet
+                  DETAIL view (detail_opened)? (4) does the detail show this round's single result grid with NO win shown — no win amount, no highlighted cluster (detail_content_correct)? (5) is anything visibly broken — missing
+                  values, placeholder text, overlapping or cut-off layout (display_broken)?
+                output_schema:
+                  history_opened: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_content_correct: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_content_correct: true
+                  display_broken: false
+                  confidence: medium
+
+        - id: Mah_012-win
+          title: "History and bet detail are correct for a single-cluster WIN"
+          assert:
+            - stream: "{facts.normal_win_found} == True"       # the outcome occurred within the budget
+            - stream: "{facts.normal_win_detail_opened} == True"
+            - video:
+                at: normal_win                    # this round's spin -> History -> detail walk
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip shows ONE base round and how it appears
+                  in History. The round was a NORMAL win — exactly one winning cascade step: stake {facts.normal_win_stake}, win
+                  {facts.normal_win_payout}, {facts.normal_win_cluster_wins} winning cascade step(s) in the
+                  server result. After the round the clip opens the in-game History panel, clicks the
+                  NEWEST (top) row to open that bet's detail, and scrolls it one page. The ACTION TIMELINE below
+                  gives the exact time of each action — line it up with the burned-in timestamps.
+                  Answer: (1) does the History panel open and render as a proper list, not blank or an
+                  error (history_opened)? (2) is its top entry this round — stake {facts.normal_win_stake}
+                  and win {facts.normal_win_payout} (top_row_matches)? (3) does clicking it open a bet
+                  DETAIL view (detail_opened)? (4) does the detail show the winning cluster and its win amount for this round (detail_content_correct)? (5) is anything visibly broken — missing
+                  values, placeholder text, overlapping or cut-off layout (display_broken)?
+                output_schema:
+                  history_opened: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_content_correct: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_content_correct: true
+                  display_broken: false
+                  confidence: medium
+
+        - id: Mah_012
+          title: "History and bet detail list every step of a CASCADE win"
+          assert:
+            - stream: "{facts.cascade_win_found} == True"       # the outcome occurred within the budget
+            - stream: "{facts.cascade_win_detail_opened} == True"
+            - video:
+                at: cascade_win                    # this round's spin -> History -> detail walk
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip shows ONE base round and how it appears
+                  in History. The round was a CASCADE win — {facts.cascade_win_cluster_wins} winning steps in a row: stake {facts.cascade_win_stake}, win
+                  {facts.cascade_win_payout}, {facts.cascade_win_cluster_wins} winning cascade step(s) in the
+                  server result. After the round the clip opens the in-game History panel, clicks the
+                  NEWEST (top) row to open that bet's detail, and scrolls it {facts.cascade_win_scrolls} page(s) — one per winning step. The ACTION TIMELINE below
+                  gives the exact time of each action — line it up with the burned-in timestamps.
+                  Answer: (1) does the History panel open and render as a proper list, not blank or an
+                  error (history_opened)? (2) is its top entry this round — stake {facts.cascade_win_stake}
+                  and win {facts.cascade_win_payout} (top_row_matches)? (3) does clicking it open a bet
+                  DETAIL view (detail_opened)? (4) as it scrolls, does the detail list EVERY cascade step of the round in sequence, each with its own grid and win, reaching the end of the list (detail_content_correct)? (5) is anything visibly broken — missing
+                  values, placeholder text, overlapping or cut-off layout (display_broken)?
+                output_schema:
+                  history_opened: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_content_correct: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_content_correct: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── Mah_012 (free spins) : the bonus round's ticket, one sub-ticket per free spin ───
+  # Same case id, different shape of round. In a free-spin round EACH FREE SPIN IS ITS OWN BET inside
+  # the ticket, so the detail is paged with the bridge's own nav (`historyDetail:next` / `:prev`) and
+  # the loop is driven by getHistoryDetailState().hasNext — never by page arithmetic, because the
+  # popup's nav accounts for the synthetic max-win page and counting would be off by one exactly on
+  # max-win rounds. Each sub-ticket is scrolled by ITS OWN cluster-win count.
+  - run:
+      scenario: freespin-then-history
+      teardown: return-to-base
+      cases:
+        - id: Mah_012-fs
+          title: "History detail of a free-spin round pages through every free spin"
+          assert:
+            # the ticket must hold one bet per round actually played (trigger + each free spin)
+            - stream: "{facts.bet_count_matches_rounds} == True"
+            - stream: "{facts.pages_visited} == {facts.bet_count}"
+            - stream: "{facts.back_at_first} == True"      # prev walked all the way back
+            - video:
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip plays base spins until free spins
+                  trigger, plays the whole bonus out ({facts.fs_rounds} free spins, {facts.bonus_total}
+                  total win), then opens History, opens that round's bet detail, and pages forward
+                  through every sub-ticket with the detail's next button before paging back to the
+                  first. Each sub-ticket is scrolled only as far as it has cluster wins. The ACTION
+                  TIMELINE below names every step — which sub-ticket is on screen and how many pages it
+                  was scrolled. Answer: (1) does the bet detail open for the bonus round
+                  (detail_opened)? (2) does each sub-ticket show one free spin of that round — its grid
+                  and its own win (subticket_per_freespin)? (3) does the next button move forward one
+                  free spin at a time, in order, without repeating or skipping (paging_forward_works)?
+                  (4) does the back/prev button return through the same tickets (paging_back_works)?
+                  (5) is anything broken — missing values, blank pages, overlapping or cut-off layout
+                  (display_broken)?
+                output_schema:
+                  detail_opened: { type: boolean }
+                  subticket_per_freespin: { type: boolean }
+                  paging_forward_works: { type: boolean }
+                  paging_back_works: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  detail_opened: true
+                  subticket_per_freespin: true
+                  paging_forward_works: true
+                  paging_back_works: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── Mah_087 : Last Bet flashes before each free-spin round ───────────────────────────
+  # ~0.5s of screen time per round, so `high_fps: true` is not optional here — at the default 4fps a
+  # flash can fall between two samples entirely. `timestamp: true` pairs the burned-in clock with the
+  # ACTION TIMELINE, which marks every round boundary with the stake and win the server returned, so
+  # the model can check the panel against the round that actually preceded it.
+  - run:
+      scenario: last-bet-before-rounds
+      teardown: return-to-base
+      cases:
+        - id: Mah_087
+          title: "Last Bet appears briefly before each free-spin round, showing the round just finished"
+          assert:
+            - stream: "{facts.fs_rounds} >= 2"      # need at least two rounds for a "before each" claim
+            - video:
+                high_fps: true                       # 16fps effective — a 0.5s flash
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip plays base spins until free spins
+                  trigger, then plays the whole bonus out. By design a LAST BET panel — showing the bet
+                  type, stake, bet amount and win of the round that just finished — flashes for about
+                  half a second before each free-spin round starts. The ACTION TIMELINE below marks the
+                  trigger and every round boundary with the stake and win the server returned; line
+                  those up with the burned-in timestamps. Answer: (1) does a Last Bet panel appear
+                  before the free-spin rounds (last_bet_shown)? (2) does it appear before EVERY round
+                  rather than only the first (shown_every_round)? (3) does it stay up briefly — roughly
+                  half a second — and then give way to the spin, rather than being skipped or sticking
+                  (timing_correct)? (4) do the values it shows match the round that had just finished
+                  per the ACTION TIMELINE (values_match_previous_round)?
+                output_schema:
+                  last_bet_shown: { type: boolean }
+                  shown_every_round: { type: boolean }
+                  timing_correct: { type: boolean }
+                  values_match_previous_round: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  last_bet_shown: true
+                  shown_every_round: true
+                  timing_correct: true
+                  values_match_previous_round: true
+                  confidence: low            # a 0.5s flash read from video — triage, never a hard fail
+

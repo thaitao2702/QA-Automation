@@ -1,0 +1,270 @@
+[
+  {
+    "id": "click-0",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 372609,
+    "end_ms": 372927,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-1",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 372606,
+    "end_ms": 375264,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "mark-2",
+    "action": "mark",
+    "description": "TUTORIAL TOP: the guide is open at the top of the page",
+    "start_ms": 375264,
+    "end_ms": 375264,
+    "result": null
+  },
+  {
+    "id": "shot-3",
+    "action": "shot",
+    "description": "screenshot: tutorial-01",
+    "start_ms": 377269,
+    "end_ms": 377349,
+    "result": {
+      "label": "tutorial-01",
+      "file": "00-tutorial-01.png"
+    }
+  },
+  {
+    "id": "scroll-4",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 377354,
+    "end_ms": 379379,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-5",
+    "action": "shot",
+    "description": "screenshot: tutorial-02",
+    "start_ms": 379379,
+    "end_ms": 379456,
+    "result": {
+      "label": "tutorial-02",
+      "file": "01-tutorial-02.png"
+    }
+  },
+  {
+    "id": "scroll-6",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 379463,
+    "end_ms": 381497,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-7",
+    "action": "shot",
+    "description": "screenshot: tutorial-03",
+    "start_ms": 381497,
+    "end_ms": 381584,
+    "result": {
+      "label": "tutorial-03",
+      "file": "02-tutorial-03.png"
+    }
+  },
+  {
+    "id": "scroll-8",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 381588,
+    "end_ms": 383624,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-9",
+    "action": "shot",
+    "description": "screenshot: tutorial-04",
+    "start_ms": 383624,
+    "end_ms": 383734,
+    "result": {
+      "label": "tutorial-04",
+      "file": "03-tutorial-04.png"
+    }
+  },
+  {
+    "id": "scroll-10",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 383740,
+    "end_ms": 385789,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-11",
+    "action": "shot",
+    "description": "screenshot: tutorial-05",
+    "start_ms": 385789,
+    "end_ms": 385878,
+    "result": {
+      "label": "tutorial-05",
+      "file": "04-tutorial-05.png"
+    }
+  },
+  {
+    "id": "scroll-12",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 385884,
+    "end_ms": 387912,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-13",
+    "action": "shot",
+    "description": "screenshot: tutorial-06",
+    "start_ms": 387912,
+    "end_ms": 387987,
+    "result": {
+      "label": "tutorial-06",
+      "file": "05-tutorial-06.png"
+    }
+  },
+  {
+    "id": "scroll-14",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 387994,
+    "end_ms": 390036,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-15",
+    "action": "shot",
+    "description": "screenshot: tutorial-07",
+    "start_ms": 390037,
+    "end_ms": 390110,
+    "result": {
+      "label": "tutorial-07",
+      "file": "06-tutorial-07.png"
+    }
+  },
+  {
+    "id": "scroll-16",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 390116,
+    "end_ms": 392145,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-17",
+    "action": "shot",
+    "description": "screenshot: tutorial-08",
+    "start_ms": 392146,
+    "end_ms": 392220,
+    "result": {
+      "label": "tutorial-08",
+      "file": "07-tutorial-08.png"
+    }
+  },
+  {
+    "id": "scroll-18",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 392228,
+    "end_ms": 394260,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-19",
+    "action": "shot",
+    "description": "screenshot: tutorial-09",
+    "start_ms": 394260,
+    "end_ms": 394333,
+    "result": {
+      "label": "tutorial-09",
+      "file": "08-tutorial-09.png"
+    }
+  },
+  {
+    "id": "scroll-20",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 394339,
+    "end_ms": 396380,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-21",
+    "action": "shot",
+    "description": "screenshot: tutorial-10",
+    "start_ms": 396380,
+    "end_ms": 396445,
+    "result": {
+      "label": "tutorial-10",
+      "file": "09-tutorial-10.png"
+    }
+  },
+  {
+    "id": "scroll-22",
+    "action": "scroll",
+    "description": "tutorial scroll down 1/1",
+    "start_ms": 396450,
+    "end_ms": 398478,
+    "result": {
+      "delta": 738,
+      "step": 1
+    }
+  },
+  {
+    "id": "shot-23",
+    "action": "shot",
+    "description": "screenshot: tutorial-11",
+    "start_ms": 398478,
+    "end_ms": 398564,
+    "result": {
+      "label": "tutorial-11",
+      "file": "10-tutorial-11.png"
+    }
+  },
+  {
+    "id": "mark-24",
+    "action": "mark",
+    "description": "TUTORIAL BOTTOM: the guide has been paged to the end",
+    "start_ms": 398564,
+    "end_ms": 398564,
+    "result": null
+  }
+]

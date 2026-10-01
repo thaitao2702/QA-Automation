@@ -1,0 +1,501 @@
+# Treasures of the Dragon VIP — UI, bet, balance, History, paytable, language, tutorial
+# (DV-01 … DV-12, DV-51, DV-52).
+#
+# Run:  python scripts/run_scenario.py --game dragon-vip --env dev --suite games/dragon-vip/test-suites/dv-core.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon-vip
+#
+# Dragon VIP is Dragon plus Ante Bet and Premium Reel, so DV-NN is DR-NN of
+# games/dragon/test-suites/dr-core.yml — itself ZZ-NN of test-case-zeus.xlsx — on the same scenario.
+# The two paid features have suites of their own (dv-ante.yml, dv-premium-reel.yml); every run here
+# plays plain spins. The notes are what a reader needs to trust the case, plus every place the VIP
+# build differs. Everything in this file is a mechanism-free scenario shared with Mystic, Zeus,
+# Dragon and Chaos — only the `dragon-vip` profile's dialect is the VIP build's
+# (games/dragon-vip/game-bridge-api.md §6, §10).
+#
+# ── HOW THE ASSERTS ARE SPLIT (Rule 10) ────────────────────────────────────────────────────
+#   stream:        the game's own account of itself — exact values, and "it did not happen"
+#   video:/image:  what the player actually SEES — nothing in the response describes pixels
+# A case with no AI assert says why next to it, and the reason is always "there is nothing to see".
+
+runs:
+  # ── DV-01 + DV-04 : the loaded base game, and the bet it opens at ─────────────────────
+  # IMAGE, not video: "is every element drawn, is anything cut off" is the question a downsampled
+  # montage is worst at and a full-resolution still is best at. DV-04 rides the same boot (Rule 16).
+  - run:
+      scenario: boot-base
+      cases:
+        - id: DV-01
+          title: "Game UI at load matches the design"
+          assert:
+            # Anti-vacuity: the bridge really answered. A boot that read nothing would render
+            # "bet null / balance null" into the prompt and the AI would grade a screen the facts
+            # cannot describe.
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.bet_amount} > 0"
+            - stream: "{facts.balance} > 0"
+            - image:
+                at: base
+                prompt: >-
+                  This is a still of Treasures of the Dragon VIP, a 3x3 slot with 5 paylines and a Hold
+                  & Spin bonus, sitting idle in the base game just after load — bet
+                  {facts.bet_amount}, balance {facts.balance} {facts.currency}. Answer: (1) is the
+                  main UI fully drawn — reels, balance readout, bet readout, Spin button, with no
+                  missing or placeholder art (ui_complete)? (2) is anything overlapping, cut off or
+                  visibly broken (ui_broken)? (3) is the game idle and ready to spin rather than
+                  mid-animation or showing an error (idle_ready)?
+                output_schema:
+                  ui_complete: { type: boolean }
+                  ui_broken: { type: boolean }
+                  idle_ready: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  ui_complete: true
+                  ui_broken: false
+                  idle_ready: true
+                  confidence: medium
+
+        # ── DV-04 : opens at the right bet ────────────────────────────────────────
+        # `defaultBetLevel` governs only a player's FIRST session; every later one opens at
+        # `lastBet.baseStake` (bridge §3). `boot-base` applies that rule —
+        #     expected_open_bet = lastBet ? lastBet.baseStake : denominations[defaultBetLevel]
+        # — and publishes the answer and its inputs, so a failure says WHICH branch it took.
+        #
+        # ⚠ DRAGON VIP: game-bridge-api.md §3 says this client treats `defaultBetLevel` as 1-BASED — a
+        # first session opens at `denominations[defaultBetLevel - 1]` — while the contract, and
+        # `boot-base`, read it as a 0-based index. Only a first session takes that branch
+        # (`facts.first_session`). So a red here with `first_session == True` and `bet_amount` one
+        # denomination BELOW `default_bet_amount` is the off-by-one the bridge doc predicts: a
+        # client defect if the server means 0-based. That is why the case keeps the contract's
+        # reading rather than being bent to the client's. The bridge doc asks for a real
+        # first-session fixture to settle it (docs/dragon-vip-coverage.md, open items).
+        - id: DV-04
+          title: "The game opens at the configured default bet level"
+          assert:
+            # the gate: the backend really published a default, so the rule has something to test
+            - stream: "{facts.default_bet_known} == True"
+            - stream: "{facts.default_bet_amount} > 0"
+            # the rule itself — `opens_at_expected_bet`, NOT `opens_at_default`
+            - stream: "{facts.opens_at_expected_bet} == True"
+            - stream: "{facts.bet_amount} == {facts.expected_open_bet}"
+            # No AI assert, for the reason Rule 10 allows: the opening bet is on screen in DV-01's
+            # still, and this case is arithmetic over the launch payload. Nothing about it is a pixel.
+
+  # ── DV-02 : denominations match config ─────────────────────────────────────────────
+  # ⚠ DRAGON VIP: `stakeIncrease` opens the list but is DISABLED at `maxBet` (bridge §6.1).
+  # `open_bet_list` opens with it, so a session left at the highest bet reports this run unreached —
+  # `list_shown == False` is the tell. Reset the bet, rather than reading it as a list defect.
+  - run:
+      scenario: browse-denominations
+      cases:
+        - id: DV-02
+          title: "Denomination list matches the server config"
+          assert:
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.min_bet} > 0"
+            - stream: "{facts.max_bet} >= {facts.min_bet}"
+            # Anti-vacuity: `list_shown` is False when the list never actually opened, and the config
+            # asserts above are true whether or not anything was shown. (NOT `browsed` -- that meant
+            # "the bet index moved", which this scenario never does; it went red on a working list.)
+            - stream: "{facts.list_shown} == True"
+            - stream: "{facts.closed} == True"        # ...and the list really closed again
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot. This clip opens the bet-amount list and
+                  scrolls to the highest option and then the lowest; the ACTION TIMELINE gives the
+                  time of each step. The list shows the highest amount first. The server config says
+                  there are {facts.denom_count} denominations from {facts.min_bet} to
+                  {facts.max_bet} {facts.currency}. Answer: (1) does the list open and render as a
+                  list of selectable bet amounts (list_opened)? (2) does it STAY open while it is
+                  scrolled, rather than closing itself within a second (list_stayed_open)? (3) do
+                  the smallest and largest values shown match {facts.min_bet} and {facts.max_bet}
+                  (ends_match_config)?
+                output_schema:
+                  list_opened: { type: boolean }
+                  list_stayed_open: { type: boolean }
+                  ends_match_config: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  list_opened: true
+                  list_stayed_open: true
+                  ends_match_config: true
+                  confidence: medium
+
+  # ── DV-03 : bet up / down ──────────────────────────────────────────────────────────
+  # Both `stakeIncrease` and `stakeDecrease` OPEN the list on this build (HAS_BET_POPUP) — neither steps the
+  # bet in place — so a bet change is a row picked from the list.
+  - run:
+      scenario: change-bet
+      cases:
+        - id: DV-03
+          title: "Bet amount increases and decreases with the bet controls"
+          assert:
+            - stream: "{facts.bet_changed} == True"                 # the bet really moved
+            - stream: "{facts.landed_bet} == {facts.picked_bet}"    # ...and landed where asked
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot. In this clip the player uses the bet
+                  control, a bet-amount list opens, they pick {facts.picked_bet}, and the list
+                  closes. The ACTION TIMELINE gives the time of each step. Answer: (1) does a
+                  bet-amount list open when the bet control is used (bet_list_opened)? (2) once it
+                  closes, does the main bet / stake readout on the game screen read
+                  {facts.picked_bet} (bet_readout_matches)? Judge the bet readout only — ignore the
+                  balance, which changes for other reasons.
+                output_schema:
+                  bet_list_opened: { type: boolean }
+                  bet_readout_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_list_opened: true
+                  bet_readout_matches: true
+                  confidence: medium
+
+  # ── DV-05 + DV-06 : the money, both directions, ONE run ────────────────────────────
+  # One WINNING round moves the balance twice — the stake comes off as the reels start, the payout
+  # goes on as the win counts up — so the debit and the credit are one clip and one AI call (Rule
+  # 16). `base-win`, not `base-spin`: on a loss the credit half would have nothing on screen. The
+  # losing spins it hunts through stay in the stream, so `conservation` covers them too.
+  #
+  # ⚠ `at: win` is not optional. The clip spans every hunting spin; untrimmed, the prompt would be
+  # reading a balance off whichever round happened to be on screen.
+  - run:
+      scenario: base-win
+      teardown: return-to-base
+      video:
+        at: win
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with 5 paylines. This clip is ONE WINNING base spin,
+          at a stake of {facts.win_stake}, that paid {facts.win_payout}.
+
+          THE BALANCE READOUT MOVES TWICE, and each question below is about one of those moves.
+          Before the spin it reads {facts.balance_before_spin}. The stake is taken at the START of
+          the spin, so it drops to {facts.balance_while_spinning} the moment the reels begin to turn
+          and sits there for the whole spin. Then the win is credited as the win counter finishes,
+          taking it to {facts.balance_after_win}. Nothing else happens in this clip — no further
+          spin is played — so it should still read {facts.balance_after_win} at the end.
+
+          Answer each independently:
+
+          (1) balance_dropped_on_spin: as the spin STARTS, does the balance readout visibly drop
+          from {facts.balance_before_spin} to {facts.balance_while_spinning}?
+          drop_matches_stake: is that drop the stake, {facts.win_stake}, rather than some other
+          figure?
+
+          (2) win_shown: is a win presented for this spin — a win amount shown and the winning
+          payline(s) marked?
+
+          (3) balance_credited: once the win counter FINISHES, does the readout go UP by
+          {facts.win_payout}, from {facts.balance_while_spinning} to {facts.balance_after_win}?
+          credit_matches_win: is the amount credited the same as the win amount that was shown?
+        output_schema:
+          balance_dropped_on_spin: { type: boolean }
+          drop_matches_stake: { type: boolean }
+          win_shown: { type: boolean }
+          balance_credited: { type: boolean }
+          credit_matches_win: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-05: { balance_dropped_on_spin: true, drop_matches_stake: true, confidence: medium }
+          DV-06: { win_shown: true, balance_credited: true, credit_matches_win: true, confidence: medium }
+      cases:
+        - id: DV-05
+          title: "Balance is reduced by the bet amount when a spin is placed"
+          assert:
+            # `conservation` is `balance == previous - stake + payout`, so ONE identity covers the
+            # debit and the credit, over every round base-win played, losses included.
+            - stream: conservation
+            - stream: "{res.stake} > 0"                  # a real base bet was charged
+            - stream: "{facts.win_stake} > 0"
+
+        - id: DV-06
+          title: "Balance is credited with the payout after a winning spin"
+          assert:
+            - stream: conservation
+            # the precondition, proven from the numbers: this really was a win
+            - stream: "{res.payout} > 0"
+            - stream: "{facts.win_payout} > 0"
+            # NOT asserted inline: `balance_after_win == balance_while_spinning + win_payout`. An
+            # inline predicate has no tolerance (`9972.60 + 0.24` is `9972.840000000001`);
+            # `conservation` already checks exactly this, in Python, to 1e-6.
+
+  # ── DV-07 : out of balance ─────────────────────────────────────────────────────────
+  # Needs PLAYSITE_* wallet credentials; without them the scenario reports unreached.
+  # Rule 7: this run MOVES THE MONEY, so it declares restore-balance.
+  # On Dragon VIP the Spin button stays clickable with too little balance — the client raises its
+  # out-of-money `notification` popup ON CLICK (bridge §3), which is exactly what this case films.
+  - run:
+      scenario: insufficient-balance
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: DV-07
+          title: "Spinning with insufficient balance shows the out-of-funds popup"
+          assert:
+            - stream: "{facts.spin_balance} < {facts.chosen_bet}"   # really below the stake
+            - video:
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot. In this clip the player's balance is
+                  {facts.spin_balance}, the selected bet is {facts.chosen_bet} — larger than the
+                  balance — and a spin is attempted. Answer: (1) does a popup or message appear
+                  telling the player they have insufficient funds (insufficient_popup)? (2) is the
+                  spin refused — the reels do not turn and no bet is taken (spin_refused)?
+                output_schema:
+                  insufficient_popup: { type: boolean }
+                  spin_refused: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  insufficient_popup: true
+                  spin_refused: true
+                  confidence: medium
+
+  # ── DV-09 : in-game History ────────────────────────────────────────────────────────
+  # `outcomes: [normal_win]` narrows the hunt to one shape — a base round that paid.
+  # `detail_scroll_steps: 0`: one round is one grid, so a ticket has nothing below the fold.
+  #
+  # The detail ticket is a TWO-VIEW popup (bridge §7, `getHistoryDetailState`): view 0 is the triggering spin, view 1 the
+  # respin list. A plain base round has no respins, so it opens on view 0 with `hasNext` false and
+  # there is nothing to page — the scenario pages on `hasNext`, never on `betCount`.
+  #
+  # NOT asserted: `normal_win_round_id_match`. It needs the row `data` to carry an id under a name
+  # the scenario recognises; the rows publish `betId` (bridge §7, `getHistoryRows`), unconfirmed against the
+  # round's own id field until a live run.
+  - run:
+      scenario: spin-then-history
+      teardown: return-to-base
+      params: { outcomes: [normal_win, no_win], detail_scroll_steps: 0 }
+      cases:
+        - id: DV-09
+          title: "In-game History shows the round just played"
+          assert:
+            # a paying base round really was played and inspected
+            - stream: "{facts.normal_win_found} == True"
+            - stream: "{facts.normal_win_payout} > 0"
+            - stream: "{facts.normal_win_stake} > 0"
+            - stream: "{facts.is_base_round} == True"     # not a bonus ticket, which opens differently
+            # the panel listed rows the framework could address — without these, the AI grades an
+            # empty panel
+            - stream: "{facts.normal_win_history_rows} >= 1"
+            # the detail ticket really opened (getHistoryDetailState().open, then the label, then
+            # any new popup). A red here is a bridge-contract gap, not a History rendering bug.
+            - stream: "{facts.normal_win_detail_opened} == True"
+            # the panel closed again — the tell for a panel the bridge cannot dismiss
+            - stream: "{facts.normal_win_panel_closed} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot with 5 paylines. This clip plays a base round
+                  — stake {facts.normal_win_stake}, win {facts.normal_win_payout} — waits for it to
+                  settle, opens the in-game History panel, and then opens the newest row's bet
+                  detail ticket. The ACTION TIMELINE gives the time of each of those steps; use it
+                  rather than guessing which surface is on screen when. Answer each independently:
+
+                  (1) history_opened: does the History panel open and render as a list of past
+                  rounds? history_stayed_open: does it stay open, rather than closing itself within
+                  a second of being opened?
+
+                  (2) top_row_matches: is the newest / topmost entry in the list consistent with the
+                  round just played — stake {facts.normal_win_stake}, win
+                  {facts.normal_win_payout}?
+
+                  (3) detail_opened: after the top row is tapped, does a bet DETAIL ticket open for
+                  it — a single-round view showing that round's grid and its figures, rather than
+                  the list? detail_matches: does the ticket show the same stake and win as the row
+                  it was opened from?
+
+                  (4) display_broken: on either surface, is anything visibly broken — blank rows,
+                  overlapping or clipped text, placeholder values, a half-drawn ticket?
+                output_schema:
+                  history_opened: { type: boolean }
+                  history_stayed_open: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_matches: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  history_stayed_open: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_matches: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── DV-11 + DV-52 : the Info / Paytable / Tutorial surface, ONE run ─────────────────
+  # One control, one surface: the Info popup IS the paytable and IS the tutorial, so both cases grade
+  # one clip (Rule 16).
+  #
+  # IMAGE with `combine: true` (Rule 18): the guide is several screenfuls of ONE scrolling surface,
+  # and both cases ask whether something is present ANYWHERE in it. Graded per still, "does this page
+  # explain the Hold & Spin bonus?" is honestly "no" on every page that does not.
+  #
+  # The guide is a cross-origin WebView (`info`, bridge §7 `getTutorialRect`): only a real mouse wheel scrolls it,
+  # and its position cannot be read back — so `reached_bottom` means the full scroll was ISSUED.
+  # ⚠ The client DESTROYS the info popup whenever a message popup is shown (as Dragon's does), so an error
+  # popup mid-scroll closes the tutorial — a short `shot_count` with a notification on screen is that.
+  - run:
+      scenario: open-tutorial
+      teardown: return-to-base
+      cases:
+        - id: DV-11
+          title: "Paytable / Info popup UI matches the design"
+          assert:
+            - stream: "{facts.shot_count} >= 2"       # opened, and paged at least once
+            - stream: "{facts.tutorial_open} == True"  # the WebView was really located, not an empty frame
+        - id: DV-52
+          title: "Tutorial opens and follows the designed flow"
+          assert:
+            - stream: "{facts.shot_count} >= 2"
+            - stream: "{facts.tutorial_open} == True"
+            - stream: "{facts.reached_bottom} == True"
+      image:
+        combine: true                    # every screenful of this one surface -> ONE AI call
+        prompt: >-
+          These screenshots are the in-game Info / Paytable / Tutorial popup of Treasures of the
+          Dragon VIP, captured as it was scrolled from top to bottom. The game is a 3x3 slot with 5
+          paylines and a Hold & Spin bonus in which Coin symbols are held and respun. Read them as
+          ONE document and answer about the whole of it — a section counts as present if it appears
+          on any screenful. Answer: (1) does the Info / Paytable surface open and display real
+          content rather than an empty frame (surface_opened)? (2) does the document list the
+          SYMBOLS with their payout values (paytable_present)? (3) does it explain the PAYLINES
+          (paylines_present)? (4) does it explain the Coin / Hold & Spin bonus — how it is triggered
+          and how it is played (bonus_rules_present)? (5) across every screenful, does the content
+          render cleanly — readable text, symbol art present, nothing placeholder or missing
+          (content_renders)? (6) across every screenful, is anything overlapping, cut off or clipped
+          (content_broken)? (7) does it explain the two paid spin features, Ante Bet and Premium
+          Reel — what each costs and what it changes (paid_features_present)?
+        output_schema:
+          paid_features_present: { type: boolean }
+          surface_opened: { type: boolean }
+          paytable_present: { type: boolean }
+          paylines_present: { type: boolean }
+          bonus_rules_present: { type: boolean }
+          content_renders: { type: boolean }
+          content_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-11:                          # the paytable half: it opens and the tables are there
+            surface_opened: true
+            paytable_present: true
+            content_renders: true
+            content_broken: false
+            confidence: medium
+          DV-52:                          # the tutorial half: it explains the game's rules
+            surface_opened: true
+            paylines_present: true
+            bonus_rules_present: true
+            paid_features_present: true       # VIP-only help text; see docs/dragon-vip-coverage.md
+            content_renders: true
+            confidence: medium
+
+  # ── DV-12 : paytable payouts scale with the bet ────────────────────────────────────
+  # `paytable-bet-scaling` shoots the SAME table at two bet levels. The divisor resolves from
+  # PAYLINES = 5, the design doc's formula (total bet / 5 x symbol multiplier).
+  # IMAGE per still, NOT combined (Rule 18): two STATES of one surface, and the case is that they
+  # differ. The AI READS the printed figures; the exact half is what makes the comparison mean
+  # anything.
+  - run:
+      scenario: paytable-bet-scaling
+      teardown: return-to-base
+      params: { index_a: 0, index_b: 3 }
+      cases:
+        - id: DV-12
+          title: "Paytable payouts follow the bet: payout = total bet / 5 x symbol multiplier"
+          assert:
+            # two DIFFERENT bet levels were really captured — two shots at one bet would pass vacuously
+            - stream: "{facts.bet_a} != {facts.bet_b}"
+            - stream: "{facts.divisor} == 5"          # the payline count IS the divisor
+            - stream: "{facts.line_bet_b} > {facts.line_bet_a}"
+            - image:
+                at: paytable-bet-
+                prompt: >-
+                  A Treasures of the Dragon VIP paytable screen. The game is a 3x3 slot with 5 paylines
+                  whose per-line payout is (total bet / 5) x the symbol's multiplier. Two captures
+                  exist: one at bet {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet
+                  {facts.bet_b} (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the
+                  bet or total bet value shown on it (bet_text). (2) read the payout printed for the
+                  highest-paying symbol's 3-of-a-kind row (top_payout_text). (3) are the payout
+                  values shown as currency amounts rather than bare multipliers (shows_currency)?
+                  (4) is the table fully rendered — every symbol row present, no blank or
+                  placeholder values (table_renders)?
+                output_schema:
+                  bet_text: { type: string }
+                  top_payout_text: { type: string }
+                  shows_currency: { type: boolean }
+                  table_renders: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  table_renders: true
+                  confidence: low
+
+  # ── DV-51 : multi-language ─────────────────────────────────────────────────────────
+  # The language lives in the Playsite launch token, so each language is a fresh URL + re-entry.
+  # On VIP the tour also shoots the feature panel: its Ante Bet / Premium Reel rows are VIP-only text.
+  # NOT combined (Rule 18): different SURFACES in different LANGUAGES — combining would throw away
+  # the per-screen verdict that makes "the Burmese base screen has an English label" traceable.
+  # The schema never asks one property twice in opposite directions (the inverse-pair trap that
+  # gave ZZ-51 twelve false alarms — docs/scenario-assert-authoring.md §2).
+  - run:
+      scenario: language-tour
+      params:
+        languages: [en, my, zh, ru]
+        # languages: all
+      cases:
+        - id: DV-51
+          title: "All in-game text follows the player's chosen language"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"   # every language really loaded
+            - stream: "{facts.surface_count} >= 3"
+            - stream: "{facts.shot_count} >= 3"
+      image:
+        prompt: >-
+          A Treasures of the Dragon VIP UI surface, captured as: {shot.label}. The game is a 3x3 slot
+          with 5 paylines. That label gives the language code and name, the surface shown, and —
+          after a mid-session change — the language it switched FROM. Judge the screen against the
+          language the label names, at full resolution, and answer three groups of questions.
+          Expected scripts: Burmese = Myanmar, Simplified Chinese = Han, Russian = Cyrillic,
+          English = Latin.
+
+          LANGUAGE. (1) is all visible text rendered in the language the label names, rather than
+          English fallback or the language it switched from (correct_language)? (2) is any string
+          left untranslated — a word in a different language from the one the label names
+          (untranslated_strings)? (3) is any raw translation key visible, text like
+          "ui.button.spin" or "MISSING_KEY" (raw_keys_visible)? Ignore numbers, currency amounts,
+          currency codes such as (TRY), and the game's brand name.
+
+          LAYOUT. (4) does any text overflow outside its button, panel or label boundary
+          (text_overflows)? (5) does any text run underneath or on top of another element
+          (text_collides)?
+
+          GLYPHS — examine the characters closely, and answer only about the characters themselves.
+          (6) is any character cut off at the top or bottom of its line (glyphs_clipped)? (7) for
+          scripts with marks above or below the base letter (Burmese especially), are those marks
+          fully rendered (diacritics_intact)? (8) is any descender — the tail of a g, y or p —
+          sliced off (descenders_intact)?
+        output_schema:
+          correct_language: { type: boolean }
+          untranslated_strings: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          text_overflows: { type: boolean }
+          text_collides: { type: boolean }
+          glyphs_clipped: { type: boolean }
+          diacritics_intact: { type: boolean }
+          descenders_intact: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-51:
+            correct_language: true
+            untranslated_strings: false
+            raw_keys_visible: false
+            text_overflows: false
+            text_collides: false
+            glyphs_clipped: false
+            diacritics_intact: true
+            descenders_intact: true
+            confidence: medium
+
+# ── NOT IN THIS SUITE ──────────────────────────────────────────────────────────────────
+#   DV-10  History on BO -> MANUAL, as ZZ-10. The BO bet-history endpoint is not known to this repo.
+#          DV-09 publishes the round's identity (facts.normal_win_round_id / _stake / _payout) so
+#          the manual comparison is a copy-paste.

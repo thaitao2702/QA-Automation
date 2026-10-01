@@ -1,0 +1,254 @@
+[
+  {
+    "id": "base-0",
+    "action": "base",
+    "description": "base",
+    "start_ms": 175601,
+    "end_ms": 175730,
+    "result": {
+      "seq": 0,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.0,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686316616908801"
+    }
+  },
+  {
+    "id": "settle-1",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 175737,
+    "end_ms": 190960,
+    "result": null
+  },
+  {
+    "id": "base-1",
+    "action": "base",
+    "description": "base",
+    "start_ms": 196462,
+    "end_ms": 196599,
+    "result": {
+      "seq": 1,
+      "phase": "base",
+      "game_state": 2,
+      "free_spins": 8,
+      "total_free_spin": 8,
+      "won_free_spins": 8,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.0,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "mark-3",
+    "action": "mark",
+    "description": "FREE SPINS START: the balance is spent",
+    "start_ms": 196599,
+    "end_ms": 196599,
+    "result": null
+  },
+  {
+    "id": "freespin-2",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 196599,
+    "end_ms": 217688,
+    "result": {
+      "seq": 2,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 7,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.04,
+      "balance": 0.04,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-3",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 217688,
+    "end_ms": 221831,
+    "result": {
+      "seq": 3,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 6,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.04,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-4",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 221832,
+    "end_ms": 224821,
+    "result": {
+      "seq": 4,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 5,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.5,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-5",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 224821,
+    "end_ms": 244652,
+    "result": {
+      "seq": 5,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 4,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-6",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 244652,
+    "end_ms": 249316,
+    "result": {
+      "seq": 6,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 3,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-7",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 249316,
+    "end_ms": 253735,
+    "result": {
+      "seq": 7,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 2,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-8",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 253735,
+    "end_ms": 257609,
+    "result": {
+      "seq": 8,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 1,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "freespin-9",
+    "action": "freespin",
+    "description": "freespin",
+    "start_ms": 257609,
+    "end_ms": 260551,
+    "result": {
+      "seq": 9,
+      "phase": "freespin",
+      "game_state": 2,
+      "free_spins": 0,
+      "total_free_spin": 8,
+      "won_free_spins": 0,
+      "stake": 0.0,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 0.54,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949686491594883073"
+    }
+  },
+  {
+    "id": "mark-12",
+    "action": "mark",
+    "description": "EXTENSION OFFER: declined",
+    "start_ms": 276035,
+    "end_ms": 276035,
+    "result": null
+  },
+  {
+    "id": "settle-13",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 276035,
+    "end_ms": 277956,
+    "result": null
+  }
+]

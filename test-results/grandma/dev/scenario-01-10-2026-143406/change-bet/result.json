@@ -1,0 +1,120 @@
+{
+  "kind": "run",
+  "scenario": "change-bet",
+  "description": "Change the bet to a specific denomination. Takes whichever path the build offers: open the denomination list and tap a row, or \u2014 when there is no list (profile.HAS_BET_POPUP is False) \u2014 step the stake control until it lands. Places NO bet, so there is no stream data; exposes facts.picked_bet / picked_index and what it ACTUALLY landed on (landed_bet / landed_index / bet_changed), plus the video window for an AI check that the on-screen amount matches.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    21.457699298858643,
+    29.454960823059082
+  ],
+  "shots": [],
+  "facts": {
+    "picked_index": 3,
+    "picked_bet": 7,
+    "prev_index": 0,
+    "landed_index": 3,
+    "landed_bet": 7,
+    "bet_changed": true,
+    "denom_count": 9,
+    "min_bet": 0.1,
+    "max_bet": 35
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-004",
+      "title": "Changing the bet moves it to the level the player picked",
+      "stream": [
+        {
+          "spec": "{facts.denom_count} > 1",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.bet_changed} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.landed_bet} == {facts.picked_bet}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.landed_index} == {facts.picked_index}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            21.457699298858643,
+            29.454960823059082
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the player changes the bet \u2014 watch the bet amount displayed on the main screen.\n(1) bet_changes: does the bet amount on the main screen change during the clip? (2) final_bet: read the bet shown at the END of the clip, exactly as printed, as a string. (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "bet_changes": {
+              "type": "boolean"
+            },
+            "final_bet": {
+              "type": "string"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "bet_changes": true,
+            "final_bet": "7",
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621248",
+          "data": {
+            "bet_changes": true,
+            "final_bet": "7.00",
+            "ui_broken": false,
+            "notes": "The player opens the Bet Options menu and changes the bet from 0.10 to 7.00.",
+            "confidence": "high",
+            "reason": "At the start of the video (00:00), the bet is 0.10. A menu opens at 00:01, and at 00:03, the player selects the 7.00 option. By the end of the clip (00:06 onwards), the main screen reflects this change, showing a bet of 7.00."
+          },
+          "mismatches": [],
+          "reason": "At the start of the video (00:00), the bet is 0.10. A menu opens at 00:01, and at 00:03, the player selects the 7.00 option. By the end of the clip (00:06 onwards), the main screen reflects this change, showing a bet of 7.00.",
+          "note": "At the start of the video (00:00), the bet is 0.10. A menu opens at 00:01, and at 00:03, the player selects the 7.00 option. By the end of the clip (00:06 onwards), the main screen reflects this change, showing a bet of 7.00.",
+          "tokens": [
+            1060,
+            770
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

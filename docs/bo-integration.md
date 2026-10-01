@@ -374,10 +374,140 @@ def automation_paytable(bo_client):
 | Get agent game settings | `agentgamecurrency/view` | POST | agent_game_settings |
 | Update agent game settings | `agentgamecurrency/update` | POST | agent_game_settings |
 | Get game detail | `game/view` | POST | update_game_paytable |
+| Assign a denomination — master game | `game/view` + `game/update/v2` | POST | denominations |
+| Assign a denomination — one agent's game | `agentgamecurrency/view` + `agentgamecurrency/update` | POST | denominations |
 | Update master game / create paytable | `game/update/v2` | POST | update_game_paytable |
 | Refresh token | `auth/refresh-token` | POST | bo_api_client (automatic) |
 
 All are POST against `…/sas-web/api/v1/`. `traceId` is added automatically.
+
+---
+
+## 7. Denominations
+
+A denomination is the bet ladder a game offers in one currency — `game/view` reports the one in
+force per currency, with its name and min/max bet:
+
+```jsonc
+"currencyInfoList": [
+  { "id": 31, "code": "TKN", "denominationId": 213, "isDenomOverride": 0,
+    "denomName": "Test Upload 11", "minBet": 1.99, "maxBet": 35, "isDefault": 1 },
+  …
+]
+```
+
+`id` there is the **currency** id; `denominationId` is what an assignment changes.
+
+### Which level to change
+
+| You want | Function | Effect |
+|---|---|---|
+| the game's default for a currency | `assign_game_denomination(client, game_id, sas_entity_id, denom_id, currency_code="TKN")` | every agent that does not override it |
+| one agent's game row | `assign_agent_denomination(client, agent_id, currency_id, game_code, denom_id)` | that agent only; sets `isDenomOverride: 1` |
+| put an agent back | `reset_agent_denomination_to_default(client, agent_id, currency_id, game_code)` | clears the override |
+| see what exists | `list_game_denominations(game_data)` / `get_agent_denomination(...)` | discovery |
+
+```python
+from framework.bo import (
+    BoApiClient, get_game_detail, list_game_denominations,
+    assign_game_denomination, assign_agent_denomination,
+    reset_agent_denomination_to_default,
+)
+
+game = get_game_detail(client, 283, 1)
+for row in list_game_denominations(game):
+    print(row)          # {'id': 31, 'code': 'TKN', 'denominationId': 213, 'denomName': …}
+
+# master game: TKN now uses denomination 1624
+assign_game_denomination(client, 283, 1, 1624, currency_code="TKN")
+
+# one agent instead (agent 1, currency id 31), then put it back
+assign_agent_denomination(client, "1", 31, "SL_33_TREASURES_DRAGON_VIP", 1624)
+reset_agent_denomination_to_default(client, "1", 31, "SL_33_TREASURES_DRAGON_VIP")
+```
+
+Both assignments preserve every other field on the record they touch: the master-game write
+rebuilds the same `game/update/v2` body a paytable edit uses and patches one `currencyInfoList`
+entry, and the agent write reuses `build_submit_row`, so the row keeps its paytable, max-payout
+override, rtp level and status.
+
+**`isDenomOverride` reads the opposite way to `isDefaultPaytable`.** `1` = this agent overrides the
+master default; `0` = follows it. The paytable flag beside it is `1` = following the default.
+
+### Creating and editing a denomination
+
+A denomination belongs to a **(game sub-category, currency) pair**, not to a game: every 3x3 game in
+TKN shares one list. The pair key comes from `game/view` (`gameSubCategory.id` — 1 = 3x3, 2 = 3x5)
+and the currency id from the env config.
+
+```python
+from framework.bo import (
+    get_denomination_list, find_denomination, create_denomination,
+    update_denomination, ensure_automation_denomination, game_sub_category_id,
+)
+
+listing = get_denomination_list(client, 2, 18)      # sub-category 2 (3x5), currency 18 (TRY)
+listing["currency"], listing["gameSubCategory"]      # 'TRY', '3x5'
+[(d["id"], d["name"], d["betLevels"]) for d in listing["denominations"]]
+
+new_id = create_denomination(client, 2, 18, "automation test TRY 3x5", [11, 22, 33])
+update_denomination(client, 2, 18, new_id, bet_levels=[11, 22, 33, 44])
+```
+
+Three things about this API are easy to get wrong, and each has cost someone a bad write:
+
+1. **`denomination/update` is a FULL REPLACE.** The body carries the whole list for the pair, so
+   every existing denomination must be resubmitted alongside the new or edited one. Send only the
+   new entry and the rest are dropped — including the defaults other agents are playing on. Every
+   function here rebuilds that list from a fresh `denomination/view/list`, and
+   `update_denominations()` is the only one that posts it.
+2. **A new entry is one with NO `id`.** That omission is what makes the back office create it; the
+   response does not return the id, so it is read back from a second list call.
+3. **The two endpoints spell the sub-category differently** — the list takes `gameSubCategoryId`,
+   the update takes `subCategoryId` — and both want the ids as **strings**.
+
+`defaultBetLevel` is a **1-based index into `betLevels`**, not a bet value: `[11, 22, 33]` with
+`defaultBetLevel: 1` opens at 11. `create_denomination` / `update_denomination` refuse an index
+outside the ladder rather than writing a game that opens at a level that does not exist.
+
+**Names must be unique across the game category**, so "automation test" alone cannot be reused for
+two currencies or two sub-categories. `automation_denomination_name()` builds it from what the list
+response itself reports — `automation test TKN 3x3`.
+
+### The one-shot automation flow
+
+`ensure_agent_automation_denomination()` is the whole setup in one call:
+
+```python
+from framework.bo import ensure_agent_automation_denomination, reset_agent_denomination_to_default
+
+info = ensure_agent_automation_denomination(
+    client, game_id=283, sas_entity_id=1, agent_id="1", currency_id=31,
+    game_code="SL_33_TREASURES_DRAGON_VIP",
+)
+# {'denomination_id': 1731, 'name': 'automation test TKN 3x3', 'created': True,
+#  'sub_category_id': 1, 'previous_denomination_id': 213}
+...                                       # play the game on 11 / 22 / 33
+reset_agent_denomination_to_default(client, "1", 31, "SL_33_TREASURES_DRAGON_VIP",
+                                    denomination_id=info["previous_denomination_id"])
+```
+
+```
+game/view              -> the game's sub-category
+denomination/view/list -> does "automation test <CUR> <SUBCAT>" exist?
+denomination/update    -> ...if not, create it (resubmitting every existing entry)
+denomination/view/list -> read the new id back
+agentgamecurrency/*    -> assign it to the agent's row, isDenomOverride = 1
+```
+
+It is **idempotent and non-destructive**: an existing automation denomination is left exactly as it
+is rather than rewritten, so one run never moves the ladder another run is playing on. `created`
+says which path it took, and `previous_denomination_id` is what the teardown needs.
+
+Open question for the BO team: when an agent's `isDenomOverride` is cleared, does the back office
+also expect `denominationId` to be reset to the master value, or is the id left as-is? The teardown
+leaves it in place (matching how the frontend submit row treats untouched fields) and takes an
+explicit `denomination_id` when you want it rewritten.
 
 ---
 

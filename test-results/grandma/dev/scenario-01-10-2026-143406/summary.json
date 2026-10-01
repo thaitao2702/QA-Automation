@@ -1,0 +1,137 @@
+{
+  "suite": "games/grandma/test-suites/gm-core.yml",
+  "runs": [
+    {
+      "scenario": "boot-base",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-005",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "browse-denominations",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-003",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "change-bet",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-004",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "base-win",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-006",
+          "verdict": "green"
+        },
+        {
+          "id": "TC-007",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "insufficient-balance",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-008",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "freespin-zero-balance",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-010",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "spin-then-history",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-011",
+          "verdict": "orange"
+        }
+      ]
+    },
+    {
+      "scenario": "paytable-bet-scaling",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-013",
+          "verdict": "orange"
+        },
+        {
+          "id": "TC-014",
+          "verdict": "orange"
+        },
+        {
+          "id": "TC-055",
+          "verdict": "orange"
+        }
+      ]
+    },
+    {
+      "scenario": "open-tutorial",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-054",
+          "verdict": "green"
+        },
+        {
+          "id": "TC-056",
+          "verdict": "green"
+        }
+      ]
+    },
+    {
+      "scenario": "language-tour",
+      "reached": true,
+      "cases": [
+        {
+          "id": "TC-051",
+          "verdict": "orange"
+        },
+        {
+          "id": "TC-052",
+          "verdict": "orange"
+        },
+        {
+          "id": "TC-053",
+          "verdict": "green"
+        }
+      ]
+    }
+  ],
+  "ai_cost": {
+    "model": "gemini-3-flash-preview",
+    "resolution": "MEDIUM",
+    "gemini_video_calls": 8,
+    "gemini_input_tokens": 25952,
+    "gemini_output_tokens": 11667,
+    "estimated_cost_usd": 0.047977
+  }
+}

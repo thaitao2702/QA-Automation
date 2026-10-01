@@ -55,6 +55,7 @@ import math
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,10 @@ from framework.helpers.gemini_video import VideoResult
 from framework.helpers.local_ai import _build_schema_prompt, _extract_json
 
 logger = logging.getLogger(__name__)
+
+# AI calls run on a thread pool (scripts/ai_video.run_ai); `x += n` on an attribute is not
+# atomic, so the call/token counters the cost summary reads are updated under this lock.
+_COUNTER_LOCK = threading.Lock()
 
 # Defaults (overridable via env — see module docstring).
 _DEFAULT_FPS = 1.0
@@ -547,9 +552,14 @@ class ClaudeVideoHelper(_ClaudeCliClient):
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
         reference: Any | None = None,
+        high_fps: bool = False,
+        timestamp: bool = False,
     ) -> VideoResult:
-        """Sample *video_path* into frames and judge them with a Claude sub-agent."""
-        self._call_count += 1
+        """Sample *video_path* into frames and judge them with a Claude sub-agent.
+        `high_fps` / `timestamp` are accepted for interface parity with the Gemini montage helper;
+        this helper samples stills (no composite montage), so they are advisory only."""
+        with _COUNTER_LOCK:
+            self._call_count += 1
 
         work_dir = video_path.parent / f"{video_path.stem}-claude"
 
@@ -735,7 +745,8 @@ class ClaudeImageHelper(_ClaudeCliClient):
         reference: Any | None = None,
     ) -> GeminiResult:
         """Judge *image_path* (a screenshot) with a Claude sub-agent."""
-        self._call_count += 1
+        with _COUNTER_LOCK:
+            self._call_count += 1
 
         work_dir = image_path.parent / f"{image_path.stem}-claude"
         work_dir.mkdir(parents=True, exist_ok=True)

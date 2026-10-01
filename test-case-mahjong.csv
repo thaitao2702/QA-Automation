@@ -1,0 +1,172 @@
+ID,Module,Test case,Điều kiện,Các bước thực hiện,Kết quả mong đợi
+Mah_001,Khởi tạo Game,Kiểm tra giao diện game,Mở game,"1. Mở game.
+2. Quan sát toàn bộ giao diện.","- Giao diện hiển thị đúng theo Design/Figma.
+- Không thiếu asset, không lỗi layout."
+Mah_002,Loading,Kiểm tra loading khi Game Info trả về trước 10 giây,Game Info trả về < 10s,"1. Mở game.
+2. Quan sát thanh Loading.","- Thanh Loading chạy từ 1% → 30%.
+- Sau đó chuyển sang Landing Page và tiếp tục Loading đến 100%."
+Mah_003,Loading,Kiểm tra loading khi Game Info trả về sau 10 giây,Game Info trả về > 10s,"1. Mở game.
+2. Quan sát thanh Loading.","- Thanh Loading chạy đến 30% rồi dừng.
+- Sau khi nhận được Game Info mới chuyển sang Landing Page và tiếp tục Loading."
+Mah_004,Denomination,Kiểm tra Denomination khi mở game,Game mở thành công,"1. Mở game.
+2. Kiểm tra Game Info trên console.
+3. So sánh Denomination trên UI.",Denomination hiển thị đúng theo cấu hình Game Info.
+Mah_005,Denomination,Kiểm tra tăng/giảm Bet Amount,Game đang ở Base Game,"1. Nhấn nút +.
+2. Nhấn nút -.",Bet Amount tăng/giảm đúng theo danh sách Denomination.
+Mah_006,Denomination,Kiểm tra Bet Level mặc định,BO đã cấu hình Default Bet Level,1. Mở game.,Game nhận đúng Bet Level mặc định từ BO.
+Mah_007,Balance,Kiểm tra trừ Balance khi bắt đầu Spin,Có đủ Balance,"1. Ghi nhận Balance hiện tại.
+2. Nhấn Spin.",Balance bị trừ ngay số tiền bằng Bet Amount.
+Mah_008,Balance,Kiểm tra cộng Balance sau khi có kết quả,Có lượt quay thắng,"1. Thực hiện Spin.
+2. Chờ reels dừng.",Balance được cộng đúng bằng Payout sau khi kết thúc lượt quay.
+Mah_009,Balance,Kiểm tra khi hết Balance,Balance nhỏ hơn Bet Amount,1. Nhấn Spin.,Hiển thị popup thông báo hết số dư và chặn Spin phía Client.
+Mah_010,Balance,Kiểm tra Auto Play khi hết Balance,Đang Auto Play,1. Chạy Auto Play đến khi hết Balance.,Auto Play tự động dừng và hiển thị popup hết số dư.
+Mah_011,Balance,Kiểm tra hết Balance trong Free Spin/Promo,Đang chơi Free Spin hoặc Promo,"1. Vào Free Spin hoặc Promo.
+2. Balance = 0.",Free Spin/Promo vẫn tiếp tục hoạt động bình thường.
+Mah_012,History,Kiểm tra History trong Game,Có ít nhất 1 lượt cược,"1. Thực hiện Spin.
+2. Mở History trong Game.",Hiển thị đúng UI và đúng dữ liệu lượt cược.
+Mah_013,History,Kiểm tra History trên BO,Có ít nhất 1 lượt cược,"1. Thực hiện Spin.
+2. Kiểm tra History trên BO.",Dữ liệu khớp với kết quả trong Game.
+Mah_014,Auto Play,Kiểm tra dừng khi hết Number of Bet,Auto Play đang chạy,Chọn Number of Bet và bắt đầu Auto Play.,Auto Play dừng khi hết số lượt quay đã chọn.
+Mah_015,Auto Play,Kiểm tra Stop at Any Win,Auto Play đang chạy,Bật Stop at Any Win và chờ có lượt thắng.,Auto Play dừng ngay sau lượt thắng đầu tiên.
+Mah_016,Auto Play,Kiểm tra dừng khi hết Balance,Auto Play đang chạy,Chạy đến khi hết Balance.,Auto Play tự động dừng.
+Mah_017,Auto Play,Kiểm tra User Stop,Auto Play đang chạy,Nhấn Stop Auto.,Auto Play dừng ngay.
+Mah_018,Auto Play,Kiểm tra Reload Game,Auto Play đang chạy,Reload game.,Auto Play bị hủy sau khi vào lại game.
+Mah_019,Auto Play,Kiểm tra trạng thái Button,Auto Play đang chạy,Quan sát giao diện.,"Disable Bet +, Bet -, Trophy, Paytable, Sound, Info, Menu.
+Nút Spin hiển thị số vòng quay còn lại."
+Mah_020,Auto Play,Kiểm tra thay đổi Bet trước khi Auto Play,Auto Play chưa bắt đầu,Điều chỉnh Bet Amount rồi Confirm.,Auto Play chạy với đúng Bet Amount đã chọn.
+Mah_021,Turbo,Kiểm tra bật Turbo,Game hỗ trợ Turbo,Bật Turbo và Spin.,"Reel quay nhanh hơn, kích hoạt Stop Now."
+Mah_022,Turbo,Kiểm tra Hold chuột,Turbo đang tắt,Giữ chuột khoảng 1 giây rồi thả.,"Turbo chỉ bật khi giữ, tắt khi nhả chuột."
+Mah_023,Turbo,Kiểm tra Hold Space,Turbo đang tắt,Giữ Space khoảng 1 giây rồi thả.,"Turbo chỉ bật khi giữ, tắt khi nhả Space."
+Mah_024,Sound,Kiểm tra Hide/Switch Tab,Game đang phát âm thanh,Chuyển tab hoặc thu nhỏ trình duyệt.,Toàn bộ âm thanh dừng phát.
+Mah_025,Sound,Kiểm tra tắt BGM,Game đang phát BGM,Tắt BGM.,Volume BGM = 0.
+Mah_026,Sound,Kiểm tra tắt Music,Game đang phát Music,Tắt Music.,Volume Music = 0.
+Mah_027,Auto Reconnect,Kiểm tra tự động kết nối lại khi mất mạng dưới 20 giây,Game đang hoạt động,"1. Mở game.
+2. Ngắt kết nối mạng dưới 20 giây.
+3. Kết nối mạng lại.","- Hiển thị trạng thái đang kết nối lại.
+- Game tự động reconnect thành công.
+- Người chơi tiếp tục chơi bình thường tại trạng thái trước khi mất kết nối."
+Mah_028,Auto Reconnect,Kiểm tra khi mất kết nối trên 20 giây,Game đang hoạt động,"1. Mở game.
+2. Ngắt kết nối mạng trên 20 giây.
+3. Kết nối mạng lại.","- Không tự reconnect vào game.
+- Hiển thị popup thông báo.
+- Người chơi được chuyển về Landing Page/Home theo thiết kế."
+Mah_029,Auto Reconnect,Kiểm tra khi chuyển đổi mạng (Wi-Fi A → Wi-Fi B),Game đang hoạt động,"1. Mở game bằng Wi-Fi A.
+2. Chuyển sang Wi-Fi B trong khi game đang mở.","- Hệ thống xử lý đúng theo thiết kế.
+- Nếu không thể duy trì session, hiển thị popup và chuyển về Landing Page/Home."
+Mah_030,Auto Reconnect,Kiểm tra đăng nhập cùng tài khoản trên nhiều tab,Đã mở game trên Tab 1,"1. Mở cùng game với cùng tài khoản trên Tab 2.
+2. Quay lại Tab 1.","- Session cũ bị vô hiệu theo thiết kế.
+- Hiển thị popup thông báo.
+- Tab cũ được chuyển về Landing Page/Home."
+Mah_031,Auto Reconnect,Kiểm tra Auto Reconnect khi đang Auto Play,Auto Play đang hoạt động,"1. Bật Auto Play.
+2. Ngắt mạng dưới 20 giây.
+3. Kết nối lại mạng.","- Game reconnect thành công.
+- Trạng thái Auto Play được xử lý đúng theo thiết kế (tiếp tục hoặc dừng tùy requirement).
+- Không bị mất đồng bộ dữ liệu."
+Mah_032,Auto Reconnect,Kiểm tra khi ẩn/chuyển tab trong thời gian dài,Game đang hoạt động,"1. Mở game.
+2. Chuyển sang tab khác hoặc thu nhỏ trình duyệt trong khoảng 30–45 phút.
+3. Quay lại game.","- Session được xử lý đúng theo thiết kế.
+- Nếu session hết hạn, hiển thị popup và chuyển về Landing Page/Home.
+- Nếu session còn hiệu lực, game tiếp tục hoạt động bình thường."
+Mah_033,Auto Reconnect,Kiểm tra khi quay lại tab game,Game đang hoạt động,"1. Mở game.
+2. Chuyển sang tab khác trong thời gian ngắn.
+3. Quay lại tab game.","- Game tiếp tục hoạt động bình thường.
+- Balance, trạng thái game và giao diện được đồng bộ chính xác.
+- Không tự động reload hoặc hiển thị lỗi."
+Mah_034,Auto Reconnect,Kiểm tra trong điều kiện mạng chậm hoặc không ổn định,Game đang hoạt động,"1. Giả lập mạng chậm hoặc mạng có độ trễ cao.
+2. Thực hiện nhiều lượt quay và thao tác trong game.","- Game xử lý ổn định.
+- Không bị treo giao diện.
+- Không gửi request trùng.
+- Đồng bộ đúng trạng thái sau khi nhận được phản hồi từ server."
+Mah_035,Spin,Kiểm tra Spin bằng nút Spin,Game sẵn sàng,1. Nhấn nút Spin.,Reels bắt đầu quay bình thường.
+Mah_036,Spin,Kiểm tra Spin bằng phím Space,Game sẵn sàng,1. Nhấn phím Space.,Reels bắt đầu quay bình thường.
+Mah_037,Spin,Kiểm tra Hold Spin kích hoạt Auto Spin,Game sẵn sàng,1. Nhấn giữ nút Spin hoặc Space.,Game tự động quay liên tục khi giữ.
+Mah_038,Spin,Kiểm tra Hold Spin kích hoạt Sudden Stop,Reels đang quay,1. Giữ nút Spin hoặc Space khi reels đang quay.,Reels dừng ngay lập tức (Sudden Stop).
+Mah_039,Spin,Kiểm tra nhả Hold Spin,Hold Spin đang hoạt động,1. Buông chuột hoặc Space.,Auto Spin dừng ngay.
+Mah_040,Spin,Kiểm tra Double Click Sudden Stop,Reels đang quay,1. Double Click nút Spin.,Reels dừng ngay và kết quả hiển thị chính xác.
+Mah_041,Reels Glow,Kiểm tra kích hoạt Reels Glow khi Bonus xuất hiện trên nhiều reel,Bonus xuất hiện từ Reel 1 đến Reel 6 theo điều kiện,"1. Thực hiện lượt quay có Bonus theo điều kiện.
+2. Quan sát animation.",Hiệu ứng Reels Glow được kích hoạt đúng theo thiết kế
+Mah_042,Reels Glow,Kiểm tra không kích hoạt Reels Glow khi Bonus cuối cùng xuất hiện ở reel cuối,Bonus cuối cùng xuất hiện ở reel cuối,"1. Thực hiện lượt quay theo điều kiện.
+2. Quan sát animation.",Không kích hoạt Reels Glow.
+Mah_043,Base Game,Kiểm tra Multiplier khởi tạo,Bắt đầu vòng cược mới,1. Thực hiện một lượt quay mới.,Multiplier khởi tạo tại Level 1 = x1.
+Mah_044,Base Game,Kiểm tra tăng Multiplier khi có Cluster Win,Có Cluster Win,1. Thực hiện lượt quay có Cascade.,"- Win được tính theo Multiplier hiện tại.
+- Sau mỗi Cascade, Multiplier tăng 1 Level.
+- Nếu đạt x1000 thì giữ nguyên."
+Mah_045,Base Game,Kiểm tra reset Multiplier khi không có Cluster Win,Không có Cluster Win,1. Thực hiện lượt quay không thắng.,Lượt cược tiếp theo Multiplier reset về Level 1 = x1.
+Mah_046,Base Game,Kiểm tra trạng thái Button khi reels đang quay,Reels đang quay,"1. Nhấn Spin.
+2. Quan sát giao diện.","Disable Bet +, Bet -, Auto Play, Trophy, Paytable, Sound, Info và Menu trong khi reels đang quay."
+Mah_047,Free Spin,Kiểm tra điều kiện kích hoạt Free Spin,Có ít nhất 3 Bonus trên các Reel theo rule game,1. Thực hiện lượt quay đủ điều kiện.,Free Spin được kích hoạt thành công.
+Mah_048,Free Spin,Kiểm tra Multiplier khởi tạo trong Free Spin,Vừa vào Free Spin,1. Quan sát Multiplier ở lượt Free Spin đầu tiên.,Multiplier khởi tạo tại Level 1 = x2.
+Mah_049,Free Spin,Kiểm tra tăng Multiplier khi có Cluster Win,Đang ở Free Spin,1. Thực hiện lượt quay có Cascade.,"Multiplier tăng 1 Level sau mỗi Cascade cho đến x10, sau đó giữ nguyên."
+Mah_050,Free Spin,Kiểm tra reset Multiplier khi không có Cluster Win,Đang ở Free Spin,1. Thực hiện lượt quay không có thắng.,Lượt Free Spin tiếp theo reset về Level 1 = x2.
+Mah_051,Free Spin,Kiểm tra trạng thái Button trong Free Spin,Đang ở Free Spin,1. Quan sát giao diện.,"Disable Bet +, Bet -, Auto Play, Trophy, Paytable, Info, Menu.
+Nút Spin hiển thị số lượt Free Spin còn lại."
+Mah_052,Multi-language,Kiểm tra đồng bộ ngôn ngữ của game,Hệ thống hỗ trợ nhiều ngôn ngữ,"1. Đổi ngôn ngữ của người chơi (ví dụ: EN, MY, TH...).
+2. Mở game.",Toàn bộ text trong game hiển thị đúng theo ngôn ngữ đã chọn.
+Mah_053,Multi-language,Kiểm tra chuyển đổi ngôn ngữ khi đang mở game,Game đang ở Base Game,"1. Đổi ngôn ngữ.
+2. Reload hoặc mở lại game (theo thiết kế).","Toàn bộ text được cập nhật sang ngôn ngữ mới, không còn text của ngôn ngữ cũ."
+Mah_054,Multi-language,Kiểm tra tự động co giãn (Auto Text Scaling),Chọn ngôn ngữ có chuỗi dài (ví dụ: Burmese),"1. Đổi sang tiếng Burmese (MY).
+2. Kiểm tra toàn bộ màn hình game.","Text tự động co giãn theo thiết kế, không tràn khung hoặc chồng lên UI."
+Mah_055,Multi-language,Kiểm tra text không bị cắt hoặc mất ký tự,Chọn tiếng Burmese (MY),"1. Kiểm tra các popup, button, paytable, tutorial và các màn hình khác.","Không có text bị cắt, mất dấu hoặc thiếu ký tự."
+Mah_056,Multi-language,Kiểm tra dịch thuật,Game hỗ trợ nhiều ngôn ngữ,"1. Chuyển lần lượt từng ngôn ngữ.
+2. Kiểm tra toàn bộ text.","Nội dung dịch đúng ngữ nghĩa, thống nhất thuật ngữ và đúng theo tài liệu localization."
+Mah_057,Tutorial,Kiểm tra mở Tutorial,Game mở thành công,1. Nhấn nút Tutorial/Info.,Popup Tutorial hiển thị đúng theo Flow Design.
+Mah_058,Tutorial,Kiểm tra điều hướng giữa các trang Tutorial,Tutorial có nhiều trang,"1. Mở Tutorial.
+2. Chuyển Next/Previous giữa các trang.","Điều hướng hoạt động bình thường, không thiếu hoặc lặp trang."
+Mah_059,Tutorial,Kiểm tra nội dung Tutorial,Tutorial mở thành công,1. Đọc toàn bộ nội dung Tutorial.,"Nội dung đúng với tài liệu thiết kế, không thiếu hoặc sai thông tin."
+Mah_060,Tutorial,Kiểm tra hình ảnh trong Tutorial,Tutorial mở thành công,1. Quan sát tất cả hình minh họa.,"Hình ảnh đúng với game hiện tại, không lỗi hiển thị, không sai symbol hoặc feature."
+Mah_061,Tutorial,Kiểm tra payout của Base Symbol,Có thể thay đổi Bet Amount,"1. Mở Tutorial.
+2. Chọn một Base Symbol.
+3. Ghi nhận giá trị payout.",Giá trị payout đúng theo Paytable tại mức cược hiện tại.
+Mah_062,Tutorial,Kiểm tra cập nhật payout khi thay đổi Bet Amount,Tutorial đang mở,"1. Thay đổi Bet Amount.
+2. Mở lại hoặc refresh trang Symbol trong Tutorial.",Giá trị payout được cập nhật đúng theo Bet Amount mới.
+Mah_063,Tutorial,Kiểm tra Tutorial sau khi đổi ngôn ngữ,Game hỗ trợ nhiều ngôn ngữ,"1. Đổi ngôn ngữ.
+2. Mở Tutorial.","Toàn bộ text và hình ảnh trong Tutorial hiển thị đúng theo ngôn ngữ đã chọn, không bị lỗi layout hoặc tràn chữ."
+Mah_064,Replay,Kiểm tra mở Replay từ History,Có ít nhất 1 lịch sử cược,"1. Mở History.
+2. Chọn một lượt cược.
+3. Nhấn Replay.",Replay được mở thành công.
+Mah_065,Replay,Kiểm tra Balance trước khi quay,Replay của Normal Bet,Quan sát Balance trước khi reel bắt đầu quay.,Balance = Balance sau cược - Stake + Payout.
+Mah_066,Replay,Kiểm tra Balance trong khi quay,Replay của Normal Bet,Quan sát Balance khi reel đang quay.,Balance = Balance sau cược - Payout.
+Mah_067,Replay,Kiểm tra Balance sau khi Replay kết thúc,Replay hoàn thành,Quan sát Balance cuối Replay.,Balance đúng bằng Balance sau cược từ server.
+Mah_068,Replay,Kiểm tra Replay Big Win,Có Big Win,Replay hiển thị Big Win animation.,"Animation, Win Amount đúng với dữ liệu gốc."
+Mah_069,Replay,Kiểm tra Replay Free Spin,Có Free Spin,Mở Replay của lượt Free Spin.,"Replay đầy đủ toàn bộ Free Spin, Multiplier, Retrigger (nếu có)."
+Mah_070,Replay,Kiểm tra trạng thái Button,Đang Replay,Quan sát toàn bộ button.,"Disable Bet, Bet+/-, Auto Play, History, Last Bet, Setting...
+Enable Turbo và Audio theo thiết kế."
+Mah_071,Replay,Kiểm tra text Replay,Đang Replay,Quan sát nút Spin.,Hiển thị text Replay dưới nút Spin.
+Mah_072,Replay,Kiểm tra Watch Again,Replay kết thúc,Nhấn Watch Again.,Replay chạy lại từ đầu.
+Mah_073,Replay,Kiểm tra Copy Link,Replay hỗ trợ Link,Nhấn Copy Link.,Link được copy và mở đúng Replay.
+Mah_074,Promo,Kiểm tra nhận Promo,Player có Promo,Mở game.,Promo được nhận đúng theo cấu hình.
+Mah_075,Promo,Kiểm tra UI Promo,Có Promo,Quan sát giao diện.,UI đúng theo Design.
+Mah_076,Promo,Kiểm tra Promo Count,Promo Count,Thực hiện Spin.,Số lượt Promo giảm đúng sau mỗi Spin.
+Mah_077,Promo,Kiểm tra Promo Countdown,Countdown Promo,Chờ hết thời gian.,Countdown giảm đúng theo thời gian.
+Mah_078,Promo,Kiểm tra kết thúc Promo,Promo hết lượt,Chơi hết Promo.,Game quay về Base Game bình thường.
+Mah_079,Promo,Kiểm tra Reload trong Promo,Đang Promo,Reload game.,Promo được khôi phục đúng trạng thái.
+Mah_080,Promo,Kiểm tra Last Bet sau Promo,Promo kết thúc,Mở Last Bet.,Stake và kết quả đúng theo Promo Bet.
+Mah_081,Last Bet,Kiểm tra Last Bet khi thua,Có 1 lượt cược thua,Mở Last Bet.,"Hiển thị đúng Stake, Bet Amount, không có Win Line."
+Mah_082,Last Bet,Kiểm tra Last Bet khi thắng,Có 1 lượt cược thắng,Mở Last Bet.,"Hiển thị đúng Win Line, Win Amount, Stake."
+Mah_083,Last Bet,Kiểm tra Last Bet Buy Bonus,Có Buy Bonus,Mở Last Bet.,Hiển thị đúng dữ liệu Buy Bonus.
+Mah_084,Last Bet,Kiểm tra đổi Denomination,Đổi Denomination sau Bet,Mở Last Bet.,Last Bet vẫn hiển thị Stake theo Denomination của lượt cược trước.
+Mah_085,Last Bet,Kiểm tra Last Bet trong Free Spin,Có Free Spin,Mở Last Bet.,Trong khi còn Pending FS vẫn hiển thị Stake của Free Spin. Sau khi kết thúc mới hiển thị Stake mặc định.
+Mah_086,Last Bet,Kiểm tra Last Bet của Promo,Có Promo,Chơi Promo rồi mở Last Bet.,Hiển thị Stake đúng của Promo. Sau khi Promo kết thúc hiển thị Stake mặc định.
+Mah_087,Last Bet,Kiểm tra hiển thị Last Bet trước mỗi lượt Free Spin/Buy Bonus,"Đang trong Free Spin, Buy Bonus hoặc Promo","1. Trigger từng loại feature.
+2. Quan sát trước mỗi lượt quay.","Trước mỗi lượt quay tiếp theo, Last Bet luôn hiển thị khoảng 0.5 giây, sau đó game mới bắt đầu spin. Thông tin Last Bet (Bet Type, Stake, Bet Amount, Win nếu có) đúng với lượt quay vừa hoàn thành."
+Mah_088,Game Help,Kiểm tra mở Game Help,Game đang mở,Nhấn nút Help.,Game Help mở thành công.
+Mah_089,Game Help,Kiểm tra Support On/Off,BO cấu hình,Bật/Tắt Support trên BO rồi mở game.,Hiển thị/Ẩn Game Help đúng theo BO.
+Mah_090,Game Help,Kiểm tra Max Win,maxWinEnabled,Quan sát Game Help.,"Hiển thị đúng khi Enable, ẩn khi Disable."
+Mah_091,Game Help,Kiểm tra Game Limits,gameLimitsEnabled,Quan sát Game Help.,Hiển thị đúng theo BO.
+Mah_092,Game Help,Kiểm tra Volatility,volatilityEnabled,Quan sát Game Help.,Hiển thị đúng theo BO.
+Mah_093,Game Help,Kiểm tra RTP Display,rtpDisplayEnabled,Quan sát Game Help.,Hiển thị đúng RTP.
+Mah_094,Game Help,Kiểm tra Interruption Policy,interruptionPolicyEnabled,Quan sát Game Help.,Hiển thị đúng theo cấu hình.
+Mah_095,Game Help,Kiểm tra Auto Finalize Duration,BO cấu hình Duration,Mở Game Help.,Hiển thị đúng thời gian Auto Finalize.
+Mah_096,Game Help,Kiểm tra mapping giá trị RTP,BO cấu hình RTP,Mở Game Help.,"Các key gameRTP, bonusTheoRTP, buyBonusRTP, anteTheoRTP, anteRTP được hiển thị đúng giá trị và đúng template."
+Mah_097,Compliance,autoPlay = false,BO cấu hình,Mở game.,Ẩn nút Auto Play và nội dung liên quan trong Tutorial.
+Mah_098,Compliance,turboMode = false,BO cấu hình,Mở game.,"Ẩn Turbo, chặn Skip Animation, ẩn hướng dẫn Hold Turbo."
+Mah_099,Compliance,minSpinDurationSec,BO cấu hình,Spin game.,Thời gian quay tối thiểu đúng theo cấu hình.
+Mah_100,Compliance,oneClickPerSpin,BO cấu hình,Giữ nút Spin.,Không kích hoạt Hold Spin.
+Mah_101,Compliance,realityCheckEnabled,BO cấu hình,Chờ đến thời gian Reality Check.,Popup Reality Check hiển thị đúng.
+Mah_102,Compliance,maxSessionTimeMin,BO cấu hình,Chơi đến hết thời gian.,Hiển thị Popup Max Session Time.
+Mah_103,Compliance,bonusBuyAllowed,BO cấu hình,Mở game.,Ẩn nút Buy Bonus và nội dung Tutorial liên quan.
+Mah_104,Compliance,Compliance trong Replay,Replay,Mở Replay.,Replay không hiển thị Reality Check hoặc Max Session popup.
+Mah_105,Popup,Bật/Tắt Turbo,Game hỗ trợ Turbo,Bật rồi tắt Turbo.,Hiển thị popup Turbo Enabled/Disabled.
+Mah_106,Popup,Bật/Tắt Ante Bet,Game hỗ trợ Ante,Bật rồi tắt Ante.,Hiển thị popup Ante Bet Enabled/Disabled.
+Mah_107,Popup,Bật/Tắt Auto Play,Game hỗ trợ Auto,Bật rồi dừng Auto Play.,Hiển thị popup Auto Play Enabled/Disabled.
+Mah_108,Popup,Kiểm tra nhiều popup liên tiếp,"Có Turbo, Auto, Ante",Bật/Tắt liên tục các tính năng.,"Popup không bị chồng lấp, hiển thị đúng thứ tự và tự động đóng theo thiết kế."

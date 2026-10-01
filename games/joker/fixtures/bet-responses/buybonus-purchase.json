@@ -1,0 +1,45 @@
+{
+    "status": 1,
+    "code": 0,
+    "msg": "",
+    "timestamp": 1789962782490,
+    "result": {
+        "freeSpins": 20,
+        "luckyMultiplier": 0,
+        "paylines": [],
+        "id": "942325743491219457",
+        "refId": "942325743491219457",
+        "roundId": "942325743499608065",
+        "playType": "",
+        "stake": 400,
+        "payout": 0,
+        "winlose": -400,
+        "result": {
+            "rawViews": [
+                { "id": 1, "value": [-1, -1, -1] },
+                { "id": 2, "value": [-1, -1, -1] },
+                { "id": 3, "value": [-1, -1, -1] },
+                { "id": 4, "value": [-1, -1, -1] },
+                { "id": 5, "value": [-1, -1, -1] }
+            ],
+            "views": [
+                { "id": 1, "value": [-1, -1, -1] },
+                { "id": 2, "value": [-1, -1, -1] },
+                { "id": 3, "value": [-1, -1, -1] },
+                { "id": 4, "value": [-1, -1, -1] },
+                { "id": 5, "value": [-1, -1, -1] }
+            ]
+        },
+        "betTime": 1789962782386,
+        "processedTime": 1789962782408,
+        "settledTime": 1789962782408,
+        "betLines": 20,
+        "balance": 23948.65,
+        "freeSpinPackage": {
+            "id": 0,
+            "name": "packagea",
+            "freeSpins": 20,
+            "price": 100
+        }
+    }
+}

@@ -1,0 +1,559 @@
+# Joker: Where's My Banana — Spin mechanism, Turbo, Sound, notifications, Reconnect
+# (JK-22, JK-24 … JK-30, JK-32, JK-33, JK-44 … JK-50).
+#
+# JK-30 / JK-32 / JK-33 are NOT in Dragon's numbering — they are cases Chaos and Mystic carry
+# that Dragon never ported. They sit in the 30s because that block is Dragon's Hold & Spin, a
+# mechanism this game does not have, so the range is free and the JK-NN = DR-NN mapping is not
+# disturbed anywhere it exists.
+#
+# Run:  python scripts/run_scenario.py --game joker --env dev
+#       --suite games/joker/test-suites/jk-input-sound-reconnect.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game joker
+#
+# Numbering follows Dragon's, so JK-NN is the same claim as DR-NN
+# (games/dragon/test-suites/dr-input-sound-reconnect.yml, and zz-* behind it, hold the history).
+# Timing-sensitive: real pointer/keyboard holds, double-clicks and network drops. If a hold case
+# fails the fix is usually the gesture (timing, target rect), not a different API.
+#
+# ── JOKER DIALECT THAT MATTERS HERE (bridge-api.md §3, §5, §7, §9, §12.8) ───────────────────
+#   * `spin` is ONE node with two faces: IDLE places the bet, and its STOP face (about 0.3 s after
+#     a spin starts) stops the reels. The profile maps `stop` to `spin` for exactly that reason.
+#     During autoplay and free spins it is a COUNTER and is not interactable.
+#   * ⚠ THIS BUILD HAS A REAL BRIDGE HOLD, unlike Dragon: `holdSpinStart()` / `holdSpinEnd()` (§9)
+#     perform a genuine press-and-hold on Spin, which is the game's hold-for-turbo gesture.
+#     `holdSpinStart` THROWS if `canDo('spin')` is not ok, so a hold that starts at a bad moment
+#     fails loudly instead of silently doing nothing — which is the opposite of Dragon's problem.
+#   * `getSpeedMode()` answers 'NORMAL' | 'TURBO' | 'UNKNOWN'; TURBO covers both fast tiers, so a
+#     build with two turbo speeds still reports one value and `speed_toggled` stays meaningful.
+#   * Toggling Turbo raises `notify:turbo` for a moment. Toasts ARE listed in `visiblePopups` on
+#     this build (§5) but never hold back `waitForSpinClickable` (§3: "toasts don't count").
+#   * ⚠ The main-screen `sound` button toggles sound AND music TOGETHER (§7.1). The Settings panel
+#     has the separate `setting:sound` / `setting:music`, and that separation is the only reason
+#     JK-24 and JK-25 are two claims rather than one. `sound-toggles` uses the Settings controls.
+#   * `information`, `setting`, `history` and the rest are modal and BLOCK spin (§6), so nothing
+#     here spins with a panel open.
+#
+# ── THE SOUND CASES ARE EXACT ───────────────────────────────────────────────────────────────
+# `isSoundEnabled()` / `isMusicEnabled()` read the model, so "the volume went to zero" is not
+# guessed from a video you cannot hear. What the getters cannot say is whether the control on
+# screen agrees with them, which is why JK-24/25 still carry a clip (Rule 10).
+#
+# ⚠ The profile carried `HAS_SOUND_GETTERS = False` with the note "bridge §9 lists no
+# isSoundEnabled()/isMusicEnabled()". It does — §9 lists both. `sound-toggles` returns UNREACHED on
+# a False flag, so these two cases were silently inconclusive rather than red. Corrected in
+# `scripts/game_profile.py`; if they ever report unreached again, check that flag first.
+
+runs:
+  # ── JK-44 … JK-50 : every spin input, one recording ────────────────────────────────
+  # Rule 16: one clip, one AI call, seven case verdicts via `expected_by_case`.
+  #
+  # ⚠ Rule 1: these are real paid spins, so one of them can award free spins — and the bonus then
+  # plays itself, which looks a great deal like "the hold started a continuous auto-spin". The
+  # prompt says so explicitly below; the EXACT halves (`click_rounds == 1`, `key_rounds == 1`)
+  # count PAID BASE rounds, so a free spin cannot inflate either.
+  - run:
+      scenario: spin-inputs
+      teardown: return-to-base
+      cases:
+        - id: JK-44
+          title: "Spin with the Spin button starts the reels"
+          assert:
+            # "one input started exactly ONE spin": a double-fire looks like one spin on video and is
+            # two responses in the stream. base_rounds_since() counts PAID BASE rounds only.
+            - stream: "{facts.click_rounds} == 1"
+        - id: JK-45
+          title: "Spin with the Space key starts the reels"
+          assert:
+            - stream: "{facts.key_rounds} == 1"
+        - id: JK-46
+          title: "Holding Spin or Space starts continuous auto-spin"
+          assert:
+            # the gesture really fired — otherwise the AI is asked about a hold that never happened.
+            # On this build a failed hold RAISES (holdSpinStart throws when canDo('spin') is not
+            # ok), so a False here means the scenario caught that and carried on, and the reason is
+            # in the run log.
+            - stream: "{facts.hold_done} == True"
+        - id: JK-47
+          title: "Holding Spin while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: JK-48
+          title: "Releasing the hold stops the auto-spin"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: JK-49
+          title: "Double-clicking while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.dblclick_done} == True"
+        - id: JK-50
+          title: "The result after a sudden stop is correct, with no animation glitch"
+          assert:
+            # the sudden stop must not corrupt the round: the server response still balances...
+            - stream: conservation
+            # ...and the money still matches the lines the server itself reported. A sudden stop is
+            # a PRESENTATION shortcut; if it could change what was credited, this is where it shows.
+            - stream: joker_payout_matches_paylines
+            - stream: "{facts.rounds_total} >= 4"     # all four input variants really ran
+      video:
+        high_fps: true                       # 16fps effective — holds and sudden stops are sub-second
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. Several distinct spin
+          inputs are performed in sequence. The ACTION TIMELINE below gives the EXACT time of each
+          one — line them up with the burned-in timestamps and judge the game AT that moment; do not
+          confuse one action with another. Answer: (1) at "SPIN via the Spin button", do the reels
+          spin normally (btn_spin_works)? (2) at "SPIN via the Space key", do they spin normally
+          (space_spin_works)? (3) starting at "HOLD the Spin button ...", does the game keep
+          auto-spinning while held (hold_starts_autospin) and STOP when released
+          (release_stops_autospin)? Spins during a hold may run faster than normal — this game
+          engages turbo while Spin is held — and that is expected. (4) at "SUDDEN STOP: hold Spin
+          ...", does holding during a turning reel stop it immediately (hold_sudden_stop)? (5) at
+          "SUDDEN STOP: double-click Spin ...", does the double-click stop it immediately
+          (doubleclick_sudden_stop)? (6) after each sudden stop, does the grid settle on a clean,
+          complete result with no visual glitch or stuck animation (result_clean_after_stop)?
+
+          ⚠ If any spin awards FREE SPINS, the game plays the whole bonus by itself — a run of
+          spins with no input at all, possibly with a wild expanding to fill a reel. That is the
+          bonus, NOT a hold starting an auto-spin, and it is not any of the moments above. Judge
+          only the moments the ACTION TIMELINE names.
+        output_schema:
+          btn_spin_works: { type: boolean }
+          space_spin_works: { type: boolean }
+          hold_starts_autospin: { type: boolean }
+          release_stops_autospin: { type: boolean }
+          hold_sudden_stop: { type: boolean }
+          doubleclick_sudden_stop: { type: boolean }
+          result_clean_after_stop: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-44: { btn_spin_works: true, confidence: medium }
+          JK-45: { space_spin_works: true, confidence: medium }
+          JK-46: { hold_starts_autospin: true, confidence: low }
+          JK-47: { hold_sudden_stop: true, confidence: low }
+          JK-48: { release_stops_autospin: true, confidence: low }
+          JK-49: { doubleclick_sudden_stop: true, confidence: low }
+          JK-50: { result_clean_after_stop: true, confidence: low }
+
+  # ── JK-22 : Turbo ──────────────────────────────────────────────────────────────────
+  # `turbo-modes`, NOT `toggle-turbo`: the case is "the reels spin faster", and `toggle-turbo`
+  # places no bet — no reel ever turns in its clip. `turbo-modes` toggles Turbo on, SPINS, and
+  # toggles it off.
+  # ⚠ JOKER: `turbo` may be `null` when compliance disables it, or during a promo that disallows it
+  # (bridge §7.1). `turbo_control_present` is the tell: False means the control was not there to
+  # click, which is a compliance state, not a broken toggle.
+  - run:
+      scenario: turbo-modes
+      teardown: return-to-base
+      cases:
+        - id: JK-22
+          title: "Turbo makes the reels resolve faster"
+          assert:
+            # EXACT: the game's own speed mode really changed. `speed_toggled` is the COMPARISON
+            # computed in the scenario, so it does not care how a build spells the mode.
+            - stream: "{facts.speed_toggled} == True"
+            # 'UNKNOWN' means "unanswerable" (scene not up), not a failed toggle — this keeps the two apart
+            - stream: "{facts.has_speed_getter} == True"
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+            - stream: "{facts.turbo_control_present} == True"
+            - video:
+                high_fps: true              # 16fps effective — reel-speed differences are sub-second
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with a Turbo (fast spin) feature. In this
+                  clip one spin is first played with Turbo OFF; then the Turbo control is clicked
+                  ON, a spin is played, and Turbo is clicked back OFF. The ACTION TIMELINE gives the
+                  exact time of each click and each spin. A short banner announcing Turbo on or off
+                  may appear and fade — that is expected. Answer: (1) do the reels of the spin
+                  played with Turbo ON resolve visibly FASTER than the first spin, played with Turbo
+                  OFF (reels_faster)? (2) does the Turbo control itself visibly change state when
+                  clicked — highlighted, lit, or swapped for its "on" icon (button_state_changed)?
+                  (3) does the result of a turbo spin still land on a clean, complete grid with no
+                  glitch or stuck animation (result_clean_in_turbo)? Compare only PAID base spins
+                  with each other; if free spins are awarded they play at their own pace and are not
+                  a speed comparison.
+                output_schema:
+                  reels_faster: { type: boolean }
+                  button_state_changed: { type: boolean }
+                  result_clean_in_turbo: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reels_faster: true
+                  button_state_changed: true
+                  result_clean_in_turbo: true
+                  confidence: medium
+
+  # ── JK-24 + JK-25 : sound and music off ────────────────────────────────────────────
+  # EXACT through isSoundEnabled()/isMusicEnabled(). No AI is asked to judge silence; the clip is
+  # asked whether the controls on screen agree with the model — a toggle that mutes the game while
+  # still drawing itself ON passes every stream assert and fails only there (Rule 10).
+  #
+  # ⚠ JOKER: these are INDEPENDENT flags and the Settings panel is what separates them. The
+  # main-screen `sound` button flips BOTH at once (bridge §7.1, §9), so a case driven through that
+  # button could never tell JK-24 from JK-25. `sound-toggles` opens Settings on purpose.
+  - run:
+      scenario: sound-toggles
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot. In this clip the Settings panel is opened and the
+          Sound and Music toggles are switched OFF and then back ON; the ACTION TIMELINE gives the
+          exact time of each click. Judge only what is DRAWN — you cannot hear the clip, and you are
+          not being asked to. Answer: (1) does the Settings panel open and show separate sound and
+          music controls (settings_opened)? (2) after each control is switched off, does it visibly
+          change to an OFF / muted state — a struck-through icon, a dimmed control, a slider at zero
+          (controls_show_off)? (3) after they are switched back on, do they return to their ON state
+          (controls_restored)? (4) is anything about the panel visibly broken — overlapping labels,
+          missing icons, a control that does not react at all (panel_broken)?
+        output_schema:
+          settings_opened: { type: boolean }
+          controls_show_off: { type: boolean }
+          controls_restored: { type: boolean }
+          panel_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-24: { settings_opened: true, controls_show_off: true, controls_restored: true, panel_broken: false, confidence: medium }
+          JK-25: { controls_show_off: true, controls_restored: true, confidence: medium }
+      cases:
+        - id: JK-24
+          title: "Turning BGM/Sound off sets the volume to zero"
+          assert:
+            - stream: "{facts.toggled} == True"          # the control was really clickable
+            - stream: "{facts.sound_before} == True"     # it started ON, so turning it off means something
+            - stream: "{facts.sound_after_off} == False"
+            - stream: "{facts.sound_restored} == True"   # ...and the run left the game as it found it
+        - id: JK-25
+          title: "Turning Music off sets the volume to zero"
+          assert:
+            - stream: "{facts.music_before} == True"
+            - stream: "{facts.music_after_off} == False"
+            - stream: "{facts.music_restored} == True"
+
+  # ── JK-26 : brief disconnect, auto-recovers ────────────────────────────────────────
+  # ⚠ JOKER: while the socket is down `waitForSpinClickable` refuses with `connection:<state>`
+  # (bridge §3 condition 7) and the `disconnect` overlay is a blocking popup (§6) that
+  # `dismissPopups()` closes through `PopupManager.hideDisconnect()`. So "it recovered" is not
+  # inferred from the screen — the scenario proves it by playing a round afterwards.
+  - run:
+      scenario: reconnect-brief
+      teardown: return-to-base
+      cases:
+        - id: JK-26
+          title: "A disconnect under 20s reconnects and play continues normally"
+          assert:
+            - stream: "{facts.recovered} == True"
+            # the case says play CONTINUES — without a round after the reconnect, "recovered" only
+            # means the socket came back
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: "{facts.offline_s} < 20"           # this run really is the SHORT-drop case
+            - stream: conservation                       # the round after the drop still balances
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. In this clip the network is dropped for
+                  about {facts.offline_s} seconds and then restored; afterwards one more round is
+                  played. The ACTION TIMELINE marks when the network went down and came back.
+                  Answer: (1) does the game show a reconnecting indicator or message while offline
+                  (reconnect_shown)? (2) does it resume where it was, without dumping the player out
+                  to a lobby or landing page (resumed_in_place)? (3) does the round played after the
+                  reconnect behave normally — reels spin, a result lands, the balance updates
+                  (play_continues)? (4) is the UI consistent afterwards, with no stuck overlay or
+                  stale readout (state_consistent)?
+                output_schema:
+                  reconnect_shown: { type: boolean }
+                  resumed_in_place: { type: boolean }
+                  play_continues: { type: boolean }
+                  state_consistent: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  resumed_in_place: true
+                  play_continues: true
+                  state_consistent: true
+                  confidence: medium
+
+  # ── JK-27 + JK-28 : long disconnect / network switch -> popup, back to home ────────
+  # ONE run, two cases, one clip (Rule 16): to the CLIENT a Wi-Fi handover IS a drop and a restore.
+  # A genuine hardware switch stays manual; the drop length is asserted so neither case can be graded
+  # on a two-second blip.
+  - run:
+      scenario: reconnect-long
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot. In this clip the network is dropped for
+          {facts.offline_s} seconds — longer than the game's reconnect threshold of 20 seconds — and
+          then restored. The ACTION TIMELINE marks when it went down and came back. Answer: (1) does
+          a popup or message appear telling the player the connection was lost (disconnect_popup)?
+          (2) does the game LEAVE the play screen — back to a lobby, landing or home page — rather
+          than silently resuming (returns_to_home)? (3) is the transition clean, with no frozen
+          reels, stuck spinner or half-drawn screen left behind (transition_clean)?
+        output_schema:
+          disconnect_popup: { type: boolean }
+          returns_to_home: { type: boolean }
+          transition_clean: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-27: { disconnect_popup: true, returns_to_home: true, transition_clean: true, confidence: medium }
+          JK-28: { disconnect_popup: true, returns_to_home: true, confidence: medium }
+      cases:
+        - id: JK-27
+          title: "A disconnect over 20s shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+        - id: JK-28
+          title: "Switching network (Wi-Fi A to B) shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+
+  # ── JK-29 : same account in a second tab ───────────────────────────────────────────
+  - run:
+      scenario: multi-tab-session
+      teardown: return-to-base
+      cases:
+        - id: JK-29
+          title: "Opening the same account in another tab ends this session"
+          assert:
+            - stream: "{facts.second_opened} == True"    # a second session really was opened
+            - stream: "{facts.wait_s} > 0"               # ...and we waited for the first to react
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. Partway through this clip the SAME account
+                  is opened in a second browser session; the ACTION TIMELINE marks when, and the clip
+                  continues for about {facts.wait_s} seconds afterwards so the first session has
+                  time to react. You are watching the FIRST session throughout. Answer: (1) does it
+                  show a popup or message saying it has been disconnected, taken over, or logged in
+                  elsewhere (session_popup)? (2) does it stop being playable — returned to a lobby,
+                  blocked, or otherwise no longer able to spin (session_ended)? Judge the tail: a
+                  clip that simply ends is not evidence that the session was closed.
+                output_schema:
+                  session_popup: { type: boolean }
+                  session_ended: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  session_popup: true
+                  session_ended: true
+                  confidence: medium
+
+  # ── JK-30 : the Turbo NOTIFICATION ────────────────────────────────────
+  # CR_108 / Mah_105. The COMPANION to JK-22 above, and a different claim: JK-22 is "the reels
+  # resolve faster" and needs a spin to time; this is "the toast is raised, drawn and cleared", and
+  # `toggle-turbo` places NO BET at all. Using `turbo-modes` here would pay for spins the case never
+  # looks at, and using `toggle-turbo` for JK-22 would give the AI no reel to compare — which is why
+  # the two scenarios both exist and neither substitutes for the other (scenario-index §3).
+  #
+  # ⚠ JOKER: the toast is `notify:turbo`, listed in `visiblePopups` (bridge §5) but never blocking
+  # `waitForSpinClickable` (§3, "toasts don't count"). The EXACT half is `getSpeedMode()`, which
+  # answers NORMAL / TURBO / UNKNOWN — so "the mode really flipped" is read from the client model
+  # and only the banner itself is left to the AI (Rule 10).
+  - run:
+      scenario: toggle-turbo
+      teardown: return-to-base
+      params: { dwell_ms: 2000 }
+      cases:
+        - id: JK-30
+          title: "Toggling Turbo raises the Turbo Enabled / Disabled notification"
+          assert:
+            # the toggle really landed in BOTH directions — without that there is no on-edge and no
+            # off-edge for a notification to have been raised on
+            - stream: "{facts.speed_before} != {facts.speed_after_on}"
+            - stream: "{facts.speed_changed_on} == True"
+            - stream: "{facts.toggled_off} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with a Turbo (fast spin) feature. In this
+                  clip the Turbo control is switched ON and then back OFF; the ACTION TIMELINE marks
+                  each click. NO SPIN IS PLAYED — the reels do not turn at all, and that is expected:
+                  this clip is about the on-screen announcement, not about reel speed. Answer each
+                  independently:
+
+                  (1) enabled_notice: shortly after Turbo is switched ON, does a banner, toast or
+                  message appear announcing turbo / fast spin is enabled?
+
+                  (2) disabled_notice: shortly after it is switched OFF, does a banner, toast or
+                  message appear announcing it is disabled?
+
+                  (3) notice_clears: do those banners fade or close on their own, rather than
+                  staying on screen or stacking on top of each other?
+
+                  (4) control_state_changed: does the Turbo control itself visibly change —
+                  highlighted, lit, or swapped for its "on" icon — and change back?
+
+                  (5) ui_broken: is the banner drawn cleanly — readable text, nothing clipped or
+                  overlapping the reels or the buttons, nothing left as placeholder text?
+                output_schema:
+                  enabled_notice: { type: boolean }
+                  disabled_notice: { type: boolean }
+                  notice_clears: { type: boolean }
+                  control_state_changed: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  enabled_notice: true
+                  disabled_notice: true
+                  notice_clears: true
+                  control_state_changed: true
+                  ui_broken: false
+                  confidence: medium
+
+  # ── JK-32 : several notifications in quick succession ───────────────────────
+  # CR_111 / Mah_108. Toggle several features in a burst and watch what the toasts do: they should
+  # QUEUE rather than pile on top of each other. `max_concurrent_popups` is the whole case, and it
+  # is exact — the scenario polls `visiblePopups` through the burst and records the high-water mark.
+  #
+  # ⚠ THE CASE IS ONLY AUTOMATABLE HERE BECAUSE JOKER LISTS TOASTS. Bridge §5 puts `notify:turbo`
+  # and `notify:autoplay` in `visiblePopups` (and `visibleNotifications` separately), so there is
+  # something to count. On a build that hid them the count would read 0 through a burst that
+  # overlapped badly, and the case would pass on nothing.
+  #
+  # ⚠ `toggles_landed >= 2`, NOT `>= 3` as Chaos asserts. Chaos has THREE toggleable features to
+  # burst through; this game has TWO whose toast is documented (turbo, autoplay) — `notify:ante`
+  # exists in the label list but §5 marks it "unused in this game" and `anteBet` is always `null`
+  # (§7.1). Asking for three would fail on a correct build. The companion case below is what keeps
+  # a run that only landed two from looking like a clean pass of the real claim.
+  - run:
+      scenario: stacked-popups
+      teardown: return-to-base
+      cases:
+        - id: JK-32
+          title: "Rapid consecutive toggles queue their notifications without overlapping"
+          assert:
+            # the gate: the burst really toggled more than one feature, so "several notifications"
+            # describes what happened
+            - stream: "{facts.toggles_landed} >= 2"
+            # THE CASE: never two modal-level notifications on screen at once
+            - stream: "{facts.max_concurrent_popups} <= 1"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. In this clip several features are toggled
+                  in quick succession — turbo and auto-play — each of which raises a short banner or
+                  toast announcing its new state. The ACTION TIMELINE marks each toggle. NO SPIN IS
+                  PLAYED. Answer each independently:
+
+                  (1) notices_appeared: do banners or toasts appear for the toggles?
+
+                  (2) notices_overlap: do two or more banners appear ON SCREEN AT THE SAME TIME,
+                  stacked, overlapping or drawn on top of one another? They are expected to queue —
+                  one at a time — so answer true only if you actually see two at once.
+
+                  (3) all_cleared: by the end of the clip, have the banners all gone, leaving the
+                  normal game screen?
+
+                  (4) ui_broken: is any banner clipped, unreadable, drawn half off-screen, or left
+                  as placeholder text?
+                output_schema:
+                  notices_appeared: { type: boolean }
+                  notices_overlap: { type: boolean }
+                  all_cleared: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  notices_appeared: true
+                  notices_overlap: false
+                  all_cleared: true
+                  ui_broken: false
+                  confidence: medium
+
+        - id: JK-32b
+          title: "The rapid burst really did toggle more than one feature (companion for JK-32)"
+          assert:
+            # Anti-vacuity, as its own verdict rather than a comment. `max_concurrent_popups <= 1`
+            # is trivially true of a burst where nothing was raised, so a run whose toggles did not
+            # land must be VISIBLE rather than folded into a green JK-32.
+            - stream: "{facts.toggles_landed} >= 2"
+            - stream: "{facts.max_concurrent_popups} >= 1"   # at least one toast was actually seen
+
+  # ── JK-33 : a disconnect DURING auto-play ─────────────────────────────
+  # CR_037 / Mah_031. JK-26 drops the network on an IDLE game; this drops it with a run in flight,
+  # which is the harder case: a round may be in the air when the socket goes, and the client must
+  # neither lose it nor play it twice. `conservation` is the assert that says so — it is an identity
+  # over the whole stream, so a duplicated round breaks it as surely as a lost one.
+  #
+  # ⚠ JOKER, AND THIS IS WHY THE CASE IS WORTH ITS OWN RUN HERE: this is the one place three of
+  # this build's behaviours can land together — the `notify:autoplay` toast, the BLOCKING
+  # `disconnect` overlay (bridge §6), and a free-spin bonus that may be OWED when the socket returns
+  # (`pending.gameState == 2`, §12.6, whose rounds start the moment Start resolves and are buffered
+  # before it, §8). Nothing in the run knows which of those the client shows first.
+  #
+  # ⚠ SO TWO OF THE FOUR ANSWERS ARE RECORDED, NOT GRADED. `auto_resumed_or_stopped` and
+  # `bonus_handled` are asked on every run and expected on none: whether auto-play should RESUME
+  # after a reconnect or stop is a product decision nothing in the bridge doc states, and whether an
+  # owed bonus plays before auto-play continues is the same question one layer down. Grading either
+  # would assert a behaviour nobody has confirmed is intended. Read them after the first green run
+  # and promote them — discovery fields, the same shape as JK-55's (Dragon does this too, DR-55).
+  - run:
+      scenario: reconnect-during-auto
+      teardown: return-to-base
+      cases:
+        - id: JK-33
+          title: "Reconnecting mid-autoplay restores a consistent state with no lost or duplicated rounds"
+          assert:
+            # the gate: the socket really came back. Without it the money assert below is being made
+            # about a session that never recovered.
+            - stream: "{facts.recovered} == True"
+            - stream: "{facts.offline_s} > 0"
+            # THE CASE, and it is exact: balance == prev - stake + payout across the whole stream.
+            # A round played twice, or one whose result never arrived, breaks the identity.
+            - stream: conservation
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. In this clip
+                  auto-play is running, the network is then dropped for about {facts.offline_s}
+                  seconds, and then restored. The ACTION TIMELINE marks when auto-play started, when
+                  the network went down, and when it came back. Answer each independently:
+
+                  (1) auto_ran_before: before the drop, was auto-play visibly running — spins
+                  starting on their own without a click?
+
+                  (2) reconnect_shown: while offline, does the game show a reconnecting indicator,
+                  overlay or message?
+
+                  (3) auto_resumed_or_stopped: after the connection returns, does the game settle
+                  into ONE clear state — either auto-play continuing, or auto-play stopped and the
+                  game idle and ready? Answer false only if it is left in neither: frozen reels, a
+                  stuck spinner, a spin that never resolves, or spins firing with no counter.
+
+                  (4) bonus_handled: if a FREE SPINS bonus was owed when the connection returned,
+                  does it play out cleanly rather than being dropped or replayed? Answer true if no
+                  bonus was involved at all.
+
+                  (5) state_consistent: afterwards, is the UI consistent — no stuck overlay, no
+                  stale readout, the balance and bet readouts drawn normally?
+                output_schema:
+                  auto_ran_before: { type: boolean }
+                  reconnect_shown: { type: boolean }
+                  auto_resumed_or_stopped: { type: boolean }
+                  bonus_handled: { type: boolean }
+                  state_consistent: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  # `auto_resumed_or_stopped` and `bonus_handled` are DISCOVERY FIELDS — see the run
+                  # note above. Asked every run, graded on none, until one live run says what this
+                  # client actually does.
+                  auto_ran_before: true
+                  reconnect_shown: true
+                  state_consistent: true
+                  confidence: medium
+
+# ── NOT IN THIS SUITE, AND WHY ─────────────────────────────────────────────────────────────
+#   JK-23  tab-switch mutes all sound -> not automated, as DR-23 / ZZ-23. It needs a browser
+#          visibility change with isSoundEnabled/isMusicEnabled polled from the backgrounded
+#          context. A small scenario, not yet written — and deliberately not an AI-only case, since
+#          "is it silent?" is exactly what a video cannot answer and this build CAN answer exactly.
+#
+#   A THIRD toggleable feature for JK-32's burst. Chaos bursts through three; this game has two
+#          whose toast is documented, because `notify:ante` is listed but unused (§5) and
+#          `anteBet` is always `null` (§7.1). If the build turns out to raise a toast for some
+#          other control, raise JK-32's `toggles_landed` gate to match — a longer queue is a
+#          better test of queueing.
+#
+#   HOW LONG A TOAST STAYS UP is not in the bridge doc, and JK-32 is written not to need it:
+#          `max_concurrent_popups` is a high-water mark taken by polling, so it does not depend
+#          on knowing the duration. If the first run shows the toasts are too brief for the poll
+#          to catch even one, JK-32b goes red — which is the companion case doing its job, and
+#          the fix is the poll interval, not the claim.

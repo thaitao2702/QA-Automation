@@ -1,0 +1,387 @@
+# Mystic — test suite for Mah_001 .. Mah_020 (source: test-case-mahjong.csv; runs on the Mystic
+# game package — same 7x7 cascading engine).
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-001-020.yml
+#       (a fresh launch URL in env.config.dev.yml, or add --url "http://.../index.html?data=...")
+#
+# Tiers:  stream: -> response engine (Hard/red, exact)   video: -> AI over the clip (Probabilistic/orange)
+# One scenario is played once per run; each case gets its own verdict.
+#
+# ── COVERED BELOW (automatable now) ────────────────────────────────────────────────
+#   Mah_001 UI at load ............. boot-base   (video: matches design)
+#   Mah_004 denomination = config .. change-bet  (video: list matches configured denoms)
+#   Mah_005 increase/decrease bet .. change-bet  (video: displayed bet == picked)
+#   Mah_007 balance debited ........ base-spin   (stream: conservation)
+#   Mah_008 balance += payout ...... base-cluster-win (stream: conservation ; video: counter rises)
+#   Mah_011 balance in free spins .. fs-complete (stream: stake==0 in FS ; video: bonus keeps playing)
+#
+#   Mah_009 insufficient balance ... insufficient-balance (wallet_set below stake -> popup) [needs PLAYSITE_*]
+#   Mah_012 in-game History ........ spin-then-history (spin, open History, AI: last row == the spin)
+#   Mah_014 + Mah_019 auto-play .... auto-play    (one run, two prompts: stops after N; controls disabled + count)
+#
+# ── NOT YET AUTOMATED (need more / are manual) ─────────────────────────────────────
+#   Mah_006            Default bet level   -> no default-stake fact to compare against. MANUAL.
+#   Mah_002 / Mah_003  Loading-bar timing  -> boot via startGame() skips the real load pipeline. MANUAL.
+#   Mah_010            Auto-play stops on empty balance -> insufficient-balance + auto together. TODO.
+#   Mah_013            History on BO       -> external system. MANUAL.
+#   Mah_015..Mah_018, Mah_020  Auto variants (stop-at-win / user-stop / reload / change-bet-first)
+#                        -> variants of the auto-play scenario. TODO.
+
+runs:
+  # ── Mah_001, Mah_006 : the loaded base game ───────────────────────────────────────
+  - run:
+      scenario: boot-base
+      cases:
+        - id: Mah_001
+          title: "Game UI at load matches the design"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip shows the base game sitting
+                  idle right after it loads. (1) Is the full game UI drawn — the 7x7 reel
+                  grid, the spin button, the balance readout and the bet/stake control all
+                  visible and not broken? (2) Are there any obviously missing assets, blank
+                  areas, or broken layout?
+                output_schema:
+                  ui_complete: { type: boolean }
+                  layout_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  ui_complete: true
+                  layout_broken: false
+                  confidence: high
+
+        # Mah_006 (opens at the default bet level) is NOT here. boot-base no longer probes for a
+        # default stake, so there is nothing to compare the opening bet against — the case would be
+        # graded against a null. Re-add it only alongside a fact that carries the server's configured
+        # default; the opening bet itself is available as facts.bet_amount / facts.bet_index.
+
+  # ── Mah_005 : changing the bet ────────────────────────────────────────────────────
+  - run:
+      scenario: change-bet
+      cases:
+        - id: Mah_005
+          title: "Increasing/decreasing the bet sets the chosen amount"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. In this clip the player taps the stake
+                  (+) control, a bet-amount list opens, they pick the bet amount
+                  {facts.picked_bet}, and the list closes. (1) Does a bet-amount list open
+                  after the stake control is tapped? (2) After selecting and closing, does the
+                  main bet / stake amount shown read {facts.picked_bet}?
+                output_schema:
+                  bet_list_opened: { type: boolean }
+                  bet_amount_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_list_opened: true
+                  bet_amount_matches: true
+                  confidence: high
+
+  # ── Mah_004 : denomination list matches config (scroll to both ends, list is scrollable) ──
+  - run:
+      scenario: browse-denominations       # opens the list, scrolls to the biggest then smallest
+      cases:
+        - id: Mah_004
+          title: "Denomination list matches the configured denominations"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot with a SCROLLABLE bet-amount list. In this
+                  clip the list opens and is scrolled first to its HIGHEST option, then to its
+                  LOWEST option. The server configures bet levels from {facts.min_bet} to
+                  {facts.max_bet} ({facts.currency}). (1) When scrolled to the top/highest, is
+                  the largest bet {facts.max_bet}? (2) When scrolled to the bottom/lowest, is
+                  the smallest bet {facts.min_bet}?
+                output_schema:
+                  highest_matches: { type: boolean }
+                  lowest_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  highest_matches: true
+                  lowest_matches: true
+                  confidence: medium
+
+  # ── Mah_007 : stake debited on spin (any outcome) ─────────────────────────────────
+  - run:
+      scenario: base-spin
+      teardown: return-to-base
+      cases:
+        - id: Mah_007
+          title: "Balance is debited by the bet amount when a spin starts"
+          assert:
+            # response-engine, exact: the settled balance already reflects the stake debit
+            - stream: conservation                       # balance == prev - stake + payout
+            - stream: "{res.stake} > 0"                  # a real base bet was charged
+            - video:
+                at: spin
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip is one base spin with a stake
+                  of {res.stake}. When the spin starts, does the balance readout visibly drop
+                  by the stake amount?
+                output_schema:
+                  balance_dropped_on_spin: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  balance_dropped_on_spin: true
+                  confidence: high
+
+  # ── Mah_008 / 043 / 044 / 045 : cascade win — balance, cascade, multiplier ladder ──
+  # base-cluster-win plays ONE cascade win then ONE fresh spin, so the climb and the reset are
+  # both recorded. marks: `win` = the cascade round, `reset` = the spin after it.
+  #
+  # AI COST: three of these cases grade the SAME clip (`at: win`), so they share ONE run-level
+  # `video:` block with `expected_by_case` — the clip is analysed once and each case is graded
+  # against its own subset of the answer. Mah_045 grades a DIFFERENT clip (`at: reset`) and so
+  # keeps its own spec. Two AI calls for four cases, instead of four.
+  - run:
+      scenario: base-cluster-win
+      teardown: return-to-base
+      video:
+        at: win
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot. This clip is ONE base spin, at a stake of
+          {facts.win_stake}, that won {facts.win_payout}. Its winning symbols cleared and were
+          replaced {facts.cascade_events} time(s). Judge three separate things and answer every
+          field.
+
+          (1) BALANCE. The bet is taken FIRST, so the readout moves in this order: it starts at
+          {facts.balance_before_spin}; the stake is deducted the moment the spin starts, so it
+          reads {facts.balance_while_spinning} while the reels resolve; then the win is credited
+          at the end of the count-up, taking it to {facts.balance_after_win}. Judge ONLY that last
+          step — does the balance go UP by {facts.win_payout}, from
+          {facts.balance_while_spinning} to {facts.balance_after_win}, once the WIN counter
+          finishes? IGNORE any drop after that: the next spin starts in this clip and takes its
+          own stake, so ending near {facts.balance_after_next_bet} is expected and is NOT a
+          failure.
+
+          (2) CASCADE. A cascade is ONE clear-and-drop event: the winning symbols disappear, the
+          symbols above fall down to fill the gaps, new symbols drop in from the top, and the grid
+          is evaluated again. It repeats until an evaluation pays nothing — that last evaluation
+          clears nothing and is NOT itself a cascade, so do not count it. This round had
+          {facts.cascade_events} clear-and-drop event(s). Watch the grid and say whether that
+          behaviour happened at all — not how many times.
+
+          (3) MULTIPLIER. The game shows a win MULTIPLIER that steps up as the cascades run. The
+          server reported the sequence {facts.multipliers} for this round — starting at
+          x{facts.first_multiplier} and reaching x{facts.top_multiplier}. Watch the multiplier
+          indicator only, not the balance: does it visibly increase at least once, and does its
+          highest displayed value match x{facts.top_multiplier}?
+        output_schema:
+          win_credited_to_balance: { type: boolean }
+          credited_amount_matches: { type: boolean }
+          winning_symbols_disappear: { type: boolean }
+          new_symbols_drop_in: { type: boolean }
+          grid_reevaluated_after_drop: { type: boolean }
+          multiplier_visible: { type: boolean }
+          multiplier_increases_per_cascade: { type: boolean }
+          highest_multiplier_matches: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_008:
+            win_credited_to_balance: true
+            credited_amount_matches: true
+          Mah_043:
+            winning_symbols_disappear: true
+            new_symbols_drop_in: true
+            grid_reevaluated_after_drop: true
+          Mah_044:
+            multiplier_visible: true
+            multiplier_increases_per_cascade: true
+            highest_multiplier_matches: true
+      cases:
+        - id: Mah_008
+          title: "Balance is credited by the payout after a winning spin"
+          assert:
+            # EXACT, and this is what makes the case red or green:
+            #   balance == previous - stake + payout, across the whole stream.
+            # The video half (shared block above) only asks whether the screen agrees. Note what
+            # it is NOT asked: "does the balance rise to {res.balance}". The stake is taken at
+            # spin START, so by the time the win counts up the readout already reads
+            # balance-minus-win, and the next spin deducts again immediately — {res.balance} is a
+            # value it passes THROUGH, not one it rises to and holds. Asking that way earned a
+            # correct NO. See docs/scenario-assert-authoring.md §2.
+            - stream: conservation
+
+        - id: Mah_043
+          title: "A winning cluster cascades: symbols clear and new ones drop in"
+          assert:
+            # EXACT half carries the COUNT -- counting clear-and-drop events off a video is exactly
+            # what an AI is bad at, and the response already knows. `cascades` is grids EVALUATED;
+            # the last one pays nothing and ends the round, so visible events = cascades - 1.
+            - stream: "{res.cascades} >= 2"                 # at least one clear-and-drop happened
+            - stream: "{facts.cascade_events} >= 1"         # ...the same claim, stated directly
+            # the VIDEO half only asks whether that behaviour is on screen, never how many times
+
+        - id: Mah_044
+          title: "The win multiplier climbs one step per cascade"
+          assert:
+            # exact: the per-step multiplier RISES across the round. Checked as strictly
+            # increasing, NOT as +1 — the ladder is game config (Mystic base: 1,2,3,5,8,10),
+            # so a fixed step size would fail on a correct game.
+            - stream: cascade_multiplier_climbs
+            - stream: "{facts.multiplier_climbed} == True"
+            - stream: "{facts.top_multiplier} > {facts.first_multiplier}"
+
+        - id: Mah_045
+          title: "The multiplier resets when the cascade ends"
+          assert:
+            # exact: the round AFTER the cascade starts back where the cascade round started.
+            # The climb belongs to one round, not to the session.
+            - stream: cascade_multiplier_resets
+            - stream: "{facts.multiplier_reset} == True"
+            - stream: "{facts.next_multiplier} == {facts.first_multiplier}"
+            # its own clip (`at: reset`), so this one cannot share the block above
+            - video:
+                at: reset
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. The PREVIOUS spin cascaded
+                  {facts.cascades} times and drove the win multiplier up to
+                  x{facts.top_multiplier}. This clip is the NEXT spin, a fresh round. Watch the
+                  multiplier indicator only. Has it gone back down to its starting value of
+                  x{facts.first_multiplier} — rather than staying at x{facts.top_multiplier} or
+                  carrying over from the previous round?
+                output_schema:
+                  multiplier_back_to_start: { type: boolean }
+                  did_not_carry_over: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  multiplier_back_to_start: true
+                  did_not_carry_over: true
+                  confidence: medium
+  # ── Mah_011 : free spins keep playing regardless of balance ───────────────────────
+  # - run:
+  #     scenario: fs-complete
+  #     cases:
+  #       - id: Mah_011
+  #         title: "Free spins bet nothing, so they play out regardless of balance"
+  #         assert:
+  #           # every free spin has stake 0 -> a zero balance can never block the bonus
+  #           # the REAL proof: every free spin has stake 0, so a zero balance can never block it
+  #           - stream: stake_zero_in_freespins
+  #           - stream: conservation
+  #           - stream: terminal_reached                    # the bonus did run to its end (response-only)
+  #           # video only corroborates the START of the bonus -> a short clip, not the whole 160s bonus
+  #           - video:
+  #               at: trigger
+  #               prompt: >-
+  #                 Mystic is a 7x7 cluster-pays slot. Free spins were just triggered ({trigger.totalFreeSpin}
+  #                 awarded) and this clip shows them beginning. (1) Do the free spins start and
+  #                 auto-play on their own? (2) Is there NO "insufficient balance" / out-of-money
+  #                 popup blocking them?
+  #               output_schema:
+  #                 free_spins_started: { type: boolean }
+  #                 no_balance_popup: { type: boolean }
+  #                 confidence: { type: string, enum: [high, medium, low] }
+  #               expected:
+  #                 free_spins_started: true
+  #                 no_balance_popup: true
+  #                 confidence: high
+
+  # ── Mah_009 : insufficient-balance popup (balance below the stake) ─────────────────
+  - run:
+      scenario: insufficient-balance        # wallet-withdraw below the min bet, else raise the stake above balance
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: Mah_009
+          title: "Spinning with balance below the bet shows an out-of-money popup"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. The player's balance is {facts.spin_balance}
+                  and the selected bet is {facts.chosen_bet} — larger than the balance — then they
+                  press Spin. Does the game refuse to spin and show a "not enough balance" /
+                  out-of-money popup instead of starting a spin?
+                output_schema:
+                  insufficient_popup_shown: { type: boolean }
+                  spin_blocked: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  insufficient_popup_shown: true
+                  spin_blocked: true
+                  confidence: high
+
+  # ── Mah_012 : in-game History shows the round just played ─────────────────────────
+  - run:
+      scenario: spin-then-history           # one base spin, then open the History panel
+      cases:
+        - id: Mah_012
+          title: "In-game History shows the latest round matching the spin just played"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip plays one base spin — stake
+                  {res.stake}, payout {res.payout} — and then opens the in-game History panel.
+                  (1) Does the History panel open? (2) Does its most recent / top entry match
+                  that round — stake {res.stake} and win {res.payout}?
+                output_schema:
+                  history_opened: { type: boolean }
+                  latest_row_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  latest_row_matches: true
+                  confidence: high
+
+  # ── Mah_014, Mah_019 : auto-play ───────────────────────────────────────────────────
+  - run:
+      scenario: auto-play                   # 10 spins — the shortest run
+      # The panel OPENS on 10, so clicking 10 changes nothing and the selection step is invisible
+      # (confirmed live: confirming with no count click gives the same autoSpinsRemaining as
+      # clicking auto:count:0). The scenario therefore selects a different count FIRST and changes
+      # back to 10, so the count visibly moves out and back — the selection is observable without
+      # paying for a longer auto run.
+      cases:
+        # one auto-play run, ONE AI call: Mah_014 (stops after N) + Mah_019 (controls disabled /
+        # count shown during auto) folded into a single prompt + schema.
+        - id: Mah_014_019
+          title: "Auto-play: stops after N spins, and controls are disabled with the count shown during auto"
+          assert:
+            # Mah_014 — response-only: exactly the configured number of auto spins were played...
+            - stream: "{facts.rounds_played} == {facts.auto_count}"
+            # ...and it really STOPPED. Counting N proves our loop ended, not that the client did.
+            # After the count the scenario watches {facts.stop_watch_s}s for another bet: a client
+            # that overruns keeps wagering, and that extra BET is the exact evidence. The client's
+            # own isAutoPlay flag is the second reading.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: "{facts.auto_stopped} == True"
+            # the panel ended on OUR count, not the one we detoured through: the round trip
+            # {facts.via_count} -> {facts.auto_count} really landed back on {facts.auto_count}
+            - stream: "{facts.auto_spins_at_start} >= {facts.auto_count} - 1"
+            - stream: "{facts.auto_spins_at_start} < {facts.via_count}"
+            - video:
+                # timestamp mode sends the ACTION TIMELINE with this clip, so the AI is told the
+                # clip-relative second at which each marked step happened (open panel / choose
+                # count / confirm / last spin / stopped) instead of hunting for them.
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. The player opens the auto-play panel, first
+                  selects {facts.via_count} spins, then changes it back to {facts.auto_count}, and
+                  confirms. (The panel opens on {facts.auto_count}, so the detour is what makes the
+                  count visibly change.) Each of those steps is listed in the ACTION TIMELINE with
+                  the second at which it happened; use it to find them rather than guessing.
+                  Then answer:
+                  (1) does the game spin repeatedly on its own (auto_ran) and then STOP once the
+                  {facts.auto_count} spins are done, with auto no longer running (auto_stopped_at_end)?
+                  The clip deliberately continues for about {facts.stop_watch_s} seconds AFTER the
+                  last spin finishes and then holds still — during that tail the reels must not
+                  start again and no new spin may begin. A clip that simply ends is not evidence;
+                  judge the tail.
+                  (2) WHILE auto is spinning, are the bet +/- and the other controls (Trophy,
+                  Paytable, Sound, Info, Menu) disabled / not usable (controls_disabled), and does
+                  the Spin button show the number of remaining auto spins counting down
+                  (remaining_count_shown)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  auto_stopped_at_end: { type: boolean }
+                  controls_disabled: { type: boolean }
+                  remaining_count_shown: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  auto_stopped_at_end: true
+                  controls_disabled: true
+                  remaining_count_shown: true
+                  confidence: medium

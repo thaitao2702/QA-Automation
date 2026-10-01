@@ -1,0 +1,742 @@
+# Joker: Where's My Banana — UI, bet, balance, History, paytable, language, tutorial
+# (JK-01 … JK-12, JK-51, JK-52).
+#
+# Run:  python scripts/run_scenario.py --game joker --env dev --suite games/joker/test-suites/jk-core.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game joker
+#
+# Every scenario in this file is MECHANISM-FREE — the same boxes Mystic, Zeus, Dragon, Dragon VIP
+# and Chaos run. Only the `joker` profile's dialect is Joker's. Numbering follows Dragon's, so
+# JK-NN is the same claim as DR-NN on the same scenario; games/dragon/test-suites/dr-core.yml (and
+# zz-core.yml behind it) record how each case came to be shaped this way, and the notes here are
+# what a reader needs to trust the case plus every place JOKER differs.
+#
+# What is specific to this game — expanding wilds, Buy Bonus + Lucky Spin, the free-spin multiplier
+# — is jk-features.yml. Auto Mode is jk-autoplay.yml; spin inputs, turbo, sound and reconnect are
+# jk-input-sound-reconnect.yml.
+#
+# ── HOW THE ASSERTS ARE SPLIT (Rule 10) ────────────────────────────────────────────────────
+#   stream:        the game's own account of itself — exact values, and "it did not happen"
+#   video:/image:  what the player actually SEES — nothing in the response describes pixels
+# A case with no AI assert says why next to it, and the reason is always "there is nothing to see".
+#
+# ── JOKER DIALECT THAT MATTERS IN THIS FILE (bridge-api.md §3, §6, §7, §9) ──────────────────
+#   * `betMinus` AND `betPlus` both OPEN the `denomination` list — neither steps the stake in
+#     place — so every bet change here is a row picked from a list (HAS_BET_POPUP).
+#   * The list has a real close X (`denomination:close`) as well as a tap-outside backdrop, so
+#     `close_bet_list` has a control to press rather than a strip of backdrop to guess at.
+#   * ⚠ `defaultBetLevel` is ONE-BASED in this game — §3 says so outright. JK-04 below.
+#   * The paytable/tutorial is a CROSS-ORIGIN WebView (`information`): only a real mouse wheel
+#     scrolls it and its scroll position cannot be read back (§9 `getTutorialRect`).
+#   * ⚠ The out-of-money `message` popup's OK button RELOADS THE PAGE (§12.9). Nothing here
+#     clicks it — `dismissPopups()` hides the popup without running the OK action (§6).
+#   * `betlines` is 20 and fixed, and the per-line bet is `stake / 20` — JK-12's divisor.
+
+runs:
+  # ── JK-01 + JK-04 : the loaded base game, and the bet it opens at ─────────────────────
+  # IMAGE, not video: "is every element drawn, is anything cut off" is the question a downsampled
+  # montage is worst at and a full-resolution still is best at. JK-04 rides the same boot (Rule 16).
+  - run:
+      scenario: boot-base
+      cases:
+        - id: JK-01
+          title: "Game UI at load matches the design"
+          assert:
+            # Anti-vacuity: the bridge really answered. A boot that read nothing would render
+            # "bet null / balance null" into the prompt and the AI would grade a screen the facts
+            # cannot describe.
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.bet_amount} > 0"
+            - stream: "{facts.balance} > 0"
+            - image:
+                at: base
+                prompt: >-
+                  This is a still of Joker: Where's My Banana, a 5x3 slot with 20 fixed paylines,
+                  expanding wilds during free spins and a Buy Bonus, sitting idle in the base game
+                  just after load — bet {facts.bet_amount}, balance {facts.balance}
+                  {facts.currency}. Answer: (1) is the main UI fully drawn — reels, balance readout,
+                  bet readout, Spin button, with no missing or placeholder art (ui_complete)? (2) is
+                  anything overlapping, cut off or visibly broken (ui_broken)? (3) is the game idle
+                  and ready to spin rather than mid-animation or showing an error (idle_ready)?
+                output_schema:
+                  ui_complete: { type: boolean }
+                  ui_broken: { type: boolean }
+                  idle_ready: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  ui_complete: true
+                  ui_broken: false
+                  idle_ready: true
+                  confidence: medium
+
+        # ── JK-04 : opens at the right bet ────────────────────────────────────────
+        # `defaultBetLevel` governs only a player's FIRST session; every later one opens at
+        # `lastBet.baseStake` (bridge §3). `boot-base` applies that rule —
+        #     expected_open_bet = lastBet ? lastBet.baseStake : denominations[defaultBetLevel]
+        # — and publishes the answer and its inputs, so a failure says WHICH branch it took.
+        #
+        # ⚠ JOKER, same trap as Dragon and stated even more plainly: bridge-api.md §3 and §15 both
+        # say `defaultBetLevel` is ONE-BASED here — a first session opens at
+        # `denominations[defaultBetLevel - 1]` — while the contract, and `boot-base`, read it as a
+        # 0-based index. Only a first session takes that branch (`facts.first_session`). So a red
+        # with `first_session == True` and `bet_amount` one denomination BELOW
+        # `default_bet_amount` is exactly the off-by-one the bridge doc predicts, and it is a
+        # CLIENT defect if the server means 0-based. The case keeps the contract's reading rather
+        # than being bent to the client's; settling it needs a real first-session fixture.
+        - id: JK-04
+          title: "The game opens at the configured default bet level"
+          assert:
+            # the gate: the backend really published a default, so the rule has something to test
+            - stream: "{facts.default_bet_known} == True"
+            - stream: "{facts.default_bet_amount} > 0"
+            # the rule itself — `opens_at_expected_bet`, NOT `opens_at_default`
+            - stream: "{facts.opens_at_expected_bet} == True"
+            - stream: "{facts.bet_amount} == {facts.expected_open_bet}"
+            # No AI assert, for the reason Rule 10 allows: the opening bet is on screen in JK-01's
+            # still, and this case is arithmetic over the launch payload. Nothing about it is a pixel.
+
+  # ── JK-02 : denominations match config ─────────────────────────────────────────────
+  # ⚠ JOKER: `betPlus` / `betMinus` are DISABLED at the top and bottom of the ladder (bridge §7.1).
+  # `open_bet_list` opens with `stake_up` (= `betPlus`), so a session already sitting on the highest
+  # denomination reports this run unreached — `list_shown == False` is the tell. Reset the bet
+  # rather than reading it as a list defect.
+  - run:
+      scenario: browse-denominations
+      cases:
+        - id: JK-02
+          title: "Denomination list matches the server config"
+          assert:
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.min_bet} > 0"
+            - stream: "{facts.max_bet} >= {facts.min_bet}"
+            # Anti-vacuity: `list_shown` is False when the list never actually opened, and the config
+            # asserts above are true whether or not anything was shown.
+            - stream: "{facts.list_shown} == True"
+            - stream: "{facts.closed} == True"        # ...and the list really closed again
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip opens the
+                  bet-amount list and scrolls to the highest option and then the lowest; the ACTION
+                  TIMELINE gives the time of each step. The server config says there are
+                  {facts.denom_count} denominations from {facts.min_bet} to {facts.max_bet}
+                  {facts.currency}. Answer: (1) does the list open and render as a list of selectable
+                  bet amounts (list_opened)? (2) does it STAY open while it is scrolled, rather than
+                  closing itself within a second (list_stayed_open)? (3) do the smallest and largest
+                  values shown match {facts.min_bet} and {facts.max_bet} (ends_match_config)?
+                output_schema:
+                  list_opened: { type: boolean }
+                  list_stayed_open: { type: boolean }
+                  ends_match_config: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  list_opened: true
+                  list_stayed_open: true
+                  ends_match_config: true
+                  confidence: medium
+
+  # ── JK-03 : bet up / down ──────────────────────────────────────────────────────────
+  # Both `betPlus` and `betMinus` OPEN the list on this build (HAS_BET_POPUP, bridge §7.1) — neither
+  # steps the bet in place — so a bet change is a row picked from the list, and the case is that the
+  # bet LANDED where it was asked to, not that a control incremented.
+  - run:
+      scenario: change-bet
+      cases:
+        - id: JK-03
+          title: "Bet amount increases and decreases with the bet controls"
+          assert:
+            - stream: "{facts.bet_changed} == True"                 # the bet really moved
+            - stream: "{facts.landed_bet} == {facts.picked_bet}"    # ...and landed where asked
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. In this clip the player uses the bet
+                  control, a bet-amount list opens, they pick {facts.picked_bet}, and the list
+                  closes. The ACTION TIMELINE gives the time of each step. Answer: (1) does a
+                  bet-amount list open when the bet control is used (bet_list_opened)? (2) once it
+                  closes, does the main bet / stake readout on the game screen read
+                  {facts.picked_bet} (bet_readout_matches)? Judge the bet readout only — ignore the
+                  balance, which changes for other reasons.
+                output_schema:
+                  bet_list_opened: { type: boolean }
+                  bet_readout_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_list_opened: true
+                  bet_readout_matches: true
+                  confidence: medium
+
+  # ── JK-05 + JK-06 : the money, both directions, ONE run ────────────────────────────
+  # One WINNING round moves the balance twice — the stake comes off as the reels start, the payout
+  # goes on as the win counts up — so the debit and the credit are one clip and one AI call (Rule
+  # 16). `base-win`, not `base-spin`: on a loss the credit half would have nothing on screen. The
+  # losing spins it hunts through stay in the stream, so `conservation` covers them too.
+  #
+  # ⚠ `at: win` is not optional. The clip spans every hunting spin; untrimmed, the prompt would be
+  # reading a balance off whichever round happened to be on screen.
+  #
+  # ⚠ Rule 1: `base-win` hunts base spins, and ANY of them can trigger free spins — which on this
+  # game the client then auto-plays, with an expanding-wild animation per round. The scenario
+  # handles that itself (it plays the bonus out and keeps hunting); nothing here needs a forced
+  # paytable, because the case is about one PAID round's money, not about reaching the bonus.
+  - run:
+      scenario: base-win
+      teardown: return-to-base
+      video:
+        at: win
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip is ONE WINNING
+          base spin, at a stake of {facts.win_stake}, that paid {facts.win_payout}.
+
+          THE BALANCE READOUT MOVES TWICE, and each question below is about one of those moves.
+          Before the spin it reads {facts.balance_before_spin}. The stake is taken at the START of
+          the spin, so it drops to {facts.balance_while_spinning} the moment the reels begin to turn
+          and sits there for the whole spin. Then the win is credited as the win counter finishes,
+          taking it to {facts.balance_after_win}. Nothing else happens in this clip — no further
+          spin is played — so it should still read {facts.balance_after_win} at the end.
+
+          Answer each independently:
+
+          (1) balance_dropped_on_spin: as the spin STARTS, does the balance readout visibly drop
+          from {facts.balance_before_spin} to {facts.balance_while_spinning}?
+          drop_matches_stake: is that drop the stake, {facts.win_stake}, rather than some other
+          figure?
+
+          (2) win_shown: is a win presented for this spin — a win amount shown and the winning
+          payline(s) marked?
+
+          (3) balance_credited: once the win counter FINISHES, does the readout go UP by
+          {facts.win_payout}, from {facts.balance_while_spinning} to {facts.balance_after_win}?
+          credit_matches_win: is the amount credited the same as the win amount that was shown?
+        output_schema:
+          balance_dropped_on_spin: { type: boolean }
+          drop_matches_stake: { type: boolean }
+          win_shown: { type: boolean }
+          balance_credited: { type: boolean }
+          credit_matches_win: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-05: { balance_dropped_on_spin: true, drop_matches_stake: true, confidence: medium }
+          JK-06: { win_shown: true, balance_credited: true, credit_matches_win: true, confidence: medium }
+      cases:
+        - id: JK-05
+          title: "Balance is reduced by the bet amount when a spin is placed"
+          assert:
+            # `conservation` is `balance == previous - stake + payout`, so ONE identity covers the
+            # debit and the credit, over every round base-win played, losses included.
+            - stream: conservation
+            - stream: "{res.stake} > 0"                  # a real base bet was charged
+            - stream: "{facts.win_stake} > 0"
+
+        - id: JK-06
+          title: "Balance is credited with the payout after a winning spin"
+          assert:
+            - stream: conservation
+            # the precondition, proven from the numbers: this really was a win
+            - stream: "{res.payout} > 0"
+            - stream: "{facts.win_payout} > 0"
+            # THE JOKER HALF: the win is the line arithmetic, nothing else.
+            # `payout == Σ payoutRate x (baseStake / betLines)`, bet-response.md §3, exact on both
+            # captured base rounds. The server hands over the rate AND the divisor, so the credited
+            # amount is fully derivable instead of read off a screen.
+            # ⚠ NOT Chaos's `payout_matches_paylines`. That one multiplies by `multiplier`, which on
+            # this game is NOT a payout factor (the captured win reads 2.5 and paid 1.5, not 3.75) —
+            # and its helpers live on `ChaosRunner`, not on this profile, so pointing it here raises
+            # AttributeError mid-run rather than failing. `validate_suites.py` checks that an
+            # invariant NAME resolves, not that the profile supports it, so it would not catch that.
+            - stream: joker_payout_matches_paylines
+            # NOT asserted inline: `balance_after_win == balance_while_spinning + win_payout`. An
+            # inline predicate has no tolerance (`9972.60 + 0.24` is `9972.840000000001`);
+            # `conservation` already checks exactly this, in Python, to 1e-6.
+
+  # ── JK-07 : out of balance ─────────────────────────────────────────────────────────
+  # Needs PLAYSITE_* wallet credentials; without them the scenario reports unreached.
+  # Rule 7: this run MOVES THE MONEY, so it declares restore-balance.
+  #
+  # ⚠ JOKER (bridge §3, §12.9): an insufficient balance does NOT block `waitForSpinClickable` —
+  # Spin stays clickable and the CLICK is what raises the out-of-money `message` popup, with no BET
+  # sent. That is exactly what this case films, and it is why the case is about a popup rather than
+  # about a disabled button.
+  # ⚠ That popup's OK button RELOADS THE PAGE. Nothing here presses it; `dismissPopups()` hides the
+  # popup through `hide()` without running the OK action (§6), which is what keeps the teardown on
+  # the same session.
+  - run:
+      scenario: insufficient-balance
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: JK-07
+          title: "Spinning with insufficient balance shows the out-of-funds popup"
+          assert:
+            - stream: "{facts.spin_balance} < {facts.chosen_bet}"   # really below the stake
+            - video:
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. In this clip the player's balance is
+                  {facts.spin_balance}, the selected bet is {facts.chosen_bet} — larger than the
+                  balance — and a spin is attempted. Answer: (1) does a popup or message appear
+                  telling the player they have insufficient funds (insufficient_popup)? (2) is the
+                  spin refused — the reels do not turn and no bet is taken (spin_refused)?
+                output_schema:
+                  insufficient_popup: { type: boolean }
+                  spin_refused: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  insufficient_popup: true
+                  spin_refused: true
+                  confidence: medium
+
+  # ── JK-09 : in-game History ────────────────────────────────────────────────────────
+  # `outcomes: [normal_win]` narrows the hunt to one shape — a base round that paid.
+  # `detail_scroll_steps: 0`: one round is one grid on this game, so a ticket has nothing below the
+  # fold (unlike a cascade game, where a round is many steps).
+  #
+  # ⚠ JOKER (bridge §9): `getHistoryDetailState()` pages on `hasNext` / `hasPrev`, and those
+  # "include the max-win summary page" — so a ticket can have a next page that is NOT another bet.
+  # The scenario pages on `hasNext`, never on `betCount`, which is what keeps that from being read
+  # as a missing round.
+  #
+  # NOT asserted: that the ticket's id matches the round just played. `getHistoryRows()` publishes
+  # `data.roundId`, and on a FREE SPIN `id != roundId` (bet-response.md §5) — a base round has them
+  # equal, so the comparison is only safe on this outcome and is still unconfirmed against a live
+  # row. JK-09 publishes the round's identity so the check is a copy-paste once a run has been seen.
+  - run:
+      scenario: spin-then-history
+      teardown: return-to-base
+      params: { outcomes: [normal_win], detail_scroll_steps: 0 }
+      cases:
+        - id: JK-09
+          title: "In-game History shows the round just played"
+          assert:
+            # a paying base round really was played and inspected
+            - stream: "{facts.normal_win_found} == True"
+            - stream: "{facts.normal_win_payout} > 0"
+            - stream: "{facts.normal_win_stake} > 0"
+            - stream: "{facts.is_base_round} == True"     # not a bonus ticket, which opens differently
+            # the panel listed rows the framework could address — without these, the AI grades an
+            # empty panel
+            - stream: "{facts.normal_win_history_rows} >= 1"
+            # the detail ticket really opened (getHistoryDetailState().open, then the label, then
+            # any new popup). A red here is a bridge-contract gap, not a History rendering bug.
+            - stream: "{facts.normal_win_detail_opened} == True"
+            # the panel closed again — the tell for a panel the bridge cannot dismiss
+            - stream: "{facts.normal_win_panel_closed} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip plays a
+                  base round — stake {facts.normal_win_stake}, win {facts.normal_win_payout} — waits
+                  for it to settle, opens the in-game History panel, and then opens the newest row's
+                  bet detail ticket. The ACTION TIMELINE gives the time of each of those steps; use
+                  it rather than guessing which surface is on screen when. Answer each independently:
+
+                  (1) history_opened: does the History panel open and render as a list of past
+                  rounds? history_stayed_open: does it stay open, rather than closing itself within
+                  a second of being opened?
+
+                  (2) top_row_matches: is the newest / topmost entry in the list consistent with the
+                  round just played — stake {facts.normal_win_stake}, win
+                  {facts.normal_win_payout}?
+
+                  (3) detail_opened: after the top row is tapped, does a bet DETAIL ticket open for
+                  it — a single-round view showing that round's 5x3 grid and its figures, rather
+                  than the list? detail_matches: does the ticket show the same stake and win as the
+                  row it was opened from?
+
+                  (4) display_broken: on either surface, is anything visibly broken — blank rows,
+                  overlapping or clipped text, placeholder values, a half-drawn ticket?
+                output_schema:
+                  history_opened: { type: boolean }
+                  history_stayed_open: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_matches: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  history_stayed_open: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_matches: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── JK-11 + JK-52 : the Info / Paytable / Tutorial surface, ONE run ─────────────────
+  # One control, one surface: the `information` popup IS the paytable and IS the tutorial, so both
+  # cases grade one clip (Rule 16).
+  #
+  # IMAGE with `combine: true` (Rule 18): the guide is several screenfuls of ONE scrolling surface,
+  # and both cases ask whether something is present ANYWHERE in it. Graded per still, "does this page
+  # explain the free-spin bonus?" is honestly "no" on every page that does not.
+  #
+  # The guide is a cross-origin WebView (`information`, bridge §7.2 / §9): only a real mouse wheel
+  # scrolls it, and its position cannot be read back — so `reached_bottom` means the full scroll was
+  # ISSUED, not that the document's end was observed.
+  - run:
+      scenario: open-tutorial
+      teardown: return-to-base
+      cases:
+        - id: JK-11
+          title: "Paytable / Info popup UI matches the design"
+          assert:
+            - stream: "{facts.shot_count} >= 2"        # opened, and paged at least once
+            - stream: "{facts.tutorial_open} == True"  # the WebView was really located, not an empty frame
+        - id: JK-52
+          title: "Tutorial opens and follows the designed flow"
+          assert:
+            - stream: "{facts.shot_count} >= 2"
+            - stream: "{facts.tutorial_open} == True"
+            - stream: "{facts.reached_bottom} == True"
+      image:
+        combine: true                    # every screenful of this one surface -> ONE AI call
+        prompt: >-
+          These screenshots are the in-game Info / Paytable / Tutorial popup of Joker: Where's My
+          Banana, captured as it was scrolled from top to bottom. The game is a 5x3 slot with 20
+          fixed paylines; during FREE SPINS a WILD that lands on certain reels expands to cover the
+          whole reel, and there is a Buy Bonus that offers a multiplier wheel. Read them as ONE
+          document and answer about the whole of it — a section counts as present if it appears on
+          any screenful. Answer: (1) does the Info / Paytable surface open and display real content
+          rather than an empty frame (surface_opened)? (2) does the document list the SYMBOLS with
+          their payout values (paytable_present)? (3) does it explain the 20 PAYLINES
+          (paylines_present)? (4) does it explain the FREE SPINS — how they are triggered, how many
+          are awarded, and the expanding wild (bonus_rules_present)? (5) does it explain the BUY
+          BONUS and its multiplier wheel (buy_bonus_rules_present)? (6) across every screenful,
+          does the content render cleanly — readable text, symbol art present, nothing placeholder
+          or missing (content_renders)? (7) across every screenful, is anything overlapping, cut off
+          or clipped (content_broken)?
+        output_schema:
+          surface_opened: { type: boolean }
+          paytable_present: { type: boolean }
+          paylines_present: { type: boolean }
+          bonus_rules_present: { type: boolean }
+          buy_bonus_rules_present: { type: boolean }
+          content_renders: { type: boolean }
+          content_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-11:                          # the paytable half: it opens and the tables are there
+            surface_opened: true
+            paytable_present: true
+            content_renders: true
+            content_broken: false
+            confidence: medium
+          JK-52:                          # the tutorial half: it explains the game's rules
+            surface_opened: true
+            paylines_present: true
+            bonus_rules_present: true
+            buy_bonus_rules_present: true
+            content_renders: true
+            confidence: medium
+
+  # ── JK-12 : paytable payouts scale with the bet ────────────────────────────────────
+  # `paytable-bet-scaling` shoots the SAME table at two bet levels.
+  # ⚠ THE DIVISOR IS 20, NOT 5. Joker is a 20-payline game and the per-line bet is `stake / 20`
+  # (`LINE_DIVISOR`, and `betLines: 20` echoed on every round). bet-response.md §3 proves it from a
+  # capture: rates 15 + 15 + 20 at stake 0.6 paid exactly 1.5, i.e. 50 x 0.03. A suite that copied
+  # Dragon's `divisor == 5` would go red here on a correct game.
+  #
+  # IMAGE per still, NOT combined (Rule 18): two STATES of one surface, and the case is that they
+  # differ. The AI READS the printed figures; the exact half is what makes the comparison mean
+  # anything.
+  - run:
+      scenario: paytable-bet-scaling
+      teardown: return-to-base
+      params: { index_a: 0, index_b: 3 }
+      cases:
+        - id: JK-12
+          title: "Paytable payouts follow the bet: payout = total bet / 20 x symbol multiplier"
+          assert:
+            # two DIFFERENT bet levels were really captured — two shots at one bet would pass vacuously
+            - stream: "{facts.bet_a} != {facts.bet_b}"
+            - stream: "{facts.divisor} == 20"         # the payline count IS the divisor
+            - stream: "{facts.line_bet_b} > {facts.line_bet_a}"
+            - image:
+                at: paytable-bet-
+                prompt: >-
+                  A Joker: Where's My Banana paytable screen. The game is a 5x3 slot with 20 fixed
+                  paylines whose per-line payout is (total bet / 20) x the symbol's multiplier. Two
+                  captures exist: one at bet {facts.bet_a} (per-line {facts.line_bet_a}) and one at
+                  bet {facts.bet_b} (per-line {facts.line_bet_b}). For THIS image, answer: (1) read
+                  the bet or total bet value shown on it (bet_text). (2) read the payout printed for
+                  the highest-paying symbol's 5-of-a-kind row (top_payout_text). (3) are the payout
+                  values shown as currency amounts rather than bare multipliers (shows_currency)?
+                  (4) is the table fully rendered — every symbol row present, no blank or
+                  placeholder values (table_renders)?
+                output_schema:
+                  bet_text: { type: string }
+                  top_payout_text: { type: string }
+                  shows_currency: { type: boolean }
+                  table_renders: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  table_renders: true
+                  confidence: low
+
+  # ── JK-51 : multi-language ─────────────────────────────────────────────────────────
+  # The language lives in the Playsite launch token, so each language is a fresh URL + re-entry.
+  # NOT combined (Rule 18): different SURFACES in different LANGUAGES — combining would throw away
+  # the per-screen verdict that makes "the Burmese base screen has an English label" traceable.
+  # The schema never asks one property twice in opposite directions (the inverse-pair trap that
+  # gave ZZ-51 twelve false alarms — docs/scenario-assert-authoring.md §2).
+  #
+  # ⚠ JOKER: `UI_SURFACES` includes the Buy Bonus panel, which no other game's tour visits. It is
+  # `null` when compliance has `bonusBuyAllowed: false` (bridge §7.1), in which case the tour
+  # simply shoots one surface fewer — which is why `surface_count` is asserted as `>= 3` rather
+  # than pinned to the profile's list length.
+  - run:
+      scenario: language-tour
+      params:
+        languages: [en, my, zh, ru]
+        # languages: all
+      cases:
+        - id: JK-51
+          title: "All in-game text follows the player's chosen language"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"   # every language really loaded
+            - stream: "{facts.surface_count} >= 3"
+            - stream: "{facts.shot_count} >= 3"
+      image:
+        prompt: >-
+          A Joker: Where's My Banana UI surface, captured as: {shot.label}. The game is a 5x3 slot
+          with 20 fixed paylines. That label gives the language code and name, the surface shown,
+          and — after a mid-session change — the language it switched FROM. Judge the screen against
+          the language the label names, at full resolution, and answer three groups of questions.
+          Expected scripts: Burmese = Myanmar, Simplified Chinese = Han, Russian = Cyrillic,
+          English = Latin.
+
+          LANGUAGE. (1) is all visible text rendered in the language the label names, rather than
+          English fallback or the language it switched from (correct_language)? (2) is any string
+          left untranslated — a word in a different language from the one the label names
+          (untranslated_strings)? (3) is any raw translation key visible, text like
+          "ui.button.spin" or "MISSING_KEY" (raw_keys_visible)? Ignore numbers, currency amounts,
+          currency codes, and the game's brand name ("Joker", "Where's My Banana").
+
+          LAYOUT. (4) does any text overflow outside its button, panel or label boundary
+          (text_overflows)? (5) does any text run underneath or on top of another element
+          (text_collides)?
+
+          GLYPHS — examine the characters closely, and answer only about the characters themselves.
+          (6) is any character cut off at the top or bottom of its line (glyphs_clipped)? (7) for
+          scripts with marks above or below the base letter (Burmese especially), are those marks
+          fully rendered (diacritics_intact)? (8) is any descender — the tail of a g, y or p —
+          sliced off (descenders_intact)?
+        output_schema:
+          correct_language: { type: boolean }
+          untranslated_strings: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          text_overflows: { type: boolean }
+          text_collides: { type: boolean }
+          glyphs_clipped: { type: boolean }
+          diacritics_intact: { type: boolean }
+          descenders_intact: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-51:
+            correct_language: true
+            untranslated_strings: false
+            raw_keys_visible: false
+            text_overflows: false
+            text_collides: false
+            glyphs_clipped: false
+            diacritics_intact: true
+            descenders_intact: true
+            confidence: medium
+
+  # ── JK-34 : the chosen language survives a relaunch ────────────────────────────
+  # JK-51 above shoots every surface in four languages; this is the different claim next to it —
+  # that a language CHANGE is carried, rather than reset to the account default on the way back in.
+  # The language lives in the Playsite launch token, so "switching" is a fresh URL and a re-entry,
+  # and `{facts.switched}` is the exact half: the scenario compares the language it asked for
+  # against the one the relaunched session reports.
+  #
+  # This is the single-game half only. Whether the choice follows the player from one GAME to
+  # another is a lobby question and is not reachable from a game suite.
+  - run:
+      scenario: language-switch
+      teardown: return-to-base
+      params: { to: my }
+      cases:
+        - id: JK-34
+          title: "A language chosen in one session is still in force when the game is relaunched"
+          assert:
+            # the gate and the case in one: the relaunch really came back in the requested language.
+            # Without it the image below grades whatever screen happened to load.
+            - stream: "{facts.switched} == True"
+            - stream: "'{facts.to_language}' != '{facts.from_language}'"
+      image:
+        prompt: >-
+          A Joker: Where's My Banana screen, captured as: {shot.label}. The game is a 5x3 slot with
+          20 fixed paylines. The session was relaunched in {facts.to_language}, having previously
+          been in {facts.from_language}. Judge the screen against the language the label names.
+          Expected scripts: Burmese = Myanmar, Simplified Chinese = Han, Russian = Cyrillic,
+          English = Latin. Answer: (1) correct_language: is the visible text in the language the
+          label names, rather than English fallback or {facts.from_language}? (2) raw_keys_visible:
+          is any raw translation key visible, text like "ui.button.spin" or "MISSING_KEY"? (3)
+          text_overflows: does any text run outside its button, panel or label boundary? Ignore
+          numbers, currency amounts and the game's brand name ("Joker", "Where's My Banana").
+        output_schema:
+          correct_language: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          text_overflows: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-34:
+            correct_language: true
+            raw_keys_visible: false
+            text_overflows: false
+            confidence: medium
+
+  # ── JK-35 : free spins play out with an EMPTY wallet ─────────────────────────
+  # CR_011 / Mah_011. The claim is the one thing that makes a free spin a free spin: it costs
+  # NOTHING, so a player with no money must still be able to watch the bonus finish. A client that
+  # checks the balance before each round of the bonus raises the out-of-money popup mid-feature and
+  # strands the player — which is what this case catches.
+  #
+  # Rule 12 — you cannot drain the wallet DURING a bonus, so the scenario arrives broke instead: it
+  # empties the wallet on the trigger round and lets the bonus run from there. `broke_at_trigger` is
+  # the gate that says it managed to.
+  # Rule 7 — this run MOVES THE MONEY, so it declares restore-balance.
+  #
+  # ⚠ JOKER: the out-of-money `message` popup is RAISED BY THE SPIN CLICK, not by a disabled button
+  # (§12.9), and nothing clicks during free spins (§3: "never click during free spins"). So if that
+  # popup appears inside the bonus it was the CLIENT that raised it, which is precisely the defect.
+  # ⚠ Its OK button reloads the page, so a build that raises it mid-bonus also destroys the evidence
+  # unless the clip is running — which is why this case carries a video rather than stream asserts
+  # alone.
+  #
+  # Forced (Rule 17): unforced, a bonus is 1 in 236 spins, and each hunting spin costs money this
+  # case then has to take away again.
+  - run:
+      scenario: freespin-zero-balance
+      paytable: { ref: joker-fs-easy, max_win_x: 20 }
+      teardown: restore-balance
+      cases:
+        - id: JK-35
+          title: "A free-spin round with zero balance plays to the end without an insufficient-funds popup"
+          assert:
+            # the gate: the wallet really was empty when the bonus started
+            - stream: "{facts.broke_at_trigger} == True"
+            # ...and the bonus really ran from there
+            - stream: "{facts.played_after_zero} == True"
+            - stream: "{facts.first_fs_capped} == False"    # not ended by the cap on round 1
+            # THE CASE: every round of it was free, and it reached its own terminal
+            - stream: stake_zero_in_freespins
+            - stream: terminal_reached
+            - stream: "{terminal.free_spins} == 0"
+            - stream: conservation
+            - video:
+                at: [trigger, terminal]
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. In this clip the
+                  player's balance has been emptied to zero, and a FREE SPINS bonus then plays out.
+                  Free spins cost nothing, so an empty wallet must not stop them. The ACTION
+                  TIMELINE marks the trigger and every free-spin round. Answer each independently:
+
+                  (1) bonus_played: do the free spins actually play — repeated spins running on
+                  their own, to the end of the bonus?
+
+                  (2) no_insufficient_popup: during the bonus, does any popup or message appear
+                  telling the player they have insufficient funds or cannot bet? This should NOT
+                  happen — answer true only if the bonus ran with no such message.
+
+                  (3) bonus_completed: does the bonus reach its end and the game return to the base
+                  game, rather than stalling part-way or being interrupted?
+
+                  (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+                output_schema:
+                  bonus_played: { type: boolean }
+                  no_insufficient_popup: { type: boolean }
+                  bonus_completed: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bonus_played: true
+                  no_insufficient_popup: true
+                  bonus_completed: true
+                  ui_broken: false
+                  confidence: medium
+
+  # ── JK-36 : the History ticket of a BONUS pages through every free spin ───────────
+  # JK-09 above opens the ticket of a BASE round, which is one page. This is the other shape: a
+  # bonus is many rounds under one History row, and the ticket must page through all of them.
+  #
+  # ⚠ THIS IS THE CASE THE `id` / `roundId` SPLIT IS ABOUT. bet-response.md §5: inside a bonus
+  # `id` is THE SPIN while `roundId` / `refId` are THE BONUS, and they stay fixed for every round of
+  # it — on the captures, `id: 940351469238878209` against `roundId: 940350582730784769`. **Anything
+  # that correlates rounds by `roundId` sees all 12 free spins as ONE round.** So a client that
+  # builds the ticket's page list by `roundId` shows a single page for a 12-spin bonus, and
+  # `bet_count_matches_rounds` is the line that catches it.
+  #
+  # ⚠ `getHistoryDetailState()` pages on `hasPrev` / `hasNext`, and bridge §9 says those "include
+  # the max-win summary page" — so a ticket can have one more page than the bonus had rounds. That
+  # is why `pages_visited == bet_count` compares against the ticket's OWN count rather than against
+  # the number of free spins, and why the cap below is the Rule 17 default rather than something
+  # loose: a truncated bonus would add exactly that extra page and make the two disagree for a
+  # reason that has nothing to do with History.
+  #
+  # Forced, for the same reason as JK-35: the ticket cannot be opened until a bonus exists.
+  - run:
+      scenario: freespin-then-history
+      paytable: { ref: joker-fs-easy, max_win_x: 20 }
+      teardown: return-to-base
+      cases:
+        - id: JK-36
+          title: "The History detail of a free-spin round pages through every spin of that bonus"
+          assert:
+            # the bonus itself was well-formed before History is asked about it
+            - stream: terminal_reached
+            - stream: stake_zero_in_freespins
+            # THE CASE: the ticket's own count matches the rounds the stream saw...
+            - stream: "{facts.bet_count_matches_rounds} == True"
+            # ...and the run actually walked all of them, rather than opening page 1 and stopping
+            - stream: "{facts.pages_visited} == {facts.bet_count}"
+            # ...and paging BACK returned to the first page, so the navigation is not one-way
+            - stream: "{facts.back_at_first} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip plays a
+                  FREE SPINS bonus to its end, then opens the in-game History panel and opens the
+                  newest row's bet detail ticket, then pages FORWARD through the ticket and back
+                  again. The ACTION TIMELINE gives the time of each step. Answer each independently:
+
+                  (1) history_opened: does the History panel open and render as a list of past
+                  rounds?
+
+                  (2) bonus_row_present: is the newest / topmost entry recognisably the BONUS just
+                  played — a free-spin round rather than an ordinary paid spin?
+
+                  (3) detail_pages: after the row is tapped, does a detail ticket open, and does
+                  paging move it through SEVERAL different spins of that bonus — a different grid or
+                  a different set of figures on each page — rather than showing one page only?
+
+                  (4) paging_returns: after paging forward and then back, does the ticket return to
+                  the page it started on?
+
+                  (5) display_broken: on either surface, is anything visibly broken — blank pages,
+                  overlapping or clipped text, placeholder values, a half-drawn ticket?
+                output_schema:
+                  history_opened: { type: boolean }
+                  bonus_row_present: { type: boolean }
+                  detail_pages: { type: boolean }
+                  paging_returns: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  bonus_row_present: true
+                  detail_pages: true
+                  paging_returns: true
+                  display_broken: false
+                  confidence: medium
+
+# ── NOT IN THIS SUITE, AND WHY ─────────────────────────────────────────────────────────────
+#   JK-10  History on BO -> MANUAL, as DR-10 / ZZ-10. The BO bet-history endpoint is not known to
+#          this repo. JK-09 publishes the round's identity (facts.normal_win_round_id / _stake /
+#          _payout) so the manual comparison is a copy-paste.
+#
+#   The free-spin half of History is JK-36 above, on `freespin-then-history`. It is written
+#          against the ticket's OWN page count (`bet_count`) rather than against the number of
+#          free spins, precisely because nothing yet shows how many pages this build makes of a
+#          12-spin bonus — and because bridge §9 warns the count can include a max-win summary
+#          page. The first run is what turns that into a fixed number.

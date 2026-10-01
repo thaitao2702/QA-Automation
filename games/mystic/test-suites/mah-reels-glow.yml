@@ -1,0 +1,33 @@
+# Mystic — Reels Glow (Mah_041) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-reels-glow.yml
+#
+# Reels Glow only fires on specific FreeSpin!-symbol layouts (server-authoritative). The run declares a
+# `paytable:` fixture (derived from base.json, see paytables/README.md) that the runner sets via BO in
+# setup and resets in teardown. NEEDS a BO config block (games/mystic/env.config.<env>.yml `bo:` / BO_*
+# env) — without it the run is skipped with an error. The forced FreeSpin! usually triggers free spins,
+# so the scenario captures the glow on the base spin then drains the bonus.
+
+runs:
+  # ── Mah_041 : glow fires when bonus symbols land across the qualifying reels ────────
+  # BO forces the bonus symbol across the qualifying reels (see paytables/README.md).
+  - run:
+      scenario: reels-glow
+      paytable: { ref: mystic-glow-2col }   # set in setup, reset in teardown; needs BO config
+      teardown: return-to-base
+      cases:
+        - id: Mah_041
+          title: "Reels Glow activates when the bonus appears across the qualifying reels"
+          assert:
+            - video:
+                at: spin
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot with a "Reels Glow" effect that highlights reels
+                  when bonus symbols land across them per the game rule. In this spin, bonus symbols
+                  land across the qualifying reels. Does the Reels Glow animation activate as designed?
+                output_schema:
+                  reels_glow_activated: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reels_glow_activated: true
+                  confidence: low

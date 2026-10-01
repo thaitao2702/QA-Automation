@@ -1,0 +1,151 @@
+{
+  "kind": "run",
+  "scenario": "browse-denominations",
+  "description": "Open the bet-amount list and scroll to the HIGHEST option then the LOWEST, so a SCROLLABLE list reveals both ends on screen (not every option is visible at once). Places no bet. Exposes facts.denom_count / min_bet / max_bet / currency for an AI check that the list matches the configured denominations.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    11.698894023895264,
+    21.439456462860107
+  ],
+  "shots": [],
+  "facts": {
+    "denom_count": 9,
+    "min_bet": 0.1,
+    "max_bet": 35,
+    "currency": "TKN",
+    "has_bet_popup": true,
+    "start_index": 0,
+    "end_index": 0,
+    "list_shown": true,
+    "closed": true,
+    "close_button_worked": true,
+    "needed_dismiss": false,
+    "popups_after": []
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-003",
+      "title": "The bet list offers exactly the denominations the config defines",
+      "stream": [
+        {
+          "spec": "{facts.has_bet_popup} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.denom_count} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.list_shown} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.min_bet} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.max_bet} > {facts.min_bet}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.closed} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            11.698894023895264,
+            21.439456462860107
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the player opens the bet list, scrolls through it, and closes it again.\n(1) list_opens: does a list of selectable bet amounts open? (2) values_descend: are the values in descending order from top to bottom? (3) lowest_value: read the SMALLEST bet in the list exactly as printed, as a string. (4) highest_value: read the LARGEST bet you can see, as a string. If the list scrolls and you cannot reach the end, answer \"unreadable\". (5) list_closes: is the list gone at the end of the clip? (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "list_opens": {
+              "type": "boolean"
+            },
+            "values_descend": {
+              "type": "boolean"
+            },
+            "lowest_value": {
+              "type": "string"
+            },
+            "highest_value": {
+              "type": "string"
+            },
+            "list_closes": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "list_opens": true,
+            "values_descend": true,
+            "lowest_value": "0.1",
+            "list_closes": true,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621184",
+          "data": {
+            "list_opens": true,
+            "values_descend": true,
+            "lowest_value": "0.10",
+            "highest_value": "35.00",
+            "list_closes": true,
+            "ui_broken": false,
+            "notes": "The bet list does not scroll because all available values are visible on a single screen.",
+            "confidence": "high",
+            "reason": "The player opens the 'Bet Options' menu at 00:01 by clicking the bet display. The menu shows values starting from 35.00 at the top left down to 0.10 at the bottom. The lowest value is 0.10 and the highest is 35.00. The menu is closed by 00:08. No UI bugs were observed."
+          },
+          "mismatches": [],
+          "reason": "The player opens the 'Bet Options' menu at 00:01 by clicking the bet display. The menu shows values starting from 35.00 at the top left down to 0.10 at the bottom. The lowest value is 0.10 and the highest is 35.00. The menu is closed by 00:08. No UI bugs were observed.",
+          "note": "The player opens the 'Bet Options' menu at 00:01 by clicking the bet display. The menu shows values starting from 35.00 at the top left down to 0.10 at the bottom. The lowest value is 0.10 and the highest is 35.00. The menu is closed by 00:08. No UI bugs were observed.",
+          "tokens": [
+            1364,
+            1371
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

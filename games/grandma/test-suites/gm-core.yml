@@ -1,0 +1,700 @@
+# Grandma Pets — BOOT, BET, BALANCE, HISTORY, PAYTABLE, TUTORIAL and LANGUAGE.
+# TC-003 … TC-014, TC-051 … TC-056.
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-core.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# Mechanism-free scenarios only; Grandma's own features are in gm-forced.yml / gm-real-weights.yml.
+# `HAS_BET_POPUP` is True here: the stake arrows OPEN a denomination list, they do not step the bet.
+#
+# Only run 6 pushes a paytable (gm-fs-easy). That makes runs 1 and 6 load the page at PREPARE, and
+# run 7 reload again to clear it (docs/run-lifecycle.md); the rest continue in the open page.
+
+runs:
+
+  # TC-005
+  # HOW: nothing is clicked and no bet is placed.
+  #  - the game sits idle on the base screen, just as it loaded, for 2 s
+  #  - the AI grades the video clip of that idle screen; no still picture is graded
+  #    (the bet a correct game opens at is the LAST ROUND's stake; the configured default only
+  #     applies to a player's very first session)
+  # PARAMS (boot-base):
+  #  - dwell_s: 2 (default) — seconds the idle base screen is left on screen for the clip
+  - run:
+      scenario: boot-base
+      video:
+        assets: []
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is the game sitting idle just after it
+          loaded — no spin has been made.
+
+          (1) bet_text: read the bet amount shown, exactly as printed, as a string. "none" if no
+          bet amount is displayed.
+          (2) balance_readable: is a balance amount displayed?
+          (3) spin_ready: does the game look ready to play — reels stopped, spin control present,
+          no loading spinner and no popup covering the screen?
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bet_text: { type: string }
+          balance_readable: { type: boolean }
+          spin_ready: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-005: { bet_text: "{facts.bet_amount}", spin_ready: true, ui_broken: false,
+                    confidence: medium }
+      cases:
+        - id: TC-005
+          title: "A first session opens at the bet level the back office configured"
+          assert:
+            # Anti-vacuity: a boot that read nothing would render "bet null" into the prompt and
+            # the AI would grade a screen the facts cannot describe.
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.bet_amount} > 0"
+            - stream: "{facts.balance} > 0"
+            # THE CASE. ⚠ `defaultBetLevel` is 1-BASED on this server and the bridge exposes the
+            # 0-based index the game really opens at (bridge-api.md §3) — the profile reads the
+            # alias, so `expected_open_bet` is already the corrected figure.
+            - stream: "{facts.default_bet_known} == True"
+            - stream: "{facts.opens_at_expected_bet} == True"
+
+  # TC-003
+  # HOW: no bet is placed.
+  #  - click the bet arrow to open the bet list, wait 2 s, and check the list really appeared
+  #  - scroll the list until the BIGGEST bet is in view, wait 2 s
+  #  - scroll back until the SMALLEST bet is in view, wait 2 s
+  #  - click the list's close button, wait 2 s; if the list is still up, every popup is closed
+  #    by force (and that is reported)
+  #  - if the list never appears: click the bet-up arrow 4 times (1 s each), wait 2 s, then the
+  #    bet-down arrow 4 times, wait 2 s — and if the bet still ended where it started, the run is
+  #    reported as not reached
+  #    (the denominations come from config, so grading them with nothing on screen would pass
+  #     whether or not the player can see them)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (browse-denominations): none
+  - run:
+      scenario: browse-denominations
+      teardown: return-to-base
+      video:
+        assets: []
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player opens the bet list, scrolls
+          through it, and closes it again.
+
+          (1) list_opens: does a list of selectable bet amounts open?
+          (2) values_descend: are the values in descending order from top to bottom?
+          (3) lowest_value: read the SMALLEST bet in the list exactly as printed, as a string.
+          (4) highest_value: read the LARGEST bet you can see, as a string. If the list scrolls and
+          you cannot reach the end, answer "unreadable".
+          (5) list_closes: is the list gone at the end of the clip?
+          (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          list_opens: { type: boolean }
+          values_descend: { type: boolean }
+          lowest_value: { type: string }
+          highest_value: { type: string }
+          list_closes: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `lowest_value` is read and compared against the bridge's own minimum. `highest_value`
+          # is DISCOVERY: the list scrolls, so "the largest you can see" is not necessarily the
+          # largest there is, and grading it would fail on a list that simply did not fit.
+          TC-003: { list_opens: true, values_descend: true, lowest_value: "{facts.min_bet}",
+                    list_closes: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-003
+          title: "The bet list offers exactly the denominations the config defines"
+          assert:
+            - stream: "{facts.has_bet_popup} == True"
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.list_shown} == True"
+            - stream: "{facts.min_bet} > 0"
+            - stream: "{facts.max_bet} > {facts.min_bet}"
+            # it closed through its own control, not by being swept up afterwards
+            - stream: "{facts.closed} == True"
+
+  # TC-004
+  # HOW: no bet is placed.
+  #  - the target is the 4th-SMALLEST bet in the list (the 5th-smallest if the game is already on
+  #    it — you cannot re-select the row you are already on; the smallest if there are 3 or fewer)
+  #  - click the bet arrow to open the bet list, wait 2 s
+  #  - click the target row, wait 2 s
+  #  - click the list's close button, wait 2 s
+  #  - if the list never opened: click the bet arrows one step at a time (1 s each) until the
+  #    target bet is reached, then wait 2 s
+  #  - wait for the game to be ready to spin again
+  #    (if the bet never moved the run is reported as not reached, not failed: that is this suite
+  #     failing to DRIVE the change, not the game refusing it)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (change-bet):
+  #  - target_index: none (default) — which bet to pick, counted from the smallest (0 = smallest);
+  #    none = the 4th-smallest, as above
+  - run:
+      scenario: change-bet
+      teardown: return-to-base
+      video:
+        assets: []
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player changes the bet — watch the
+          bet amount displayed on the main screen.
+
+          (1) bet_changes: does the bet amount on the main screen change during the clip?
+          (2) final_bet: read the bet shown at the END of the clip, exactly as printed, as a string.
+          (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bet_changes: { type: boolean }
+          final_bet: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-004: { bet_changes: true, final_bet: "{facts.landed_bet}", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-004
+          title: "Changing the bet moves it to the level the player picked"
+          assert:
+            - stream: "{facts.denom_count} > 1"
+            - stream: "{facts.bet_changed} == True"
+            # landed where it was asked to, not merely somewhere else
+            - stream: "{facts.landed_bet} == {facts.picked_bet}"
+            - stream: "{facts.landed_index} == {facts.picked_index}"
+
+  # TC-006 + TC-007
+  # HOW:
+  #  - click spin and wait for the round to finish, including any big-win celebration (it is
+  #    left to play out, not tapped away, so the balance count-up is seen in full)
+  #  - if the spin starts free spins, they are played out to the end, the Free Spin Extension
+  #    offer is declined, and the hunt carries on — this case is about a plain BASE win
+  #  - repeat until a base spin pays, up to 60 spins; the first paying spin ends the run
+  #    (if nothing pays in 60 spins, the run is reported as not reached)
+  #  - the AI clip is ONLY the winning spin (`at: win`), from its click to the end of its
+  #    presentation — the losing spins and any bonus played out while hunting are not in it
+  #    (the stake is taken at the START of the spin, so the balance passes through "minus the
+  #     stake" while the reels turn — naming only the final balance in a prompt earns a correct
+  #     "no" from the AI)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (base-win):
+  #  - max_spins: 60 (default) — most spins clicked while hunting for a paying base spin
+  #  - skip_big_win: false (set here) — a big-win celebration plays out instead of being tapped
+  #    away (TC-007 asks whether the balance counts up)
+  - run:
+      scenario: base-win
+      params: { skip_big_win: false }
+      teardown: return-to-base
+      video:
+        assets: []
+        at: win                  # the winning spin only, not the hunt
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is one paid spin — watch the balance and
+          any win amount shown.
+
+          (1) balance_drops_on_spin: when the spin starts, does the balance go DOWN?
+          (2) win_amount_shown: is the win amount displayed anywhere when the spin resolves?
+          (3) win_amount_text: read that win amount exactly as printed, as a string. If you cannot
+          read it clearly, answer "unreadable".
+          (4) balance_counts_up: does the balance then increase to its final value?
+          (5) final_balance_text: read the balance at the END of the clip, as a string.
+          (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          balance_drops_on_spin: { type: boolean }
+          win_amount_shown: { type: boolean }
+          win_amount_text: { type: string }
+          balance_counts_up: { type: boolean }
+          final_balance_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-006: { balance_drops_on_spin: true, confidence: medium }
+          TC-007: { win_amount_shown: true, win_amount_text: "{facts.win_payout_display}",
+                    balance_counts_up: true, final_balance_text: "{facts.balance_after_win_display}",
+                    ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-006
+          title: "Placing a bet takes the stake out of the balance"
+          assert:
+            # Same shape as every other game (CR_007, DR-05, ZZ-05 …). `conservation` is the claim:
+            # each round's balance == previous - stake + payout, from the server's own figures.
+            # ⚠ Not `balance_while_spinning == balance_before_spin - win_stake`: those readout
+            # values are DERIVED from the same response (and rounded to 2 dp while the server
+            # balance has 3), so comparing them re-checks the scenario's arithmetic, not the game.
+            - stream: conservation
+            - stream: "{res.stake} > 0"
+            - stream: "{facts.win_stake} > 0"
+
+        - id: TC-007
+          title: "The payout is added to the balance when the spin settles"
+          assert:
+            # same as TC-006: conservation carries "the payout is credited"; a paying round is the gate
+            - stream: conservation
+            - stream: "{res.payout} > 0"
+            - stream: "{facts.win_payout} > 0"
+            - stream: ways_payout_matches
+
+  # TC-008
+  # HOW:
+  #  - if the balance is 1 or more: take every whole unit out of the wallet, so only the cents
+  #    are left (e.g. 29,951.45 becomes 0.45), then reload the game and click Start so it shows
+  #    the new balance (if the wallet cannot be changed, the run is reported as not reached)
+  #  - if what is left is still enough for the smallest bet (withdrawals move whole units, so a
+  #    0.45 remainder can survive): unless the current bet is already more than the balance,
+  #    raise the STAKE instead — click the bet arrow to open the bet list, click the smallest bet
+  #    that is bigger than the balance, click the list's close button (2 s after each click)
+  #    (if no bet is bigger than the balance, the run is reported as not reached)
+  #  - click spin once and hold 2 s so the "not enough money" popup is in frame
+  #    (needs PLAYSITE_*; the teardown puts the wallet back)
+  #  - afterwards: the wallet is put back to what it was
+  # PARAMS (insufficient-balance): none
+  - run:
+      scenario: insufficient-balance
+      teardown: restore-balance       # ⚠ mandatory: this run MOVES the player's money
+      video:
+        assets: []
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player presses spin once.
+
+          (1) message_shown: does the game show a message telling the player they have insufficient
+          funds?
+          (2) reels_spun: do the reels spin?
+          (3) message_text: read the message exactly as printed, as a string. If there is none,
+          answer "none".
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          message_shown: { type: boolean }
+          reels_spun: { type: boolean }
+          message_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `message_text` is DISCOVERY — the wording is a localisation question, not this case's
+          # claim, and grading it would break the first time marketing rewrites the string.
+          TC-008: { message_shown: true, reels_spun: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-008
+          title: "With too little balance the spin is blocked and the player is told"
+          assert:
+            # the setup really made the player broke: the balance is below the bet being spun
+            - stream: "{facts.spin_balance} < {facts.chosen_bet}"
+            # "the player is told" is the video's claim (message_shown / reels_spun above).
+            # ⚠ `facts.mode` is only HOW the broke state was made ('wallet' or 'bet'), never the
+            # game's answer — do not assert it. And an insufficient balance does NOT block
+            # `waitForSpinClickable` (bridge-api.md §4): the click is allowed and the game answers
+            # with a message, so "the button was clickable" is not a defect either.
+
+  # TC-010
+  # HOW: set the paytable to gm-fs-easy first (bonus symbols on reels 1-3, so ~82% of spins start
+  #      free spins) and cap the payout at 50x. Then, for each attempt (at most 25):
+  #  - put EXACTLY one bet's worth (the bet the game is on) in the wallet
+  #  - reload the game and click Start so it shows the new balance
+  #  - click spin once — that takes the last of the money, so the player is now broke
+  #  - throw the attempt away (wait for the spin to finish) and start again if: it did not start
+  #    free spins, or the payout cap cut it back to base (no bonus at all), or the spin itself
+  #    paid enough that the player can afford to bet again
+  #  - on a good one: watch EVERY free spin play, from the first to the last, with no reload
+  #    (a big-win celebration is tapped away) — then decline the Free Spin Extension offer and
+  #    wait for the game to be back at base
+  #    (if no attempt in 25 is good, or the wallet cannot be set, the run is reported as not
+  #     reached)
+  #    (requirement: "trigger FS -> let the balance reach 0 -> keep playing". The trigger spin
+  #     spends the last stake, so the whole bonus plays with an empty wallet. `reload_mid_bonus:
+  #     false` turns off the scenario's default reload, which other games' cases still use.)
+  #    (⚠ "broke" is judged on the TRIGGERING spin: free spins PAY IN, so later in the bonus the
+  #     player may legitimately have money again)
+  #  - afterwards: the wallet is put back, and the game is brought back to the base game
+  # PARAMS (freespin-zero-balance):
+  #  - max_attempts: 25 (default) — most funded single-spin attempts before giving up
+  #  - observe_ms: 4000 (default) — how long the first free spin is held on screen before the
+  #    reload; NOT USED here, because reload_mid_bonus is off
+  #  - reload_mid_bonus: false (set here) — true = play one free spin, then reload the game with
+  #    the rest owed; false = no reload, the whole bonus plays straight through
+  - run:
+      scenario: freespin-zero-balance
+      params: { reload_mid_bonus: false }
+      teardown: [restore-balance, return-to-base]
+      paytable: { ref: gm-fs-easy, max_win_x: 50 }
+      video:
+        assets: [symbols.scatter]
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is a spin that starts free spins, and the
+          free spins that follow.
+
+          (1) spins_play_out: do the free spins play out by themselves, although player balance is zero to the end?
+          (2) blocked_by_balance: does the game ever stop the bonus or show a message about funds?
+          (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          spins_play_out: { type: boolean }
+          blocked_by_balance: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-010: { spins_play_out: true, blocked_by_balance: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-010
+          title: "Owed free spins play out with an empty wallet"
+          assert:
+            # the player really was broke when the bonus began — without this the case proves nothing
+            - stream: "{facts.broke_at_trigger} == True"
+            # the whole bonus played, uninterrupted, with the wallet empty
+            - stream: "{facts.fs_rounds_played} >= 1"
+            - stream: "{facts.reloaded_mid_bonus} == False"
+            - stream: stake_zero_in_freespins
+            - stream: conservation
+
+  # TC-011
+  # HOW:
+  #  - click spin and wait for the round to finish (a big-win celebration is tapped away); a
+  #    losing spin just leads to the next one
+  #    (if a spin starts free spins, they are played out to the end, the Free Spin Extension offer
+  #     is declined, and the hunt carries on — otherwise a bonus ticket would sit at the top of
+  #     History in front of the row this case is about)
+  #  - repeat until a spin wins, up to 80 spins (if none wins, the run is reported as not reached)
+  #  - on the winning spin: wait 2 s before opening History, so the new row has time to arrive
+  #  - click the Settings button (wait 1 s), then History inside it, wait 2 s, and wait for the
+  #    rows to appear (up to 10 s)
+  #  - click the newest row (the top one), wait 2 s, and wait for its detail to open (up to 10 s)
+  #  - hold the detail in frame 2 s — no scrolling, since a normal win has nothing below the fold
+  #  - click the detail's close button, then History's close button (2 s each); if the game went
+  #    back to Settings, close Settings too; if anything is still up, every popup is closed by force
+  #    (the real claim is that the round id in History matches the round just played)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (spin-then-history):
+  #  - settle_before_history_s: 2.0 (default) — seconds waited after the win before History opens
+  #  - detail_scroll_steps: 0 (set here) — pages the round detail is scrolled; 0 = not scrolled
+  #  - dwell_ms: 2000 (default) — how long each newly opened screen is held
+  #  - list_timeout_ms: 10000 (default) — how long the History rows / the detail may take to appear
+  #  - max_spins: 80 (default) — most spins clicked while hunting for the win
+  #  - outcomes: [normal_win] (set here) — which kind of round to look up in History; only a
+  #    normal (non-bonus) win here, not a losing spin
+  - run:
+      scenario: spin-then-history
+      params: { outcomes: [normal_win], detail_scroll_steps: 0 }
+      teardown: return-to-base
+      video:
+        assets: []
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. The player spins, then opens the History panel and
+          looks at that round.
+
+          (1) history_opens: does a History panel open, listing past rounds?
+          (2) top_row_is_latest: is the round that was just played the FIRST row in the list?
+          (3) detail_opens: does tapping that row open a detail view of the round?
+          (4) detail_win_text: in that detail view, read the win amount exactly as printed, as a
+          string. If you cannot read it clearly, answer "unreadable".
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          history_opens: { type: boolean }
+          top_row_is_latest: { type: boolean }
+          detail_opens: { type: boolean }
+          detail_win_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-011: { history_opens: true, top_row_is_latest: true, detail_opens: true,
+                    detail_win_text: "{facts.normal_win_payout_display}", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-011
+          title: "History shows the round that was just played, with its own result"
+          assert:
+            - stream: "{facts.normal_win_found} == True"
+            - stream: "{facts.normal_win_history_rows} > 0"
+            - stream: "{facts.normal_win_detail_opened} == True"
+            # THE CASE: the row the panel opened is the round that was actually played — matched on
+            # `roundId`, not on position in a list
+            - stream: "{facts.normal_win_round_id_match} == True"
+            - stream: "{facts.normal_win_payout} > 0"
+            # and it closed through its own control rather than being swept up
+            - stream: "{facts.normal_win_panel_closed} == True"
+
+  # TC-013 + TC-014 + TC-055
+  # HOW: no bet is placed.
+  #  - click the bet arrow to open the bet list (wait 2 s), scroll to the SMALLEST bet and click
+  #    it (wait 2 s), click the list's close button (wait 2 s)
+  #  - click the Settings button (wait 1 s), then Info inside it to open the guide, wait 2 s,
+  #    then close everything that is open
+  #  - open the bet list again, scroll to the 4th-SMALLEST bet and click it, close the list
+  #    (same waits)
+  #  - open the guide again through Settings, wait 2 s, close everything
+  #    (if the bet list never opens, or the guide never opens, the run is reported as not reached)
+  #  - the AI grades the video clip of both openings and compares the payouts between them;
+  #    no picture is graded
+  #    (⚠ a ways game prints payouts against the TOTAL bet, not a per-line share, so the
+  #     "per-line" figures here are just the whole stake)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (paytable-bet-scaling):
+  #  - index_a: 0 (set here) — the first bet picked, counted from the smallest (0 = smallest)
+  #  - index_b: 3 (set here) — the second bet picked (3 = 4th-smallest)
+  - run:
+      scenario: paytable-bet-scaling
+      params: { index_a: 0, index_b: 3 }
+      teardown: return-to-base
+      video:
+        asset_groups: [symbols]
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the paytable is opened, the bet is
+          changed, and the paytable is opened again.
+
+          (1) paytable_opens: does a paytable listing symbols and their payouts open?
+          (2) values_change_with_bet: compare the payout figures between the two openings — are they
+          larger the second time?
+          (3) symbols_shown: are the game's symbols shown next to their payouts — the cats, the
+          dogs, the card letters?
+          (4) ways_stated: does it say anywhere that the game pays 1024 ways?
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          paytable_opens: { type: boolean }
+          values_change_with_bet: { type: boolean }
+          symbols_shown: { type: boolean }
+          ways_stated: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-013: { paytable_opens: true, symbols_shown: true, ui_broken: false, confidence: medium }
+          TC-014: { values_change_with_bet: true, confidence: medium }
+          # `ways_stated` is DISCOVERY: the rules page says 1024 ways, but whether the paytable
+          # SCREEN repeats it is a design question no row of the matrix asks.
+          TC-055: { values_change_with_bet: true, confidence: medium }
+      cases:
+        - id: TC-013
+          title: "The paytable opens and lists the game's symbols"
+          assert:
+            - stream: "{facts.denom_count} > 1"
+            - stream: "{facts.bet_a} > 0"
+
+        - id: TC-014
+          title: "Paytable payouts scale with the total bet"
+          assert:
+            # the two bets really differ, so "the figures grew" has something behind it
+            - stream: "{facts.bet_b} > {facts.bet_a}"
+            # a ways game prints against the whole stake: the divisor is 1, so the figure the
+            # paytable scales by IS the bet
+            - stream: "{facts.divisor} == 1"
+            - stream: "{facts.line_bet_a} == {facts.bet_a}"
+            - stream: "{facts.line_bet_b} == {facts.bet_b}"
+
+        - id: TC-055
+          title: "The tutorial's base-symbol payouts follow the bet"
+          assert:
+            - stream: "{facts.bet_b} > {facts.bet_a}"
+            - stream: "{facts.line_bet_b} > {facts.line_bet_a}"
+
+  # TC-054 + TC-056
+  # HOW:
+  #  - click the Settings button (wait 1 s), then Info inside it to open the guide (wait 1 s)
+  #    (if Info never becomes clickable, the run is reported as not reached)
+  #  - hold 2 s on the top of the guide
+  #  - scroll down with the mouse wheel, about one screenful (90%) at a time, 10 times, holding
+  #    2 s on each screenful
+  #  - hold 2 s on the last screen
+  #  - close everything that is open
+  #  - every screenful (the top one + the 10 scrolled ones) is also saved as a full-resolution
+  #    still; the AI grades those STILLS, all together as one document (image assert, not video:
+  #    the cases are about reading text and checking pictures, which a video montage is too small for)
+  #    (⚠ the guide is a web page embedded from another origin: only a real mouse wheel scrolls
+  #     it, and its position cannot be read back — so the number of scrolls is fixed and
+  #     over-scrolling just stops at the bottom harmlessly. "Reached the bottom" means the
+  #     scrolling was ISSUED; that the page actually moved is a claim for the video.)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (open-tutorial):
+  #  - dwell_s: 2 (default) — seconds held on the top of the guide, and again on the last screen
+  #  - scroll_steps: 10 (set here) — how many screenfuls the guide is scrolled down
+  #  - scroll_dwell_ms: 2000 (set here) — how long each scrolled screenful is held
+  #  - scroll_back: false (default) — true = also scroll back up to the top afterwards
+  #  - shots: true (default) — save a full-resolution still of every screenful (what the AI grades)
+  - run:
+      scenario: open-tutorial
+      params: { scroll_steps: 10, scroll_dwell_ms: 2000 }
+      teardown: return-to-base
+      # IMAGE, not video — the documented exception (docs/scenario-assert-authoring.md "Video or
+      # image"). The guide is a static page of text and pictures, and both cases are about reading
+      # it: a video montage shrinks every frame and the small text stops being readable. The scenario
+      # already shoots each screenful at full resolution (tutorial-01 … tutorial-11); `combine`
+      # sends them all in ONE call, read as one document.
+      image:
+        combine: true
+        prompt: >-
+          These screenshots are Grandma Pets' in-game information guide, captured one screenful at a
+          time as it was scrolled from top to bottom. Read them as ONE document, in order, and answer
+          about the whole of it.
+
+          (1) guide_opens: do the screenshots show a real guide with content, rather than an empty
+          frame or a loading screen?
+          (2) pages_differ: does each screenshot show a different part of the guide, i.e. was it
+          paged through rather than showing the same screen repeatedly?
+          (3) text_readable: across every screenful, is the text laid out properly, without running
+          off the edge, overlapping, or being cut in half?
+          (4) images_load: are the pictures actually drawn (symbols, feature artwork) rather than
+          blank boxes, broken-image icons or placeholders?
+          (5) images_in_place: is each picture placed where it belongs next to the text it
+          illustrates, not overlapping text, cut off, or out of place?
+          (6) sections_seen: list the section headings you can read, in order, as a JSON array of
+          strings.
+          (7) ui_broken: on any screenful, is anything else overlapping, placeholder or visibly
+          broken?
+        output_schema:
+          guide_opens: { type: boolean }
+          pages_differ: { type: boolean }
+          text_readable: { type: boolean }
+          images_load: { type: boolean }
+          images_in_place: { type: boolean }
+          sections_seen: { type: array, items: { type: string } }
+          ui_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `sections_seen` is DISCOVERY — it records what the guide actually contains on a green
+          # run, which is the cheapest way to notice a section going missing later.
+          TC-054: { guide_opens: true, pages_differ: true, text_readable: true, confidence: medium }
+          TC-056: { images_load: true, images_in_place: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-054
+          title: "The tutorial opens and its content can be read through"
+          assert:
+            - stream: "{facts.has_tutorial_webview} == True"
+            - stream: "{facts.tutorial_open} == True"
+            - stream: "{facts.scroll_steps} > 0"
+
+        - id: TC-056
+          title: "The tutorial's images are present and in place"
+          assert:
+            - stream: "{facts.tutorial_open} == True"
+            # it really is the WebView, so the AI is grading the guide and not a fallback panel
+            - stream: "{facts.is_webview} == True"
+
+  # TC-051 + TC-052 + TC-053
+  # HOW: no bet is placed.
+  #  - for each language in the list, in order (English, Burmese, Simplified Chinese, Russian),
+  #    open the game afresh in that language — the language lives in the launch token, so each
+  #    one is a fresh load (a language that fails to load is skipped, the rest carry on)
+  #  - in that language, visit in order: the base screen (just wait 2 s), the bet list (via the
+  #    bet arrow), Settings, the info guide, the auto-play panel and History (the guide and
+  #    History are opened through Settings)
+  #  - for each: click to open it, wait 2 s, click its close button if it has one (wait 1 s),
+  #    then close anything still open; a screen that will not open is skipped
+  #  - every opened screen is also saved as a full-resolution still labelled with the LANGUAGE and
+  #    the SCREEN (e.g. "en English - settings"; from the 2nd language on the label also names the
+  #    language before it: "my Burmese (switched from en English) - settings")
+  #    (if no language loads, or fewer than 2 screens open in some language, the run is reported
+  #     as not reached)
+  #  - the AI grades each STILL on its own (image assert, not video: the cases are about
+  #    reading text and whether it fits, which the video montage is too small for)
+  #    (the language list is the same as the other five games: `en` is the baseline and `my`
+  #     (Burmese) is the stress language the matrix names for TC-052 / TC-053)
+  #
+  # NOT combined, deliberately: the stills are different SCREENS in different LANGUAGES, and a
+  # per-screen verdict is what makes "the Burmese settings panel has an English label" traceable
+  # to one screen.
+  #
+  # ⚠ TC-051's matrix row is "language stays in sync BETWEEN games". One game's tour cannot prove
+  #   that; what this run proves is that THIS game shows the language it was opened in, on every
+  #   screen. The cross-game half needs a second game and is not covered here.
+  #
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (language-tour):
+  #  - dwell_ms: 2000 (default) — how long each screen is held open
+  #  - languages: [en, my, zh, ru] (set here) — the languages the game is opened in, in order
+  #  - seed: none (default) — only for a random pick of languages; unused with a fixed list
+  #  - include: none (default) — languages always added to a random pick; unused with a fixed list
+  #  - surfaces: none (default) — which screens to visit; none = all six listed above
+  - run:
+      scenario: language-tour
+      params:
+        languages: [en, my, zh, ru]
+      teardown: return-to-base
+      # The question set is the one Zeus (ZZ-51) and Chaos (CR_064/066/067) ran live without false
+      # alarms: grouped by topic, each field name saying which way its question points, and no two
+      # fields asking about the same property in opposite directions (asking "text fits" next to
+      # "text clipped" gave 12 false alarms in 24 screens on Zeus).
+      image:
+        prompt: >-
+          A Grandma Pets screen, captured as: {shot.label}. Grandma Pets is a 5-reel, 4-row slot.
+          The label gives the language code and name, the screen shown, and — after a mid-session
+          change — the language it switched FROM. Judge the screen against the language the label
+          names, at full resolution, and answer three groups of questions. Expected scripts:
+          Burmese = Myanmar, Simplified Chinese = Han, Russian = Cyrillic, English = Latin.
+
+          LANGUAGE. (1) is all visible text rendered in the language the label names, rather than
+          English fallback or the language it switched from (correct_language)? (2) is any string
+          left untranslated — a word in a different language from the one the label names
+          (untranslated_strings)? (3) is any raw translation key visible, text like
+          "ui.button.spin" or "MISSING_KEY" (raw_keys_visible)? Ignore numbers, currency amounts,
+          currency codes such as (TKN), and the game's brand name.
+
+          LAYOUT. (4) does any text overflow outside its button, panel or label boundary
+          (text_overflows)? (5) does any text run underneath or on top of another element
+          (text_collides)?
+
+          GLYPHS — examine the characters closely, and answer only about the characters themselves.
+          (6) is any character cut off at the top or bottom of its line (glyphs_clipped)? (7) for
+          scripts with marks above or below the base letter (Burmese especially), are those marks
+          fully rendered (diacritics_intact)? (8) is any descender — the tail of a g, y or p —
+          sliced off (descenders_intact)?
+        output_schema:
+          correct_language: { type: boolean }
+          untranslated_strings: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          text_overflows: { type: boolean }
+          text_collides: { type: boolean }
+          glyphs_clipped: { type: boolean }
+          diacritics_intact: { type: boolean }
+          descenders_intact: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-051:                         # this game shows the language it was opened in
+            correct_language: true
+            untranslated_strings: false
+            raw_keys_visible: false
+            confidence: medium
+          TC-052:                         # text fits its box (auto scaling), Burmese especially
+            text_overflows: false
+            text_collides: false
+            confidence: medium
+          TC-053:                         # text is not cut off and no marks / tails are missing
+            glyphs_clipped: false
+            diacritics_intact: true
+            descenders_intact: true
+            confidence: medium
+      cases:
+        - id: TC-051
+          title: "The game is shown in the language it was opened in, on every screen"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"   # every language really loaded
+            - stream: "{facts.surface_count} >= 3"
+            - stream: "{facts.shot_count} >= 3"
+
+        - id: TC-052
+          title: "Text scales to fit in every language"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"
+            - stream: "'{facts.stress_language}' in '{facts.languages}'"   # Burmese was toured
+            - stream: "{facts.shot_count} >= 3"
+
+        - id: TC-053
+          title: "No language has its text cut off"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"
+            - stream: "'{facts.stress_language}' in '{facts.languages}'"
+            - stream: "{facts.shot_count} >= 3"

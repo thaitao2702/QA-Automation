@@ -1,0 +1,232 @@
+{
+  "kind": "run",
+  "scenario": "base-win",
+  "description": "Spin the base game until a round PAYS, then settle. Mechanism-agnostic: it asks only `payout > 0`, so it works on a payline game as readily as a cascade one \u2014 use it for the balance-credit check. (`base-cluster-win` is the cascade-specific cousin: it additionally requires >= 2 cascade steps, which a payline game never produces.) Exposes res = the winning round + facts.spins_to_win / win_payout / win_stake. Unreached if nothing pays inside the spin budget.\nIt also publishes the BALANCE READOUT'S THREE VALUES for the winning round \u2014 balance_before_spin, balance_while_spinning (the stake is taken at spin START, so the readout sits here for the whole spin) and balance_after_win. A prompt about either half of the money has to name the two endpoints of the step it is judging, not just the destination; naming only `res.balance` earned a correct NO on Mah_008, because that is a value the readout passes THROUGH. The names are `base-cluster-win`'s and the authoring doc's, deliberately: one concept must not have two names across two scenarios, or a prompt moved between them silently binds to null. See docs/scenario-assert-authoring.md \u00a72. PORTABLE, and verified against the captured payloads of all three games. The one thing to know is WHY `win_stake` is always > 0 here: a paying round with stake 0 exists on every game with a bonus -- Zeus's terminal Hold & Spin round reports payout 261 at stake 0 and is NOT a trigger, so it reads exactly like a base win. It never reaches this loop because `base_spin()` only returns rounds the framework CLICKED; bonus rounds arrive through `awaitFreespinRound` inside `play_out_freespins`. That is an invariant of the drive, not an accident -- a scenario that collects rounds some other way must re-check it.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    29.47329330444336,
+    141.631587266922
+  ],
+  "shots": [],
+  "facts": {
+    "spins_to_win": 14,
+    "win_payout": 5.6,
+    "win_stake": 7.0,
+    "balance_after_win": 15141.436,
+    "win_payout_display": "5.60",
+    "balance_after_win_display": "15141.43",
+    "balance_before_spin": 15142.84,
+    "balance_while_spinning": 15135.84
+  },
+  "marks": {
+    "win": 13
+  },
+  "cases": [
+    {
+      "id": "TC-006",
+      "title": "Placing a bet takes the stake out of the balance",
+      "stream": [
+        {
+          "spec": "conservation",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{res.stake} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.win_stake} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": "win",
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            127.671,
+            141.632
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. This clip is one paid spin \u2014 watch the balance and any win amount shown.\n(1) balance_drops_on_spin: when the spin starts, does the balance go DOWN? (2) win_amount_shown: is the win amount displayed anywhere when the spin resolves? (3) win_amount_text: read that win amount exactly as printed, as a string. If you cannot read it clearly, answer \"unreadable\". (4) balance_counts_up: does the balance then increase to its final value? (5) final_balance_text: read the balance at the END of the clip, as a string. (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "balance_drops_on_spin": {
+              "type": "boolean"
+            },
+            "win_amount_shown": {
+              "type": "boolean"
+            },
+            "win_amount_text": {
+              "type": "string"
+            },
+            "balance_counts_up": {
+              "type": "boolean"
+            },
+            "final_balance_text": {
+              "type": "string"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "balance_drops_on_spin": true,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621440",
+          "data": {
+            "balance_drops_on_spin": true,
+            "win_amount_shown": true,
+            "win_amount_text": "5.60",
+            "balance_counts_up": true,
+            "final_balance_text": "15,141.43",
+            "ui_broken": false,
+            "notes": "One paid spin is shown.",
+            "confidence": "high",
+            "reason": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17)."
+          },
+          "mismatches": [],
+          "reason": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17).",
+          "note": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17).",
+          "tokens": [
+            1807,
+            1527
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    },
+    {
+      "id": "TC-007",
+      "title": "The payout is added to the balance when the spin settles",
+      "stream": [
+        {
+          "spec": "conservation",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{res.payout} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.win_payout} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "ways_payout_matches",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": "win",
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            127.671,
+            141.632
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. This clip is one paid spin \u2014 watch the balance and any win amount shown.\n(1) balance_drops_on_spin: when the spin starts, does the balance go DOWN? (2) win_amount_shown: is the win amount displayed anywhere when the spin resolves? (3) win_amount_text: read that win amount exactly as printed, as a string. If you cannot read it clearly, answer \"unreadable\". (4) balance_counts_up: does the balance then increase to its final value? (5) final_balance_text: read the balance at the END of the clip, as a string. (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "balance_drops_on_spin": {
+              "type": "boolean"
+            },
+            "win_amount_shown": {
+              "type": "boolean"
+            },
+            "win_amount_text": {
+              "type": "string"
+            },
+            "balance_counts_up": {
+              "type": "boolean"
+            },
+            "final_balance_text": {
+              "type": "string"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "win_amount_shown": true,
+            "win_amount_text": "5.60",
+            "balance_counts_up": true,
+            "final_balance_text": "15141.43",
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621440",
+          "data": {
+            "balance_drops_on_spin": true,
+            "win_amount_shown": true,
+            "win_amount_text": "5.60",
+            "balance_counts_up": true,
+            "final_balance_text": "15,141.43",
+            "ui_broken": false,
+            "notes": "One paid spin is shown.",
+            "confidence": "high",
+            "reason": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17)."
+          },
+          "mismatches": [],
+          "reason": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17).",
+          "note": "The balance drops from 15,142.83 to 15,135.83 at the beginning of the spin (00:04). A win of 5.60 is clearly displayed at the end of the spin (00:14) and the balance increments to 15,141.43 (00:17).",
+          "tokens": [
+            0,
+            0
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

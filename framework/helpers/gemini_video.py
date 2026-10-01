@@ -40,14 +40,20 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 import time
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# AI calls run on a thread pool (scripts/ai_video.run_ai); `x += n` on an attribute is not
+# atomic, so the call/token counters the cost summary reads are updated under this lock.
+_COUNTER_LOCK = threading.Lock()
 
 from framework.helpers.gemini_pricing import get_pricing
 
@@ -65,44 +71,77 @@ _MONTAGE_PADDING_PX = 6                 # white gutter between sub-frames (helps
 _FFMPEG_TIMEOUT = 120                   # seconds for the montage re-encode
 
 
-def _montage_filter() -> str:
-    """ffmpeg -vf chain: sample at _MONTAGE_SAMPLE_FPS, tile N sub-frames left→right, even dims.
+_MONTAGE_HIGH_FPS = 16                   # `high_fps`: 4 composites/sec x 4 sub-frames = 16fps effective
 
-    ``tile=Nx1`` consumes N consecutive sampled frames and emits one composite, so the
-    output frame rate is _MONTAGE_SAMPLE_FPS / N = 1fps — exactly Gemini's sampling rate.
-    The final scale forces even width/height (required by yuv420p / libx264).
+
+def _font_file():
+    """First available TrueType font for the drawtext timestamp overlay (best-effort, cross-OS)."""
+    for p in (r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\segoeui.ttf",
+              "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "/System/Library/Fonts/Supplemental/Arial.ttf"):
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _drawtext_ts() -> str:
+    """drawtext filter burning the clip-relative timestamp into the top-left of each sub-frame."""
+    parts = ["drawtext=text='t\\=%{pts\\:hms}'", "fontcolor=yellow", "fontsize=18",
+             "x=5", "y=5", "box=1", "boxcolor=black@0.5"]
+    font = _font_file()
+    if font:                                          # filtergraph path escaping: \ -> / and : -> \:
+        parts.insert(1, "fontfile='%s'" % font.replace("\\", "/").replace(":", "\\:"))
+    return ":".join(parts)
+
+
+def _montage_filter(sample_fps: int = _MONTAGE_SAMPLE_FPS, timestamp: bool = False) -> str:
+    """ffmpeg -vf chain: sample at `sample_fps`, optionally burn a per-sub-frame timestamp, tile N
+    sub-frames left->right, even dims.
+
+    ``tile=Nx1`` consumes N consecutive sampled frames and emits one composite, so the output frame
+    rate is sample_fps / N. Default sample_fps=4 -> 1 composite/sec, 0.25s detail (4fps effective);
+    `high_fps` uses sample_fps=16 -> 4 composites/sec, 0.0625s detail (16fps effective).
     """
+    stamp = f"{_drawtext_ts()}," if timestamp else ""
     return (
-        f"fps={_MONTAGE_SAMPLE_FPS},"
+        f"fps={sample_fps},"
+        f"{stamp}"
         f"tile={_MONTAGE_COLS}x1:padding={_MONTAGE_PADDING_PX}:color=white,"
         "scale=trunc(iw/2)*2:trunc(ih/2)*2"
     )
 
 
-def _montage_preamble() -> str:
+def _montage_preamble(sample_fps: int = _MONTAGE_SAMPLE_FPS, timestamp: bool = False) -> str:
     """Explain the montage layout to the model so it reads sub-frames left→right in time."""
     n = _MONTAGE_COLS
-    interval = _MONTAGE_INTERVAL_S
-    stamps = ", ".join(f"+{i * interval:.2f}s" for i in range(n))
-    last = f"+{(n - 1) * interval:.2f}s"
+    interval = 1.0 / sample_fps
+    stamps = ", ".join(f"+{i * interval:.3f}s" for i in range(n))
+    last = f"+{(n - 1) * interval:.3f}s"
+    ts_note = (
+        " Each sub-frame ALSO has a burned-in timestamp in its top-left corner (yellow, "
+        "'t=HH:MM:SS.mmm') showing that panel's time from the start of the clip — use these exact "
+        "timestamps to reason about precisely WHEN things happen and to line up with any ACTION "
+        "TIMELINE given below." if timestamp else ""
+    )
     return (
         "HOW TO READ THIS VIDEO (IMPORTANT):\n"
         f"To give you finer timing detail cheaply, every single frame of this video is a "
-        f"COMPOSITE image built from {n} sub-frames captured {interval:.2f} seconds apart, "
+        f"COMPOSITE image built from {n} sub-frames captured {interval:.3f} seconds apart, "
         "arranged LEFT TO RIGHT in chronological order and separated by thin white gutters. "
         "Within one composite frame, read the panels left-to-right: the leftmost panel is the "
-        f"earliest moment (+0.00s) and each panel to its right is {interval:.2f}s later "
+        f"earliest moment (+0.000s) and each panel to its right is {interval:.3f}s later "
         f"({stamps}); the rightmost panel is {last}. The NEXT composite frame continues in "
         "time — its leftmost panel is the moment immediately after the previous frame's "
         "rightmost panel. So the true chronological order is: frame1 left→right, then frame2 "
-        f"left→right, and so on — treat the whole clip as one continuous {n}-frames-per-second "
-        "sequence when reasoning about motion, transitions, timing, and what happens "
-        "before/after."
+        f"left→right, and so on — treat the whole clip as one continuous {sample_fps}-frames-per-second "
+        f"sequence when reasoning about motion, transitions, timing, and what happens "
+        f"before/after.{ts_note}"
     )
 
 
-def _build_montage(source: Path, dest: Path) -> bool:
-    """Re-encode *source* into the 1fps montage clip described by ``_montage_filter``.
+def _build_montage(source: Path, dest: Path, sample_fps: int = _MONTAGE_SAMPLE_FPS,
+                   timestamp: bool = False) -> bool:
+    """Re-encode *source* into the montage clip described by ``_montage_filter``.
 
     Returns True on success, False (logged) on missing ffmpeg, timeout, non-zero exit,
     or missing output — the caller then falls back to uploading the raw clip.
@@ -113,7 +152,7 @@ def _build_montage(source: Path, dest: Path) -> bool:
     cmd = [
         "ffmpeg", "-y",
         "-i", str(source),
-        "-vf", _montage_filter(),
+        "-vf", _montage_filter(sample_fps, timestamp),
         "-an",                    # drop audio
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
@@ -252,6 +291,8 @@ class GeminiVideoHelper:
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
         reference: Any | None = None,
+        high_fps: bool = False,
+        timestamp: bool = False,
     ) -> VideoResult:
         """
         Upload *video_path* to Gemini and analyse it.
@@ -269,11 +310,13 @@ class GeminiVideoHelper:
         ref_images:
             Optional reference images to include alongside the video.
         """
-        self._video_call_count += 1
+        with _COUNTER_LOCK:
+            self._video_call_count += 1
 
         try:
             response = self._call_video_api(
-                video_path, prompt, output_schema, ref_images, reference=reference
+                video_path, prompt, output_schema, ref_images, reference=reference,
+                high_fps=high_fps, timestamp=timestamp,
             )
             return self._parse_response(response)
         except Exception as exc:  # noqa: BLE001
@@ -323,6 +366,8 @@ class GeminiVideoHelper:
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
         reference: Any | None = None,
+        high_fps: bool = False,
+        timestamp: bool = False,
     ) -> Any:
         """
         Upload video, build contents, and call Gemini.
@@ -340,12 +385,19 @@ class GeminiVideoHelper:
 
         client = genai.Client(api_key=self.api_key)
 
-        # Re-encode into the montage clip (4 sub-frames/second packed left→right) so one
-        # sampled frame carries 0.25s temporal resolution at ~70 tokens. On any ffmpeg
-        # failure fall back to the raw clip AND drop the montage explanation, so the prompt
-        # never describes a layout the uploaded video does not have.
+        # Re-encode into the montage clip (sub-frames packed left→right) so one sampled frame
+        # carries fine temporal detail at ~70 tokens. `high_fps` raises sampling 4x (16fps
+        # effective) for fast action; `timestamp` burns a per-sub-frame clock. On ffmpeg failure
+        # fall back to the raw clip AND drop the montage explanation; if only the timestamp pass
+        # fails (e.g. no drawtext font), retry without it so we keep the sub-frame packing.
+        sample_fps = _MONTAGE_HIGH_FPS if high_fps else _MONTAGE_SAMPLE_FPS
         montage_path = video_path.with_name(f"{video_path.stem}-montage.mp4")
-        montage_ok = _build_montage(video_path, montage_path)
+        montage_ok = _build_montage(video_path, montage_path, sample_fps, timestamp)
+        if not montage_ok and timestamp:
+            logger.warning("Timestamped montage failed for %s — retrying without timestamp",
+                           video_path.name)
+            timestamp = False
+            montage_ok = _build_montage(video_path, montage_path, sample_fps, False)
         upload_path = montage_path if montage_ok else video_path
         if not montage_ok:
             logger.warning(
@@ -379,7 +431,7 @@ class GeminiVideoHelper:
         )
         # Lead with the montage layout instructions (only when the montage was actually
         # built) so the model knows to read each frame's sub-panels left→right in time.
-        preamble = f"{_montage_preamble()}\n\n" if montage_ok else ""
+        preamble = f"{_montage_preamble(sample_fps, timestamp)}\n\n" if montage_ok else ""
         full_prompt = f"{preamble}{prompt}\n\n{schema_hint}"
 
         from PIL import Image
@@ -446,8 +498,9 @@ class GeminiVideoHelper:
         except AttributeError:
             pass
 
-        self._total_input_tokens += input_tokens
-        self._total_output_tokens += output_tokens
+        with _COUNTER_LOCK:
+            self._total_input_tokens += input_tokens
+            self._total_output_tokens += output_tokens
 
         raw_text = getattr(response, "text", None) or ""
         cleaned = _strip_markdown_fence(raw_text)

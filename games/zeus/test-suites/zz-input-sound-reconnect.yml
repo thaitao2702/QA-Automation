@@ -1,0 +1,308 @@
+# Zeus — Spin mechanism, Turbo, Sound, Reconnect (ZZ-22, ZZ-24 … ZZ-29, ZZ-44 … ZZ-50).
+#
+# Run:  python scripts/run_scenario.py --game zeus --env dev
+#       --suite games/zeus/test-suites/zz-input-sound-reconnect.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game zeus
+#
+# ⚠ LIVE-UNVERIFIED and timing-sensitive: real pointer/keyboard holds, double-clicks and network
+#   drops. There is NO bridge escape hatch any more — v3 REMOVED `holdSpinStart()` /
+#   `holdSpinRelease()` (bridge-api.md §12), on the grounds that a real mouse.down → wait → mouse.up
+#   is what a player does and no case used the bridge form. So `hold_button(use_bridge=True)` would
+#   now throw on this build. If a hold case fails, the fix is the gesture (timing, target rect), not
+#   a different API.
+#
+# THE SOUND CASES ARE EXACT HERE. Zeus's bridge exposes isSoundEnabled() / isMusicEnabled(), so
+# "volume = 0" is read from the model rather than guessed from a video — the same cases are blocked
+# on Mystic precisely because it has no such getter. What the getters CANNOT say is whether the
+# button on screen agrees with them, which is why ZZ-24/25 still carry a clip (Rule 10).
+
+runs:
+  # ── ZZ-44 … ZZ-50 : every spin input, one recording ────────────────────────────────
+  # Rule 16: one clip, one AI call, seven case verdicts via `expected_by_case`.
+  - run:
+      scenario: spin-inputs
+      teardown: return-to-base
+      cases:
+        - id: ZZ-44
+          title: "Spin with the Spin button starts the reels"
+          assert:
+            # `click_rounds`, not `{res.stake} > 0`: the exact claim is "one input started exactly
+            # ONE spin". A double-fire looks like a single spin on video but is two responses in the
+            # stream, and `{res.stake} > 0` cannot tell them apart. base_rounds_since() counts PAID
+            # BASE rounds only, so a bonus drained after the spin does not read as extra spins.
+            - stream: "{facts.click_rounds} == 1"
+        - id: ZZ-45
+          title: "Spin with the Space key starts the reels"
+          assert:
+            - stream: "{facts.key_rounds} == 1"
+        - id: ZZ-46
+          title: "Holding Spin or Space starts continuous auto-spin"
+          assert:
+            # the gesture really fired. Without it the AI is asked about a hold that never happened,
+            # and "no, it did not auto-spin" would be a correct answer to the wrong question.
+            - stream: "{facts.hold_done} == True"
+        - id: ZZ-47
+          title: "Holding Spin while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: ZZ-48
+          title: "Releasing the hold stops the auto-spin"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: ZZ-49
+          title: "Double-clicking while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.dblclick_done} == True"
+        - id: ZZ-50
+          title: "The result after a sudden stop is correct, with no animation glitch"
+          assert:
+            # the sudden stop must not corrupt the round: the server response still balances
+            - stream: conservation
+            - stream: "{facts.rounds_total} >= 4"     # all four input variants really ran
+      video:
+        high_fps: true                       # 16fps effective — holds and sudden stops are sub-second
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with 5 paylines. Several distinct spin inputs are performed in sequence.
+          The ACTION TIMELINE below gives the EXACT time of each one — line them up with the burned-in
+          timestamps and judge the game AT that moment; do not confuse one action with another.
+          Answer: (1) at "SPIN via the Spin button", do the reels spin normally (btn_spin_works)?
+          (2) at "SPIN via the Space key", do they spin normally (space_spin_works)? (3) starting at
+          "HOLD the Spin button ...", does the game keep auto-spinning while held (hold_starts_autospin)
+          and STOP when released (release_stops_autospin)? (4) at "SUDDEN STOP: hold Spin ...", does
+          holding during a turning reel stop it immediately (hold_sudden_stop)? (5) at "SUDDEN STOP:
+          double-click Spin ...", does the double-click stop it immediately (doubleclick_sudden_stop)?
+          (6) after each sudden stop, does the grid settle on a clean, complete result with no visual
+          glitch or stuck animation (result_clean_after_stop)?
+        output_schema:
+          btn_spin_works: { type: boolean }
+          space_spin_works: { type: boolean }
+          hold_starts_autospin: { type: boolean }
+          release_stops_autospin: { type: boolean }
+          hold_sudden_stop: { type: boolean }
+          doubleclick_sudden_stop: { type: boolean }
+          result_clean_after_stop: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-44: { btn_spin_works: true, confidence: medium }
+          ZZ-45: { space_spin_works: true, confidence: medium }
+          ZZ-46: { hold_starts_autospin: true, confidence: low }
+          ZZ-47: { hold_sudden_stop: true, confidence: low }
+          ZZ-48: { release_stops_autospin: true, confidence: low }
+          ZZ-49: { doubleclick_sudden_stop: true, confidence: low }
+          ZZ-50: { result_clean_after_stop: true, confidence: low }
+
+  # ── ZZ-22 : Turbo ──────────────────────────────────────────────────────────────────
+  # `turbo-modes`, NOT `toggle-turbo`. ZZ-22's expected result is "the reels spin faster", and
+  # `toggle-turbo` PLACES NO BET — it clicks the button twice on a still screen. The old version of
+  # this case asked the AI whether the reels resolved faster in a clip where no reel ever turned.
+  # `turbo-modes` toggles Turbo on, SPINS, and toggles it back off, so there is something to time.
+  #
+  # The old version also listed `turbo_enabled_popup` / `turbo_disabled_popup` in its schema but not
+  # in `expected` — read by the AI and checked by nothing. Zeus's test matrix does not claim a Turbo
+  # notification, so the questions are gone rather than left as decoration. (Mystic's Mah_105 is
+  # where that notification IS the subject, and it runs on `toggle-turbo` for exactly that reason.)
+  - run:
+      scenario: turbo-modes
+      teardown: return-to-base
+      cases:
+        - id: ZZ-22
+          title: "Turbo makes the reels resolve faster"
+          assert:
+            # EXACT: the game's own speed mode really changed. `speed_toggled` is the COMPARISON
+            # (speed_on != speed_off), computed in the scenario — so it is unaffected by v3 changing
+            # getSpeedMode() from a boolean to Mystic's 'NORMAL' | 'TURBO' | 'UNKNOWN' string
+            # (bridge-api.md §12). Asserting the raw mode instead would have broken on that change,
+            # and would break again on the next build that spells it differently.
+            - stream: "{facts.speed_toggled} == True"
+            # 'UNKNOWN' is a VALID answer meaning "the scene is not up, so this is unanswerable" —
+            # not a failure. This separates it from a real failed toggle: without it, both look
+            # identical as "the speed did not change".
+            - stream: "{facts.has_speed_getter} == True"
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+            - stream: "{facts.turbo_control_present} == True"
+            - video:
+                high_fps: true              # 16fps effective — reel-speed differences are sub-second
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with a Turbo (fast spin) feature. In this clip one spin is
+                  first played with Turbo OFF; then the Turbo control is clicked ON, a spin is
+                  played, and Turbo is clicked back OFF. The ACTION TIMELINE gives the exact time of
+                  each click and each spin. Answer: (1) do the reels of the spin played with Turbo
+                  ON resolve visibly FASTER than the first spin, played with Turbo OFF
+                  (reels_faster)? (2) does the Turbo control itself visibly change state when
+                  clicked — highlighted, lit or otherwise showing it is active
+                  (button_state_changed)? (3) does the result of a turbo spin still land on a clean,
+                  complete grid with no glitch or stuck animation (result_clean_in_turbo)?
+                output_schema:
+                  reels_faster: { type: boolean }
+                  button_state_changed: { type: boolean }
+                  result_clean_in_turbo: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reels_faster: true
+                  button_state_changed: true
+                  result_clean_in_turbo: true
+                  confidence: medium
+
+  # ── ZZ-24 + ZZ-25 : sound and music off ────────────────────────────────────────────
+  # EXACT, thanks to isSoundEnabled()/isMusicEnabled(). No AI is asked to judge silence — that is
+  # the half a video genuinely cannot answer. What it CAN answer is whether the control on screen
+  # agrees with the model, which is a real and separate defect (Rule 10): a toggle that mutes the
+  # game while still drawing itself as ON passes every assert below except the clip.
+  #
+  # Zeus has SEPARATE settings:sound and settings:music controls, so both halves are meaningful
+  # here. On a build where one control governs both, `music_*` comes back null and ZZ-25 reports
+  # red against `None == False` — read that as "this build has no separate music control", not as a
+  # volume defect, and drop the case rather than leaving it permanently red.
+  - run:
+      scenario: sound-toggles
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot. In this clip the Settings panel is opened and the Sound and Music
+          toggles are switched OFF and then back ON; the ACTION TIMELINE gives the exact time of
+          each click. Judge only what is DRAWN — you cannot hear the clip, and you are not being
+          asked to. Answer: (1) does the Settings panel open and show sound and music controls
+          (settings_opened)? (2) after each control is switched off, does it visibly change to an
+          OFF / muted state — a struck-through icon, a dimmed control, a slider at zero
+          (controls_show_off)? (3) after they are switched back on, do they return to their ON
+          state (controls_restored)? (4) is anything about the panel visibly broken — overlapping
+          labels, missing icons, a control that does not react at all (panel_broken)?
+        output_schema:
+          settings_opened: { type: boolean }
+          controls_show_off: { type: boolean }
+          controls_restored: { type: boolean }
+          panel_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-24: { settings_opened: true, controls_show_off: true, controls_restored: true, panel_broken: false, confidence: medium }
+          ZZ-25: { controls_show_off: true, controls_restored: true, confidence: medium }
+      cases:
+        - id: ZZ-24
+          title: "Turning BGM/Sound off sets the volume to zero"
+          assert:
+            - stream: "{facts.toggled} == True"          # the control was really clickable
+            - stream: "{facts.sound_before} == True"     # it started ON, so turning it off means something
+            - stream: "{facts.sound_after_off} == False"
+            - stream: "{facts.sound_restored} == True"   # ...and the run left the game as it found it
+        - id: ZZ-25
+          title: "Turning Music off sets the volume to zero"
+          assert:
+            - stream: "{facts.music_before} == True"
+            - stream: "{facts.music_after_off} == False"
+            - stream: "{facts.music_restored} == True"
+
+  # ── ZZ-26 : brief disconnect, auto-recovers ────────────────────────────────────────
+  - run:
+      scenario: reconnect-brief
+      teardown: return-to-base
+      cases:
+        - id: ZZ-26
+          title: "A disconnect under 20s reconnects and play continues normally"
+          assert:
+            - stream: "{facts.recovered} == True"
+            # the case says play CONTINUES, so a round after the reconnect is the claim — without
+            # it, "recovered" only means the socket came back
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: "{facts.offline_s} < 20"           # this run really is the SHORT-drop case
+            - stream: conservation                       # the round after the drop still balances
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. In this clip the network is dropped for about
+                  {facts.offline_s} seconds and then restored; afterwards one more round is played.
+                  The ACTION TIMELINE marks when the network went down and came back. Answer: (1)
+                  does the game show a reconnecting indicator or message while offline
+                  (reconnect_shown)? (2) does it resume where it was, without dumping the player out
+                  to a lobby or landing page (resumed_in_place)? (3) does the round played after the
+                  reconnect behave normally — reels spin, a result lands, the balance updates
+                  (play_continues)? (4) is the UI consistent afterwards, with no stuck overlay or
+                  stale readout (state_consistent)?
+                output_schema:
+                  reconnect_shown: { type: boolean }
+                  resumed_in_place: { type: boolean }
+                  play_continues: { type: boolean }
+                  state_consistent: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  resumed_in_place: true
+                  play_continues: true
+                  state_consistent: true
+                  confidence: medium
+
+  # ── ZZ-27 + ZZ-28 : long disconnect / network switch -> popup, back to home ────────
+  # ONE run, two cases, one clip (Rule 16). From the CLIENT's point of view a Wi-Fi handover IS a
+  # drop and a restore — there is no third thing to observe — so the same footage answers both. A
+  # genuine hardware switch stays manual, and that is what ZZ-28's second assert is about: it names
+  # the drop length so the case cannot silently be graded on a two-second blip.
+  - run:
+      scenario: reconnect-long
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot. In this clip the network is dropped for {facts.offline_s} seconds —
+          longer than the game's reconnect threshold of 20 seconds — and then restored. The ACTION
+          TIMELINE marks when it went down and came back. Answer: (1) does a popup or message appear
+          telling the player the connection was lost (disconnect_popup)? (2) does the game LEAVE the
+          play screen — back to a lobby, landing or home page — rather than silently resuming
+          (returns_to_home)? (3) is the transition clean, with no frozen reels, stuck spinner or
+          half-drawn screen left behind (transition_clean)?
+        output_schema:
+          disconnect_popup: { type: boolean }
+          returns_to_home: { type: boolean }
+          transition_clean: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-27: { disconnect_popup: true, returns_to_home: true, transition_clean: true, confidence: medium }
+          ZZ-28: { disconnect_popup: true, returns_to_home: true, confidence: medium }
+      cases:
+        - id: ZZ-27
+          title: "A disconnect over 20s shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+        - id: ZZ-28
+          title: "Switching network (Wi-Fi A to B) shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+
+  # ── ZZ-29 : same account in a second tab ───────────────────────────────────────────
+  - run:
+      scenario: multi-tab-session
+      teardown: return-to-base
+      cases:
+        - id: ZZ-29
+          title: "Opening the same account in another tab ends this session"
+          assert:
+            - stream: "{facts.second_opened} == True"    # a second session really was opened
+            - stream: "{facts.wait_s} > 0"               # ...and we waited for the first to react
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. Partway through this clip the SAME account is opened in a
+                  second browser session; the ACTION TIMELINE marks when, and the clip continues for
+                  about {facts.wait_s} seconds afterwards so the first session has time to react.
+                  You are watching the FIRST session throughout. Answer: (1) does it show a popup or
+                  message saying it has been disconnected, taken over, or logged in elsewhere
+                  (session_popup)? (2) does it stop being playable — returned to a lobby, blocked,
+                  or otherwise no longer able to spin (session_ended)? Judge the tail: a clip that
+                  simply ends is not evidence that the session was closed.
+                output_schema:
+                  session_popup: { type: boolean }
+                  session_ended: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  session_popup: true
+                  session_ended: true
+                  confidence: medium
+
+# ── NOT IN THIS SUITE ──────────────────────────────────────────────────────────────────
+#   ZZ-23  tab-switch mutes all sound -> needs a browser visibility change plus the sound getters
+#          read from the BACKGROUNDED tab. Playwright can hide a page, but the getters must be
+#          polled from the still-running context; small scenario, not yet written. It would be a
+#          near-copy of `sound-toggles`: read isSoundEnabled/isMusicEnabled, hide the page, read
+#          them again, restore. NOT written as an AI-only case, because "is it silent?" is exactly
+#          what a video cannot answer and Zeus is the one build that can answer it exactly.

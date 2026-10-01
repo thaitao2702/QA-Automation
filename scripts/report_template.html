@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Scenario report · %%SUITE%%</title><style>
+:root{color-scheme:light;--ink:#435677;--muted:#71809a;--line:#e3e8f1;--blue:#0865cc;--canvas:#edf0f5}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:3px solid #6aa9ef;outline-offset:3px}[hidden]{display:none!important}.brand{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase}.brand svg{width:28px;height:28px;color:#0865cc;flex-shrink:0}.badge,.verdict-badge{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;padding:3px 9px;border-radius:5px;background:#e5eaf2;color:#4c607e;font-size:12px;font-weight:600;line-height:1.6;white-space:nowrap;text-transform:capitalize}.badge.green,.verdict-green{background:#aaebce;color:#245d4f}.badge.red,.badge.error,.verdict-red,.verdict-error{background:#ffb0bf;color:#78273c}.badge.orange,.verdict-orange{background:#ffdfa2;color:#75501d}.badge.inconclusive,.verdict-inconclusive{background:#e3d5fa;color:#624a89}
+
+main{max-width:1180px;margin:auto;padding:44px 36px 64px}.brand-note{color:#8394af;font-weight:400;letter-spacing:0;text-transform:none}.eyebrow{color:var(--muted);font-size:12px;letter-spacing:1.6px;text-transform:uppercase;font-weight:600}header{padding:32px 0 26px}h1{font-size:clamp(28px,4vw,40px);line-height:1.2;letter-spacing:-1.4px;margin:8px 0 12px;font-weight:600}.suite{color:var(--muted);overflow-wrap:anywhere;margin:0}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:20px 22px;box-shadow:0 3px 12px #294b7e06}.metric span{display:block;color:var(--muted);font-size:13px;font-weight:600}.metric strong{display:block;font-size:34px;line-height:1.4;font-weight:600;letter-spacing:-1px;margin:7px 0}.metric:nth-child(2) strong{color:#248c6a}.metric small{font-size:12px;color:var(--muted)}.run-meta{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 0 34px;color:var(--muted);font-size:13px}.tally{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.results-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.results-head h2{font-size:18px;margin:0;font-weight:600;letter-spacing:-.3px}.visible-count{font-size:13px;color:var(--muted);margin:0}.tools{display:none;gap:8px}.js .tools{display:flex}input,select{font:inherit;font-size:13px;background:white;border:1px solid #d6dfed;border-radius:6px;padding:10px 12px;color:var(--ink);min-height:40px}input{width:230px}select{max-width:100%}.scenario{background:white;border:1px solid var(--line);border-radius:8px;padding:25px 26px;margin:0 0 18px;overflow-wrap:anywhere;box-shadow:0 3px 12px #294b7e06}.scenario h2{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0;font-size:17px;letter-spacing:-.25px;font-weight:600}.desc{color:var(--muted);font-size:14px;margin:7px 0 20px}.case{border:1px solid var(--line);border-radius:5px;margin:12px 0;padding:16px}.case h3{font-size:14px;font-weight:600;margin:0 0 13px;line-height:1.8}.case h3 .badge{margin-left:8px}.a{font-size:13px;margin:8px 0;padding:12px 14px;border-radius:4px;background:#f6f8fc;border:1px solid #e7edf5}.a.ok{border-left:3px solid #91d7b9}.a.bad{border-left:3px solid #f19aaf;background:#fff7f9}.prompt{color:#5a6e8d;margin:10px 0;white-space:pre-wrap}.ans{margin:6px 0;color:#536c91}code{font:12px/1.7 ui-monospace,Consolas,monospace;background:#eaf0f7;border-radius:3px;padding:2px 5px;overflow-wrap:anywhere;white-space:pre-wrap}.mm{color:#9e3e55;font-size:13px;margin:8px 0;white-space:pre-wrap}.why{font-size:13px;color:var(--muted);margin-top:8px}.artifacts{display:flex;gap:12px;border-top:1px solid var(--line);padding-top:16px;margin-top:20px;font-size:13px;font-weight:600}.artifacts a{padding:6px 12px;border:1px solid #e0e7f2;border-radius:5px;background:white;box-shadow:0 2px 7px #244a7908}.artifacts a:first-child{background:#0865cc;color:white;border-color:#0865cc}summary{cursor:pointer;line-height:1.8}summary::marker{color:#8097b6}details[open]>summary{margin-bottom:10px}.shots{border-left:1px solid var(--line);padding-left:12px;margin-top:12px}.shot{padding:10px 12px;margin:8px 0;background:white;border:1px solid var(--line);border-radius:5px}.shotimg{display:block;max-width:100%;max-height:600px;object-fit:contain;margin:12px 0;border:1px solid var(--line);border-radius:5px}.empty{text-align:center;padding:50px 20px;border:1px dashed #cbd9ed;border-radius:8px;color:var(--muted)}.page-footer{color:#7c8ba4;text-align:center;font-size:12px;margin-top:30px}
+@media(max-width:720px){main{padding:25px 18px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric{padding:16px}.results-head{align-items:stretch;flex-direction:column}.tools{flex-wrap:wrap}.tools input{flex:1;min-width:140px}.scenario{padding:18px 14px}.scenario h2{align-items:flex-start}.case{padding:12px}.artifacts{flex-wrap:wrap}.run-meta{margin-bottom:25px}}
+@media print{body{background:white}main{max-width:none;padding:0}.tools{display:none!important}.scenario{box-shadow:none;border-radius:0}.scenario,.case{break-inside:avoid}.metric{padding:10px}.shotimg{max-height:300px}.page-footer{display:none}}
+
+/* Match the replay's primary and secondary action buttons. */
+.artifacts a{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:5px 13px;border-radius:3px;border:1px solid #dce6f1;background:#e7eff6;color:#436ba5;box-shadow:0 1px 2px #28477212;font-weight:500}
+.artifacts a:hover{background:#dbe8f5;border-color:#c5d8ee;color:#30598f;text-decoration:none}
+.artifacts a:first-child{background:#1764c7;border-color:#1764c7;color:#fff}
+.artifacts a:first-child:hover{background:#1155ae;border-color:#1155ae;color:#fff}
+
+/* Use the same compact control design throughout the report. */
+.badge{min-height:28px;padding:3px 10px;border-radius:3px;border:1px solid #dce6f1;background:#e7eff6;color:#436ba5;box-shadow:0 1px 2px #28477212;font-size:12px;font-weight:500;line-height:20px}
+.badge.green{background:#e0f1e7;border-color:#c4e1cf;color:#276441}
+.badge.red,.badge.error{background:#fbe4e8;border-color:#edccd4;color:#a0344d}
+.badge.orange{background:#ffe0c7;border-color:#f6bf93;color:#a44a0a}
+.badge.inconclusive{background:#efe5fa;border-color:#dfd0ee;color:#75489a}
+.badge.pending{background:#e7eff6;border-color:#dce6f1;color:#436ba5}
+.tools input,.tools select{min-height:34px;border-radius:3px;border:1px solid #dce6f1;padding:6px 11px;font-size:13px;box-shadow:0 1px 2px #28477212}
+.tools select{background:#e7eff6;color:#436ba5;cursor:pointer}
+.tools select:hover{background:#dbe8f5;border-color:#c5d8ee;color:#30598f}
+/* Each case is one line (id, title, verdict) until opened; a chevron on the right shows its state. */
+.case>details>summary{display:flex;align-items:center;gap:8px;min-height:32px;cursor:pointer;list-style:none;font-size:14px;font-weight:600;line-height:1.6}
+.case>details>summary::-webkit-details-marker{display:none}
+.case>details>summary .badge{margin-left:4px}
+.case>details>summary .chev{flex:none;margin-left:auto;width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-right:6px;transition:transform .15s}
+.case>details[open]>summary .chev{transform:rotate(-135deg)}
+.case>details[open]>summary{margin-bottom:12px}
+.artifacts a.ai{background:#1764c7;border-color:#1764c7;color:#fff}
+.artifacts a.ai:hover{background:#1155ae;border-color:#1155ae;color:#fff}
+@media print{.artifacts a.ai{display:none}}
+.metric:nth-child(3) strong{color:#ef6c00}
+.metric:nth-child(4) strong{color:#c62828}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.session-replay{display:inline-flex;align-items:center;gap:6px;margin-top:8px;min-height:38px;padding:7px 16px;border-radius:4px;background:#1764c7;border:1px solid #1764c7;color:#fff;font-size:14px;font-weight:600;box-shadow:0 1px 2px #28477212;white-space:nowrap}
+.session-replay:hover{background:#1155ae;border-color:#1155ae;color:#fff;text-decoration:none}
+.session-replay small{font-weight:400;opacity:.85}
+@media print{.session-replay{display:none}}
+</style></head><body><main>
+<div class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 4h8v7H3zM14 4h7v7h-7zM3 14h8v7H3z" fill="currentColor"/><path d="m15 15 2 3 4-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="brand-text">Game QA</span><span class="brand-note">/ Run report</span></div>
+<header><div><div class="eyebrow">Test execution overview</div><h1>Scenario report</h1><p class="suite">%%SUITE%%</p></div>%%SESSION%%</header>
+<div class="metrics">%%METRICS%%</div><div class="run-meta"><div class="tally">%%TALLY%%</div><div>%%COST%%</div></div>
+<div class="results-head"><div><h2>Scenario results</h2><p id="visible-count" class="visible-count" aria-live="polite">%%COUNT%% scenarios</p></div><div class="tools"><input id="search" type="search" aria-label="Search scenarios and cases" placeholder="Search scenarios or cases…"><select id="status" aria-label="Filter by status"><option value="all">All statuses</option><option value="green">Passed</option><option value="red">Failed</option><option value="orange">Partly Failed</option><option value="pending">Pending</option><option value="inconclusive">Inconclusive</option><option value="error">Run errors</option></select></div></div>
+<div id="results">%%SECTIONS%%</div><div id="empty" class="empty" hidden>No matching results. Try another search or status.</div><noscript><p class="visible-count">All results are shown. Enable JavaScript to search and filter.</p></noscript><div class="page-footer">Game QA · Scenario execution report</div>
+</main><script>
+document.documentElement.classList.add('js');
+const search = document.getElementById('search');
+const status = document.getElementById('status');
+const scenarios = [...document.querySelectorAll('.scenario')];
+function filterResults() {
+  const query = search.value.trim().toLowerCase();
+  let visible = 0;
+  for (const scenario of scenarios) {
+    const cases = [...scenario.querySelectorAll('.case')];
+    const heading = scenario.querySelector('h2').textContent.toLowerCase();
+    const description = scenario.querySelector('.desc')?.textContent.toLowerCase() || '';
+    const scenarioMatch = heading.includes(query) || description.includes(query);
+    for (const item of cases) {
+      item.hidden = !(scenarioMatch || item.textContent.toLowerCase().includes(query)) ||
+        !(status.value === 'all' || item.dataset.status === status.value);
+    }
+    scenario.hidden = cases.length ? cases.every(item => item.hidden) :
+      !(scenario.textContent.toLowerCase().includes(query) &&
+        (status.value === 'all' || scenario.dataset.status === status.value));
+    if (!scenario.hidden) visible++;
+  }
+  document.getElementById('visible-count').textContent = `${visible} of ${scenarios.length} scenarios`;
+  const empty = document.getElementById('empty');
+  empty.hidden = visible > 0;
+  empty.textContent = scenarios.length ? 'No matching results. Try another search or status.' : 'No scenarios were recorded in this run.';
+}
+search.addEventListener('input', filterResults);
+status.addEventListener('change', filterResults);
+filterResults();
+
+</script></body></html>

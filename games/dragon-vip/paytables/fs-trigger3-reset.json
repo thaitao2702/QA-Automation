@@ -1,0 +1,3755 @@
+{
+  "BaseGame": {
+    "Name": "BaseGame",
+    "Paylines": [
+      "WILD!,WILD!,WILD!,500.00",
+      "Jackpot!,Jackpot!,Jackpot!,0.00",
+      "P1,P1,P1,200.00",
+      "P1,P1,WILD!,200.00",
+      "P1,WILD!,P1,200.00",
+      "WILD!,P1,P1,200.00",
+      "P1,WILD!,WILD!,200.00",
+      "WILD!,P1,WILD!,200.00",
+      "WILD!,WILD!,P1,200.00",
+      "P2,P2,P2,100.00",
+      "P2,P2,WILD!,100.00",
+      "P2,WILD!,P2,100.00",
+      "WILD!,P2,P2,100.00",
+      "P2,WILD!,WILD!,100.00",
+      "WILD!,P2,WILD!,100.00",
+      "WILD!,WILD!,P2,100.00",
+      "P3,P3,P3,50.00",
+      "P3,P3,WILD!,50.00",
+      "P3,WILD!,P3,50.00",
+      "WILD!,P3,P3,50.00",
+      "P3,WILD!,WILD!,50.00",
+      "WILD!,P3,WILD!,50.00",
+      "WILD!,WILD!,P3,50.00",
+      "P4,P4,P4,20.00",
+      "P4,P4,WILD!,20.00",
+      "P4,WILD!,P4,20.00",
+      "WILD!,P4,P4,20.00",
+      "P4,WILD!,WILD!,20.00",
+      "WILD!,P4,WILD!,20.00",
+      "WILD!,WILD!,P4,20.00",
+      "A,A,A,10.00",
+      "A,A,WILD!,10.00",
+      "A,WILD!,A,10.00",
+      "WILD!,A,A,10.00",
+      "A,WILD!,WILD!,10.00",
+      "WILD!,A,WILD!,10.00",
+      "WILD!,WILD!,A,10.00",
+      "K,K,K,5.00",
+      "K,K,WILD!,5.00",
+      "K,WILD!,K,5.00",
+      "WILD!,K,K,5.00",
+      "K,WILD!,WILD!,5.00",
+      "WILD!,K,WILD!,5.00",
+      "WILD!,WILD!,K,5.00",
+      "Q,Q,Q,3.00",
+      "Q,Q,WILD!,3.00",
+      "Q,WILD!,Q,3.00",
+      "WILD!,Q,Q,3.00",
+      "Q,WILD!,WILD!,3.00",
+      "WILD!,Q,WILD!,3.00",
+      "WILD!,WILD!,Q,3.00",
+      "J,J,J,0.00",
+      "J,J,WILD!,0.00",
+      "J,WILD!,J,0.00",
+      "WILD!,J,J,0.00",
+      "J,WILD!,WILD!,0.00",
+      "WILD!,J,WILD!,0.00",
+      "WILD!,WILD!,J,0.00"
+    ],
+    "FreeSpins": [],
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 0
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 1000
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "P4",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "K",
+                "Weight": 0
+              },
+              {
+                "Name": "Q",
+                "Weight": 0
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 1
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 4
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 5
+              },
+              {
+                "Name": "P4",
+                "Weight": 2
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 12
+              },
+              {
+                "Name": "Q",
+                "Weight": 14
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 1
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 8
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 5
+              },
+              {
+                "Name": "K",
+                "Weight": 9
+              },
+              {
+                "Name": "Q",
+                "Weight": 12
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          }
+        ],
+        "Weight": 46
+      },
+      {
+        "Id": 2,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 0
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 1000
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "P4",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "K",
+                "Weight": 0
+              },
+              {
+                "Name": "Q",
+                "Weight": 0
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 1
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 9
+              },
+              {
+                "Name": "Q",
+                "Weight": 13
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 2
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 9
+              },
+              {
+                "Name": "Q",
+                "Weight": 11
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          }
+        ],
+        "Weight": 45
+      },
+      {
+        "Id": 3,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 0
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 1000
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "P4",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "K",
+                "Weight": 0
+              },
+              {
+                "Name": "Q",
+                "Weight": 0
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 5
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 1
+              },
+              {
+                "Name": "P2",
+                "Weight": 1
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "P4",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 10
+              },
+              {
+                "Name": "Q",
+                "Weight": 17
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 3
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 0
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 2
+              },
+              {
+                "Name": "P2",
+                "Weight": 1
+              },
+              {
+                "Name": "P3",
+                "Weight": 2
+              },
+              {
+                "Name": "P4",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 4
+              },
+              {
+                "Name": "K",
+                "Weight": 16
+              },
+              {
+                "Name": "Q",
+                "Weight": 15
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          }
+        ],
+        "Weight": 10
+      }
+    ],
+    "ReelDistributionThreshold": 1,
+    "EnableWildExpanding": false,
+    "CoinPrize": [
+      {
+        "Multiplier": 1,
+        "Weight": 3735
+      },
+      {
+        "Multiplier": 2,
+        "Weight": 2145
+      },
+      {
+        "Multiplier": 3,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 5,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 8,
+        "Weight": 950
+      },
+      {
+        "Multiplier": 10,
+        "Weight": 400
+      },
+      {
+        "Multiplier": 20,
+        "Weight": 300
+      },
+      {
+        "Multiplier": 30,
+        "Weight": 200
+      },
+      {
+        "Multiplier": 50,
+        "Weight": 200
+      },
+      {
+        "Multiplier": 100,
+        "Weight": 50
+      },
+      {
+        "Multiplier": 1000,
+        "Weight": 20
+      }
+    ]
+  },
+  "FreeSpinGame": {
+    "Name": "FreeGame",
+    "CoinDistributions": [
+      {
+        "Id": 1,
+        "CoinWeight": {
+          "3": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "4": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "5": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "6": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "7": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "8": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          }
+        },
+        "TotalCoinWeight": 1000,
+        "Weight": 50
+      },
+      {
+        "Id": 2,
+        "CoinWeight": {
+          "3": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "4": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "5": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "6": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "7": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          },
+          "8": {
+            "3": 300,
+            "4": 300,
+            "5": 300,
+            "6": 300,
+            "7": 300,
+            "8": 300
+          }
+        },
+        "TotalCoinWeight": 1000,
+        "Weight": 50
+      }
+    ],
+    "CoinPrize": [
+      {
+        "Multiplier": 1,
+        "Weight": 4675
+      },
+      {
+        "Multiplier": 2,
+        "Weight": 1200
+      },
+      {
+        "Multiplier": 3,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 5,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 8,
+        "Weight": 600
+      },
+      {
+        "Multiplier": 10,
+        "Weight": 400
+      },
+      {
+        "Multiplier": 20,
+        "Weight": 400
+      },
+      {
+        "Multiplier": 30,
+        "Weight": 300
+      },
+      {
+        "Multiplier": 50,
+        "Weight": 300
+      },
+      {
+        "Multiplier": 100,
+        "Weight": 100
+      },
+      {
+        "Multiplier": 1000,
+        "Weight": 25
+      }
+    ]
+  },
+  "Packages": [
+    {
+      "Id": 1,
+      "Price": 60,
+      "NoOfFreeSpins": 3,
+      "Scatters": 0,
+      "Name": "packagea",
+      "CoinDistributions": [
+        {
+          "Id": 1,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        },
+        {
+          "Id": 2,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        }
+      ],
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 4675
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 1200
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 600
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 100
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 25
+        }
+      ]
+    }
+  ],
+  "SymbolMultipliers": [
+    {
+      "Name": "WILD!",
+      "Value": [
+        0,
+        0,
+        500
+      ]
+    },
+    {
+      "Name": "Jackpot!",
+      "Value": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "Name": "P1",
+      "Value": [
+        0,
+        0,
+        200
+      ]
+    },
+    {
+      "Name": "P2",
+      "Value": [
+        0,
+        0,
+        100
+      ]
+    },
+    {
+      "Name": "P3",
+      "Value": [
+        0,
+        0,
+        50
+      ]
+    },
+    {
+      "Name": "P4",
+      "Value": [
+        0,
+        0,
+        20
+      ]
+    },
+    {
+      "Name": "A",
+      "Value": [
+        0,
+        0,
+        10
+      ]
+    },
+    {
+      "Name": "K",
+      "Value": [
+        0,
+        0,
+        5
+      ]
+    },
+    {
+      "Name": "Q",
+      "Value": [
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "Name": "J",
+      "Value": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "Name": "COIN",
+      "Value": [
+        50,
+        100,
+        1000
+      ]
+    }
+  ],
+  "AnteBetBaseGame": {
+    "Name": "AnteBetBaseGame",
+    "Paylines": [
+      "WILD!,WILD!,WILD!,500.00",
+      "Jackpot!,Jackpot!,Jackpot!,0.00",
+      "P1,P1,P1,200.00",
+      "P1,P1,WILD!,200.00",
+      "P1,WILD!,P1,200.00",
+      "WILD!,P1,P1,200.00",
+      "P1,WILD!,WILD!,200.00",
+      "WILD!,P1,WILD!,200.00",
+      "WILD!,WILD!,P1,200.00",
+      "P2,P2,P2,100.00",
+      "P2,P2,WILD!,100.00",
+      "P2,WILD!,P2,100.00",
+      "WILD!,P2,P2,100.00",
+      "P2,WILD!,WILD!,100.00",
+      "WILD!,P2,WILD!,100.00",
+      "WILD!,WILD!,P2,100.00",
+      "P3,P3,P3,50.00",
+      "P3,P3,WILD!,50.00",
+      "P3,WILD!,P3,50.00",
+      "WILD!,P3,P3,50.00",
+      "P3,WILD!,WILD!,50.00",
+      "WILD!,P3,WILD!,50.00",
+      "WILD!,WILD!,P3,50.00",
+      "P4,P4,P4,20.00",
+      "P4,P4,WILD!,20.00",
+      "P4,WILD!,P4,20.00",
+      "WILD!,P4,P4,20.00",
+      "P4,WILD!,WILD!,20.00",
+      "WILD!,P4,WILD!,20.00",
+      "WILD!,WILD!,P4,20.00",
+      "A,A,A,10.00",
+      "A,A,WILD!,10.00",
+      "A,WILD!,A,10.00",
+      "WILD!,A,A,10.00",
+      "A,WILD!,WILD!,10.00",
+      "WILD!,A,WILD!,10.00",
+      "WILD!,WILD!,A,10.00",
+      "K,K,K,5.00",
+      "K,K,WILD!,5.00",
+      "K,WILD!,K,5.00",
+      "WILD!,K,K,5.00",
+      "K,WILD!,WILD!,5.00",
+      "WILD!,K,WILD!,5.00",
+      "WILD!,WILD!,K,5.00",
+      "Q,Q,Q,3.00",
+      "Q,Q,WILD!,3.00",
+      "Q,WILD!,Q,3.00",
+      "WILD!,Q,Q,3.00",
+      "Q,WILD!,WILD!,3.00",
+      "WILD!,Q,WILD!,3.00",
+      "WILD!,WILD!,Q,3.00",
+      "J,J,J,0.00",
+      "J,J,WILD!,0.00",
+      "J,WILD!,J,0.00",
+      "WILD!,J,J,0.00",
+      "J,WILD!,WILD!,0.00",
+      "WILD!,J,WILD!,0.00",
+      "WILD!,WILD!,J,0.00"
+    ],
+    "FreeSpins": [],
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 4
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 2
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 1
+              },
+              {
+                "Name": "P2",
+                "Weight": 1
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "P4",
+                "Weight": 5
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 10
+              },
+              {
+                "Name": "Q",
+                "Weight": 15
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 5
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 2
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 1
+              },
+              {
+                "Name": "P2",
+                "Weight": 1
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "P4",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "K",
+                "Weight": 10
+              },
+              {
+                "Name": "Q",
+                "Weight": 17
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD!",
+                "Weight": 3
+              },
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "COIN",
+                "Weight": 2
+              },
+              {
+                "Name": "Jackpot!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 2
+              },
+              {
+                "Name": "P2",
+                "Weight": 1
+              },
+              {
+                "Name": "P3",
+                "Weight": 2
+              },
+              {
+                "Name": "P4",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 4
+              },
+              {
+                "Name": "K",
+                "Weight": 16
+              },
+              {
+                "Name": "Q",
+                "Weight": 15
+              },
+              {
+                "Name": "J",
+                "Weight": 0
+              }
+            ]
+          }
+        ],
+        "Weight": 100
+      }
+    ],
+    "ReelDistributionThreshold": 1,
+    "EnableWildExpanding": false,
+    "CoinPrize": [
+      {
+        "Multiplier": 1,
+        "Weight": 3520
+      },
+      {
+        "Multiplier": 2,
+        "Weight": 2000
+      },
+      {
+        "Multiplier": 3,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 5,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 8,
+        "Weight": 800
+      },
+      {
+        "Multiplier": 10,
+        "Weight": 500
+      },
+      {
+        "Multiplier": 20,
+        "Weight": 450
+      },
+      {
+        "Multiplier": 30,
+        "Weight": 250
+      },
+      {
+        "Multiplier": 50,
+        "Weight": 350
+      },
+      {
+        "Multiplier": 100,
+        "Weight": 100
+      },
+      {
+        "Multiplier": 1000,
+        "Weight": 30
+      }
+    ]
+  },
+  "AnteBetFreeSpinGame": {
+    "Name": "AnteBetFreeSpinGame",
+    "CoinDistributions": [
+      {
+        "Id": 1,
+        "CoinWeight": {
+          "3": {
+            "3": 210,
+            "4": 200,
+            "5": 120,
+            "6": 120,
+            "7": 100,
+            "8": 75
+          },
+          "4": {
+            "3": 0,
+            "4": 240,
+            "5": 250,
+            "6": 150,
+            "7": 100,
+            "8": 90
+          },
+          "5": {
+            "3": 0,
+            "4": 0,
+            "5": 300,
+            "6": 320,
+            "7": 100,
+            "8": 100
+          },
+          "6": {
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 390,
+            "7": 350,
+            "8": 70
+          },
+          "7": {
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 500,
+            "8": 250
+          },
+          "8": {
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 0,
+            "8": 750
+          }
+        },
+        "TotalCoinWeight": 1000,
+        "Weight": 100
+      }
+    ],
+    "CoinPrize": [
+      {
+        "Multiplier": 1,
+        "Weight": 3820
+      },
+      {
+        "Multiplier": 2,
+        "Weight": 1100
+      },
+      {
+        "Multiplier": 3,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 5,
+        "Weight": 1000
+      },
+      {
+        "Multiplier": 8,
+        "Weight": 800
+      },
+      {
+        "Multiplier": 10,
+        "Weight": 700
+      },
+      {
+        "Multiplier": 20,
+        "Weight": 500
+      },
+      {
+        "Multiplier": 30,
+        "Weight": 450
+      },
+      {
+        "Multiplier": 50,
+        "Weight": 400
+      },
+      {
+        "Multiplier": 100,
+        "Weight": 200
+      },
+      {
+        "Multiplier": 1000,
+        "Weight": 30
+      }
+    ]
+  },
+  "AnteBetSetting": {
+    "Enabled": true,
+    "AnteBetMultiplier": 1.5
+  },
+  "PremiumReel_Setting": {
+    "Enable": true,
+    "Options": [
+      {
+        "ReelId": 2,
+        "Multiplier": 1.5
+      },
+      {
+        "ReelId": 3,
+        "Multiplier": 1.5
+      },
+      {
+        "ReelId": 23,
+        "Multiplier": 2.2
+      }
+    ]
+  },
+  "PremiumReel_BaseGame": [
+    {
+      "ReelId": 2,
+      "Name": "PremiumReel_BaseGame_2",
+      "Paylines": [
+        "WILD!,WILD!,WILD!,500.00",
+        "Jackpot!,Jackpot!,Jackpot!,0.00",
+        "P1,P1,P1,200.00",
+        "P1,P1,WILD!,200.00",
+        "P1,WILD!,P1,200.00",
+        "WILD!,P1,P1,200.00",
+        "P1,WILD!,WILD!,200.00",
+        "WILD!,P1,WILD!,200.00",
+        "WILD!,WILD!,P1,200.00",
+        "P2,P2,P2,100.00",
+        "P2,P2,WILD!,100.00",
+        "P2,WILD!,P2,100.00",
+        "WILD!,P2,P2,100.00",
+        "P2,WILD!,WILD!,100.00",
+        "WILD!,P2,WILD!,100.00",
+        "WILD!,WILD!,P2,100.00",
+        "P3,P3,P3,50.00",
+        "P3,P3,WILD!,50.00",
+        "P3,WILD!,P3,50.00",
+        "WILD!,P3,P3,50.00",
+        "P3,WILD!,WILD!,50.00",
+        "WILD!,P3,WILD!,50.00",
+        "WILD!,WILD!,P3,50.00",
+        "P4,P4,P4,20.00",
+        "P4,P4,WILD!,20.00",
+        "P4,WILD!,P4,20.00",
+        "WILD!,P4,P4,20.00",
+        "P4,WILD!,WILD!,20.00",
+        "WILD!,P4,WILD!,20.00",
+        "WILD!,WILD!,P4,20.00",
+        "A,A,A,10.00",
+        "A,A,WILD!,10.00",
+        "A,WILD!,A,10.00",
+        "WILD!,A,A,10.00",
+        "A,WILD!,WILD!,10.00",
+        "WILD!,A,WILD!,10.00",
+        "WILD!,WILD!,A,10.00",
+        "K,K,K,5.00",
+        "K,K,WILD!,5.00",
+        "K,WILD!,K,5.00",
+        "WILD!,K,K,5.00",
+        "K,WILD!,WILD!,5.00",
+        "WILD!,K,WILD!,5.00",
+        "WILD!,WILD!,K,5.00",
+        "Q,Q,Q,3.00",
+        "Q,Q,WILD!,3.00",
+        "Q,WILD!,Q,3.00",
+        "WILD!,Q,Q,3.00",
+        "Q,WILD!,WILD!,3.00",
+        "WILD!,Q,WILD!,3.00",
+        "WILD!,WILD!,Q,3.00",
+        "J,J,J,0.00",
+        "J,J,WILD!,0.00",
+        "J,WILD!,J,0.00",
+        "WILD!,J,J,0.00",
+        "J,WILD!,WILD!,0.00",
+        "WILD!,J,WILD!,0.00",
+        "WILD!,WILD!,J,0.00"
+      ],
+      "FreeSpins": [],
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 11
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 16
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 2
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 12
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 14
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 5
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 12
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 46
+        },
+        {
+          "Id": 2,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 19
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 13
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 11
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 45
+        },
+        {
+          "Id": 3,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 4
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 5
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 17
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 3
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 16
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 10
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "EnableWildExpanding": false,
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 3735
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 2145
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 950
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 50
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 20
+        }
+      ]
+    },
+    {
+      "ReelId": 3,
+      "Name": "PremiumReel_BaseGame_3",
+      "Paylines": [
+        "WILD!,WILD!,WILD!,500.00",
+        "Jackpot!,Jackpot!,Jackpot!,0.00",
+        "P1,P1,P1,200.00",
+        "P1,P1,WILD!,200.00",
+        "P1,WILD!,P1,200.00",
+        "WILD!,P1,P1,200.00",
+        "P1,WILD!,WILD!,200.00",
+        "WILD!,P1,WILD!,200.00",
+        "WILD!,WILD!,P1,200.00",
+        "P2,P2,P2,100.00",
+        "P2,P2,WILD!,100.00",
+        "P2,WILD!,P2,100.00",
+        "WILD!,P2,P2,100.00",
+        "P2,WILD!,WILD!,100.00",
+        "WILD!,P2,WILD!,100.00",
+        "WILD!,WILD!,P2,100.00",
+        "P3,P3,P3,50.00",
+        "P3,P3,WILD!,50.00",
+        "P3,WILD!,P3,50.00",
+        "WILD!,P3,P3,50.00",
+        "P3,WILD!,WILD!,50.00",
+        "WILD!,P3,WILD!,50.00",
+        "WILD!,WILD!,P3,50.00",
+        "P4,P4,P4,20.00",
+        "P4,P4,WILD!,20.00",
+        "P4,WILD!,P4,20.00",
+        "WILD!,P4,P4,20.00",
+        "P4,WILD!,WILD!,20.00",
+        "WILD!,P4,WILD!,20.00",
+        "WILD!,WILD!,P4,20.00",
+        "A,A,A,10.00",
+        "A,A,WILD!,10.00",
+        "A,WILD!,A,10.00",
+        "WILD!,A,A,10.00",
+        "A,WILD!,WILD!,10.00",
+        "WILD!,A,WILD!,10.00",
+        "WILD!,WILD!,A,10.00",
+        "K,K,K,5.00",
+        "K,K,WILD!,5.00",
+        "K,WILD!,K,5.00",
+        "WILD!,K,K,5.00",
+        "K,WILD!,WILD!,5.00",
+        "WILD!,K,WILD!,5.00",
+        "WILD!,WILD!,K,5.00",
+        "Q,Q,Q,3.00",
+        "Q,Q,WILD!,3.00",
+        "Q,WILD!,Q,3.00",
+        "WILD!,Q,Q,3.00",
+        "Q,WILD!,WILD!,3.00",
+        "WILD!,Q,WILD!,3.00",
+        "WILD!,WILD!,Q,3.00",
+        "J,J,J,0.00",
+        "J,J,WILD!,0.00",
+        "J,WILD!,J,0.00",
+        "WILD!,J,J,0.00",
+        "J,WILD!,WILD!,0.00",
+        "WILD!,J,WILD!,0.00",
+        "WILD!,WILD!,J,0.00"
+      ],
+      "FreeSpins": [],
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 11
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 16
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 2
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 12
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 14
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 5
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 12
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 46
+        },
+        {
+          "Id": 2,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 19
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 13
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 11
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 45
+        },
+        {
+          "Id": 3,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 4
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 5
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 17
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 3
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 16
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 10
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "EnableWildExpanding": false,
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 3735
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 2145
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 950
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 50
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 20
+        }
+      ]
+    },
+    {
+      "ReelId": 23,
+      "Name": "PremiumReel_BaseGame_23",
+      "Paylines": [
+        "WILD!,WILD!,WILD!,500.00",
+        "Jackpot!,Jackpot!,Jackpot!,0.00",
+        "P1,P1,P1,200.00",
+        "P1,P1,WILD!,200.00",
+        "P1,WILD!,P1,200.00",
+        "WILD!,P1,P1,200.00",
+        "P1,WILD!,WILD!,200.00",
+        "WILD!,P1,WILD!,200.00",
+        "WILD!,WILD!,P1,200.00",
+        "P2,P2,P2,100.00",
+        "P2,P2,WILD!,100.00",
+        "P2,WILD!,P2,100.00",
+        "WILD!,P2,P2,100.00",
+        "P2,WILD!,WILD!,100.00",
+        "WILD!,P2,WILD!,100.00",
+        "WILD!,WILD!,P2,100.00",
+        "P3,P3,P3,50.00",
+        "P3,P3,WILD!,50.00",
+        "P3,WILD!,P3,50.00",
+        "WILD!,P3,P3,50.00",
+        "P3,WILD!,WILD!,50.00",
+        "WILD!,P3,WILD!,50.00",
+        "WILD!,WILD!,P3,50.00",
+        "P4,P4,P4,20.00",
+        "P4,P4,WILD!,20.00",
+        "P4,WILD!,P4,20.00",
+        "WILD!,P4,P4,20.00",
+        "P4,WILD!,WILD!,20.00",
+        "WILD!,P4,WILD!,20.00",
+        "WILD!,WILD!,P4,20.00",
+        "A,A,A,10.00",
+        "A,A,WILD!,10.00",
+        "A,WILD!,A,10.00",
+        "WILD!,A,A,10.00",
+        "A,WILD!,WILD!,10.00",
+        "WILD!,A,WILD!,10.00",
+        "WILD!,WILD!,A,10.00",
+        "K,K,K,5.00",
+        "K,K,WILD!,5.00",
+        "K,WILD!,K,5.00",
+        "WILD!,K,K,5.00",
+        "K,WILD!,WILD!,5.00",
+        "WILD!,K,WILD!,5.00",
+        "WILD!,WILD!,K,5.00",
+        "Q,Q,Q,3.00",
+        "Q,Q,WILD!,3.00",
+        "Q,WILD!,Q,3.00",
+        "WILD!,Q,Q,3.00",
+        "Q,WILD!,WILD!,3.00",
+        "WILD!,Q,WILD!,3.00",
+        "WILD!,WILD!,Q,3.00",
+        "J,J,J,0.00",
+        "J,J,WILD!,0.00",
+        "J,WILD!,J,0.00",
+        "WILD!,J,J,0.00",
+        "J,WILD!,WILD!,0.00",
+        "WILD!,J,WILD!,0.00",
+        "WILD!,WILD!,J,0.00"
+      ],
+      "FreeSpins": [],
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 11
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 16
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 2
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 12
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 14
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 5
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 12
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 46
+        },
+        {
+          "Id": 2,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 19
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 1
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 13
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 2
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 9
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 11
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 45
+        },
+        {
+          "Id": 3,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 4
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 5
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 3
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 7
+                },
+                {
+                  "Name": "K",
+                  "Weight": 10
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 17
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD!",
+                  "Weight": 3
+                },
+                {
+                  "Name": "FreeSpin!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "COIN",
+                  "Weight": 2
+                },
+                {
+                  "Name": "Jackpot!",
+                  "Weight": 0
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 1
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 2
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 3
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 16
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 15
+                },
+                {
+                  "Name": "J",
+                  "Weight": 0
+                }
+              ]
+            }
+          ],
+          "Weight": 10
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "EnableWildExpanding": false,
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 3735
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 2145
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 950
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 200
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 50
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 20
+        }
+      ]
+    }
+  ],
+  "PremiumReel_FreeGame": [
+    {
+      "ReelId": 2,
+      "Name": "PremiumReel_FreeGame_2",
+      "CoinDistributions": [
+        {
+          "Id": 1,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        },
+        {
+          "Id": 2,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        }
+      ],
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 4675
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 1200
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 600
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 100
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 25
+        }
+      ]
+    },
+    {
+      "ReelId": 3,
+      "Name": "PremiumReel_FreeGame_3",
+      "CoinDistributions": [
+        {
+          "Id": 1,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        },
+        {
+          "Id": 2,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        }
+      ],
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 4675
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 1200
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 600
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 100
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 25
+        }
+      ]
+    },
+    {
+      "ReelId": 23,
+      "Name": "PremiumReel_FreeGame_23",
+      "CoinDistributions": [
+        {
+          "Id": 1,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        },
+        {
+          "Id": 2,
+          "CoinWeight": {
+            "3": {
+              "3": 210,
+              "4": 200,
+              "5": 120,
+              "6": 120,
+              "7": 100,
+              "8": 75
+            },
+            "4": {
+              "3": 0,
+              "4": 240,
+              "5": 250,
+              "6": 150,
+              "7": 100,
+              "8": 90
+            },
+            "5": {
+              "3": 0,
+              "4": 0,
+              "5": 300,
+              "6": 320,
+              "7": 100,
+              "8": 100
+            },
+            "6": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 390,
+              "7": 350,
+              "8": 70
+            },
+            "7": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 500,
+              "8": 250
+            },
+            "8": {
+              "3": 0,
+              "4": 0,
+              "5": 0,
+              "6": 0,
+              "7": 0,
+              "8": 750
+            }
+          },
+          "TotalCoinWeight": 1000,
+          "Weight": 50
+        }
+      ],
+      "CoinPrize": [
+        {
+          "Multiplier": 1,
+          "Weight": 4675
+        },
+        {
+          "Multiplier": 2,
+          "Weight": 1200
+        },
+        {
+          "Multiplier": 3,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 5,
+          "Weight": 1000
+        },
+        {
+          "Multiplier": 8,
+          "Weight": 600
+        },
+        {
+          "Multiplier": 10,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 20,
+          "Weight": 400
+        },
+        {
+          "Multiplier": 30,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 50,
+          "Weight": 300
+        },
+        {
+          "Multiplier": 100,
+          "Weight": 100
+        },
+        {
+          "Multiplier": 1000,
+          "Weight": 25
+        }
+      ]
+    }
+  ]
+}

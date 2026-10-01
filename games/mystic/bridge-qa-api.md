@@ -85,16 +85,158 @@ await page.mouse.click(r.centerX, r.centerY);
 `stakeDecrease` · `stakeIncrease` · `history` · `info` · `settings` ·
 `monumentalWin` · `sound`
 
-**Autoplay popup:** `auto:confirm` · `auto:stop` · `auto:next` · `auto:back` ·
+`auto` is a **toggle**: when autoplay is off it opens the autoplay popup; when
+autoplay is **running, clicking `auto` STOPS it** (calls `stopAutoplay()`). So
+**stop autoplay with `auto`, not `auto:stop`** — see the note below.
+
+**Autoplay popup:** `auto:confirm` · `auto:next` · `auto:back` ·
 `auto:stopAtWin` · `auto:close` · `auto:count:0..4`
 
+> ⚠ **`auto:stop` is effectively unreachable — don't use it.** It's the popup's
+> internal stop button, shown only when the autoplay popup opens while autoplay
+> is *already running*. But the only way to open that popup is the `auto`
+> button, which — while autoplay runs — stops autoplay *instead of* opening the
+> popup. So the popup never opens in that state and `auto:stop` resolves to
+> `null`. **To stop autoplay, click `auto`.**
+
 **Bet popup:** `bet:row:<i>` · `bet:close`
+
+⚠ The bet list is a **scrolling, masked** list — only some rows are on screen,
+and a clipped row **cannot be clicked** (Cocos clips input at a mask). Use:
+
+| Function | Returns | Use |
+|---|---|---|
+| `waitForBetRowClickable(i, timeoutMs?)` | `Promise<ButtonRect>` | **The one you want.** Scrolls row `i` into view, waits until clickable, returns the rect. |
+| `scrollBetRowIntoView(i, timeoutMs?)` | `Promise<boolean>` | Scroll only. `false` = it never became visible. |
+
+```js
+const row = await page.evaluate(i => window.__gameTestBridge.waitForBetRowClickable(i), 7);
+await page.mouse.click(row.centerX, row.centerY);
+```
+
+`i` is the **denomination index** (0 = lowest bet), not the on-screen position.
+Plain `waitForButtonClickable('bet:row:7')` still works, but only if that row
+happens to already be scrolled into view.
+
+### Scrolling the history list
+
+The history popup is a **paginated, virtualized** list (rows recycle, and
+reaching the bottom loads the next page from the server). Open it via the
+`history` button, then:
+
+| Function | Returns | Use |
+|---|---|---|
+| `scrollHistory(offsetFraction?, timeoutMs?)` | `Promise<number>` | Scroll to a fraction of the range: `0`=top (newest), `1`=bottom (oldest). Returns the fraction reached, or `-1` if the popup is closed / nothing to scroll. Default `1`, `1500`. |
+
+```js
+// pull more history rows (scroll to the bottom triggers the next page)
+await page.evaluate(() => window.__gameTestBridge.scrollHistory(1));
+```
+
+> `scrollHistory(1)` may land **short of 1** — reaching the bottom appends a new
+> page, extending the content. That's the pagination working, not a failure.
+> Call it again to load further pages.
+
+**Clicking a history row (to open its detail).** The list is **virtualized** —
+only the on-screen rows exist as nodes, so rows aren't pre-named. Read the ones
+currently rendered and click the one you want:
+
+| Function | Returns | Use |
+|---|---|---|
+| `getHistoryRows()` | `Array<{ index, rect, clickable, data }>` | The rows rendered right now. `index` = data index (0 = newest); `rect` = clickable rect; `clickable` folds in the mask (an off-screen row is `false`); `data` = the raw history row (identify the bet by `data.betId` etc.). |
+
+```js
+// open history, then click a specific rendered row's detail
+const rows = await page.evaluate(() => window.__gameTestBridge.getHistoryRows());
+const target = rows.find(r => r.clickable);        // or match on r.index / r.data
+await page.mouse.click(target.rect.centerX, target.rect.centerY);   // opens historyDetail
+```
+
+> To click a row that isn't rendered yet, `scrollHistory()` to bring it into
+> view, then call `getHistoryRows()` again — the node set changes as you scroll.
+> The bridge does **not** interpret `data`; the framework reads whatever fields
+> it needs off the raw row.
+
+### Navigating a round's detail (the free-spin chain)
+
+Clicking a history row opens **`historyDetail`** — the per-round breakdown. It's
+**paged**: one page per bet in the round, and **for a free-spin round each free
+spin is its own bet**, so paging next/prev walks the whole free-spin chain
+(plus a synthetic max-win page when the round hit max win). Two nav targets,
+same coordinate-click model as every other button:
+
+| Name | Moves to |
+|---|---|
+| `historyDetail:next` | next free spin / page |
+| `historyDetail:prev` (alias `historyDetail:back`) | previous free spin / page |
+
+Read the paging state to drive and bound the walk:
+
+| Function | Returns | Use |
+|---|---|---|
+| `getHistoryDetailState()` | `{ open, betIndex, betCount, hasPrev, hasNext }` | `open` = detail popup showing. `betIndex` = current page (0-based). `betCount` = bets in the round (free spins included). `hasPrev`/`hasNext` = a page exists that way (read from the popup's own nav buttons). Returns `open:false` (empty fields) when closed. |
+
+```js
+// open a row's detail (see above), then walk every free spin forward
+let s = await page.evaluate(() => window.__gameTestBridge.getHistoryDetailState());
+while (s.hasNext) {
+  const r = await page.evaluate(() => window.__gameTestBridge.getButtonRect('historyDetail:next'));
+  await page.mouse.click(r.centerX, r.centerY);
+  s = await page.evaluate(() => window.__gameTestBridge.getHistoryDetailState());
+  // assert on this page here — betIndex has advanced
+}
+```
+
+> ⚠ **Loop on `hasNext`/`hasPrev`, not on `betIndex` vs `betCount`.** A max-win
+> round adds an extra page beyond `betCount`, so the real page count can be
+> `betCount + 1`. The flags come straight from the popup's own nav buttons, which
+> already fold in the ends and the max-win page.
+>
+> The nav buttons are **hidden at the ends** — on the first page `historyDetail:prev`
+> is `visible:false` / not clickable; on the last, `historyDetail:next` is. That's
+> the popup, not a bug: `isButtonClickable('historyDetail:next') === false` is your
+> "no more free spins" signal, and it's exactly what `hasNext` reflects.
+
+### Scrolling the tutorial (WebView — a FRAMEWORK job)
+
+The tutorial (the **info** popup) is a `cc.WebView` whose guide page is served
+**cross-origin** (from `staticUrl`). The browser blocks any in-page JS
+(`evaluateJS`, `contentWindow.*`, synthetic events) from touching it — so the
+**bridge cannot scroll it**. Only a real `page.mouse.wheel` from the framework
+routes into a cross-origin iframe. The bridge just gives you *where* to wheel:
+
+| Function | Returns | Use |
+|---|---|---|
+| `getTutorialRect()` | `ButtonRect \| null` | The WebView's on-screen rect. `null` if the info popup is closed. |
+
+```js
+// step top→bottom, pausing so an AI assertion catches each viewport
+const r = await page.evaluate(() => window.__gameTestBridge.getTutorialRect());
+await page.mouse.move(r.centerX, r.centerY);
+const step = Math.round(r.height * 0.9);   // 90% → 10% overlap, nothing skipped
+for (let i = 0; i < 12; i++) {             // fixed count — see note below
+  await page.mouse.wheel(0, step);
+  await page.waitForTimeout(500);
+}
+```
+
+> **Bottom detection cross-origin is impossible** — neither the bridge nor
+> Playwright can read a cross-origin iframe's scroll position. So use a **fixed
+> step count**; over-wheeling past the end is harmless (the browser clamps at the
+> bottom, and the AI just sees the last viewport repeated). Pick a count that
+> covers your guide's length.
+>
+> ⚠ Pair with an image/video assertion if you need proof the content scrolled.
 
 **Settings popup:** `setting:turbo` · `setting:music` · `setting:sound` ·
 `setting:turboTab` · `setting:history` · `setting:info` · `setting:gameLimit` ·
 `setting:close`
 
 **Message dialog:** `message:ok` · `message:cancel` · `message:close`
+
+**History detail:** `historyDetail:prev` · `historyDetail:next` — page a round's
+detail; for a free-spin round they walk the free-spin chain (see *Navigating a
+round's detail* above).
 
 > Popup buttons resolve **only while that popup is open** — otherwise `null`.
 > `auto:count:` index → spins: `0`=10, `1`=20, `2`=30, `3`=50, `4`=Infinity.
@@ -134,6 +276,79 @@ stopped on the way out. It cannot fire during free spins (they bet 0).
 ⚠ **`dismissPopups()` is not the player flow here.** It closes the dialog via
 `hide()`, skipping the reload — fine for clearing the screen, wrong if you're
 testing the real insufficient-funds behaviour. Click `message:ok` for that.
+
+---
+
+## Spinning a round (the API-first loop)
+
+Round truth comes from the **server response**, not client state. This is the
+portable part of the contract — the same shape across any game on this backend.
+
+| Function | Returns | Use case |
+|---|---|---|
+| `waitForSpinClickable(stableMs?, timeoutMs?)` | `Promise<ButtonRect>` | **Start here.** Waits until clicking spin would actually send a bet. Defaults `250`, `60000`. |
+| `isSpinClickable()` | `boolean` | Non-blocking assertion. |
+| `getBetSeq()` | `number` | Marker — take it **before** clicking. |
+| `waitForRoundComplete(sinceSeq?, timeoutMs?)` | `Promise<RoundSummary>` | Rides out the whole chain: free spins, retriggers, promo, max-win. Default `300000`. |
+| `waitForBetResponse(sinceSeq, timeoutMs?)` | `Promise<BetRecord>` | One response at a time, if you need per-spin assertions. |
+| `getBetLog()` / `getLastBetResponse()` | `BetRecord[]` / `BetRecord \| null` | Everything seen this session. |
+
+```js
+const seq = await page.evaluate(() => window.__gameTestBridge.getBetSeq());
+const spin = await page.evaluate(() => window.__gameTestBridge.waitForSpinClickable());
+await page.mouse.click(spin.centerX, spin.centerY);
+const round = await page.evaluate(s => window.__gameTestBridge.waitForRoundComplete(s), seq);
+// round.spins[], round.terminal, round.totalPayout, round.hasReachedMaxWin
+```
+
+That's the whole loop. `waitForRoundComplete` returns only when the chain has
+ended **and** the spin button is clickable again — so it absorbs cascades,
+big-win popups, the free-spin result popup and mode transitions without you
+naming any of them.
+
+### `BetRecord`
+
+`{ seq, t, gameState, freeSpins, totalFreeSpin, payout, balance, hasReachedMaxWin, roundId, continues, result }`
+
+`gameState`: `1`=BaseGame · `2`=FreeGame · `3`=BuyBonus · `4`=PromoGame
+
+> ⚠ **`freeSpins` is REMAINING, not awarded — and it is not a loop variable.**
+> A max-win truncates the chain server-side and returns `BaseGame` with
+> `freeSpins` still **> 0** (those spins are forfeited). Terminating on
+> `freeSpins === 0` hangs forever on every max-win round. Use `continues`.
+
+`continues` is derived: `FreeGame`/`BuyBonus`, or `PromoGame` with `freeSpins > 0`.
+It's the client's own rule — those are the only states from which another spin
+is self-fired.
+
+### `RoundSummary`
+
+`{ spins[], terminal, totalPayout, hasReachedMaxWin, forfeitedFreeSpins }`
+
+### What `waitForSpinClickable` actually checks
+
+Gate C (the game's own guard, mirrored so it can't drift) then Gate A (the click
+must land):
+
+| Reason | Meaning |
+|---|---|
+| `spin_state:STOP` | mid-spin — clicking would **skip the animation**, not bet |
+| `spin_state:UNACTIVE` / `SPINNING` | disabled |
+| `spin_mode:AUTO` | autoplay running — state is idle but the click is a no-op |
+| `spin_mode:FREE_SPIN` | free spins running |
+| `lock_key_down` | **invisible** — a popup set it and didn't clear it |
+| `blocked_by:<node>` | something covers the button |
+
+> ⚠ It will **not** resolve during autoplay or free spins — correctly, since you
+> can't manually spin then. Turn autoplay off, or ride the chain out with
+> `waitForRoundComplete()` first.
+
+> ⚠ **It does not check your balance.** The button stays clickable with
+> insufficient funds; the game lets you click and *then* opens the
+> insufficient-funds dialog, whose only button **reloads the page**. Assert
+> `balance >= betAmount` yourself before long loops. If a bet never arrives,
+> the wait's timeout reports why (`insufficient_balance`, `connection:...`,
+> `popup:...`).
 
 ---
 
@@ -258,40 +473,6 @@ bare timeout. None of them are sleeps: they return as soon as the condition hold
 
 > Rule of thumb: **`waitForStableGameState()` unless you know you're in base game.**
 
-### Bet rows — scroll helpers (added 2026-07-21)
-
-The denominations list sits under a RECT `cc.Mask`, and Cocos clips **input** at a mask,
-not just rendering. In the current layout all 20 denominations render at once in two
-columns, so ordinary `waitForButtonClickable("bet:row:<i>")` is enough and these helpers
-are not needed — reach for them only if a layout appears where rows are genuinely
-scrolled out of view.
-
-| Function | Returns | Use case |
-|---|---|---|
-| `waitForBetRowClickable(i)` | rect | **Use this for any bet row.** Scrolls row `i` into view, then waits for clickable. |
-| `scrollBetRowIntoView(i)` | `boolean` | Scroll only; reports whether the row was observed to become visible. |
-
-`i` is the **denomination index** (0 = lowest bet) — the same space as `bet:row:<i>`, not an
-on-screen position.
-
-```js
-const row = await page.evaluate(i => window.__gameTestBridge.waitForBetRowClickable(i), 7);
-await page.mouse.click(row.centerX, row.centerY);
-```
-
-Two traps:
-- **The current bet's row is deliberately `interactable: false`** — `waitForBetRowClickable(<current>)`
-  will time out. Check `getBetIndex()` first and pick a different row.
-- `stakeDecrease` / `stakeIncrease` need no scroll handling, but they move the stake one step at a
-  time, so they cannot reach a distant row without selecting every row in between.
-
-**The same build made the hit test mask-aware** (`_isPointInsideAncestorMasks`): a node consumes a
-touch only if the point falls inside *every* ancestor mask, so a clipped node is now neither a hit
-nor a blocker. Before this, a clipped row reported `visible: true` / `isButtonClickable: true` and a
-click landed on whatever was really at those coordinates. This changes hit-test results **everywhere**,
-not just the bet list — it removes false positives, but any test that asserted a control was clickable
-while it sat under a mask will now correctly fail.
-
 ---
 
 ## Popups
@@ -338,6 +519,9 @@ Only for things a player can't do with one click.
 >
 > **Full payload reference, annotated real sample, symbol table, win/free-spin
 > recipes and a grid helper: [bridge-api.md §9](./bridge-api.md).**
+>
+> **Captured real payloads + an annotated field table: [bet-response.md](./bet-response.md)**
+> (`fixtures/bet-responses/*.json` are ready to pass straight to `setForcedResult`).
 
 ```js
 const forced = capturedSocketMessage.result;   // ← strip one level
@@ -416,6 +600,17 @@ const ok = await page.evaluate(() => window.__gameTestBridge.waitForButtonClicka
 await page.mouse.click(ok.centerX, ok.centerY);
 ```
 
+**Stop autoplay** — click `auto` again (NOT `auto:stop`)
+```js
+// while autoplay is running, in base game:
+const a = await page.evaluate(() => window.__gameTestBridge.waitForButtonClickable('auto'));
+await page.mouse.click(a.centerX, a.centerY);
+// confirm: getSnapshot().isAutoPlay === false
+```
+> ⚠ `auto` is only clickable to stop autoplay **in base game**. During a
+> free-spin / promo chain that autoplay triggered, the `auto` button is disabled
+> — autoplay ends on its own when the bonus finishes; you can't stop it mid-bonus.
+
 **Assert a modal blocks spin**
 ```js
 const c = await page.evaluate(() => window.__gameTestBridge.canDo('spin'));
@@ -439,3 +634,5 @@ console.log(await page.evaluate(() => window.__gameTestBridge.getSnapshot()));
 - **`buyBonus` is not supported by this game** — the button exists but does nothing.
 - **Check `skipCelebration()`'s return value** — it can legitimately refuse.
 - **`message:ok` reloads the page** on the insufficient-balance dialog — it ends the session, so don't click it mid-test unless that's the point.
+- **Never terminate a free-spin loop on `freeSpins === 0`** — max-win rounds end with spins still on the clock. Use `continues` / `waitForRoundComplete()`.
+- **`waitForSpinClickable()` won't resolve during autoplay or free spins.** That's correct, not a hang — you can't manually spin then.

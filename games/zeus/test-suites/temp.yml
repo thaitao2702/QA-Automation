@@ -1,0 +1,154 @@
+# Zeus — Auto Mode (ZZ-08, ZZ-13 … ZZ-21) from test-case.xlsx.
+#
+# Run:  python scripts/run_scenario.py --game zeus --env dev --suite games/zeus/test-suites/zz-autoplay.yml
+#
+# Every scenario here is mechanism-free and shared with Mystic. The only Zeus-specific part is the
+# dialect the profile supplies: `auto:package:<i>` instead of `auto:count:<i>`, `auto:cancel` instead
+# of `auto:close`, and a main-screen `stopAuto` alongside the popup's `auto:stop`.
+#
+# ⚠ The autoplay COUNTS are Zeus's own packages. AUTO_COUNTS in the profile is still the default
+#   (10/20/30/50/unlimited) — confirm against the live build's `auto:package:<i>` list and correct
+#   the profile if it differs, otherwise `auto-play` will assert the wrong number of spins.
+
+runs:
+  # ── ZZ-39..43 : Buy Bonus ──────────────────────────────────────────────────────────
+  # A bought round enters Hold & Spin directly, so the SAME invariants apply to it unchanged —
+  # which IS what ZZ-42/43 ask ("the bonus behaves like a natural one"). The scenario drains it with
+  # the same `play_out_holdspin` a natural trigger uses, for the same reason: if buying took a
+  # different code path, the shared drain and the shared invariants are what would show it.
+  #
+  # NO FORCED PAYTABLE, and no cap. Buying IS the deterministic entry — that is the whole point of
+  # the feature — so there is nothing to force to reach the bonus, and forcing one would make this
+  # run LESS representative, not more: `FreeSpinGame.CoinWeight` governs the RESPINS, so
+  # `fs-trigger3-countdown` (all 0) meant no coin could ever be added and `holdspin_reset_on_new_coin`
+  # was vacuously true. On the real weights each rule is exercised when the bonus actually produces
+  # it, which is what "behaves like a natural one" means. `facts.coins_added` says whether this run
+  # happened to exercise the reset.
+  #
+  # The feature is bounded anyway — at most 9 coins, and the drain fails loudly at 60 respins — so
+  # it needs no runaway backstop. Dropping the paytable also drops two BO round trips per run.
+  - run:
+      scenario: bonus-resume-denomination-swap
+      paytable: { ref: fs-trigger3-countdown }
+      teardown: [reset-denomination, return-to-base]
+      params: { max_spins: 20 }
+      # ONE clip for both cases: the trigger, the close, the reopen, the resumed bonus, and the base
+      # game after it. Each case grades the phase that is its claim (expected_by_case).
+      video:
+        at: [trigger, restored]
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with a Hold & Spin bonus: Coin symbols that land
+          are held in place and the other cells respin. This clip has FOUR PHASES. The ACTION
+          TIMELINE marks the trigger, the close, the bet-ladder change, the reopen, and the return
+          to the base game — use it rather than guessing where each phase begins.
+
+          PHASE 1: a base spin at a bet amount of {facts.trigger_base_stake} triggers Hold & Spin.
+          Note the bet readout, and which cells hold a Coin and what value each Coin shows.
+
+          PHASE 2: the game is CLOSED (a blank or loading screen) while the bonus is still in
+          progress. While it is closed, the available bet amounts are changed in the back office to
+          a completely different set, {facts.new_ladder}.
+
+          PHASE 3: the game is reopened. The bonus is expected to CONTINUE where it left off and
+          play to its end.
+
+          PHASE 4: the bonus has ended and the game is back in the ordinary base game, sitting
+          ready for a few seconds.
+
+          Answer each question about the phase it names, independently:
+
+          (1) reload_visible: does the clip actually contain the game closing and reopening — a
+          blank or loading state, then the game again? Answer false if no such break occurs.
+
+          (2) bonus_resumed: in PHASE 3, does the Hold & Spin feature continue — Coins held,
+          respins playing — rather than the game reopening straight into the base game?
+
+          (3) coins_same_after_reopen: when the bonus continues in PHASE 3, are the Coins held in
+          the SAME cells with the SAME values as they were in PHASE 1? Compare cell by cell.
+
+          (4) bet_during_bonus_is_old: during PHASE 3, does the bet readout show
+          {facts.trigger_base_stake}, the bet amount from PHASE 1? Answer false if it shows
+          anything else, or if no bet readout is visible during the bonus.
+
+          (5) bet_during_bonus_is_new_value: during PHASE 3, does the bet readout instead show one
+          of the new values, {facts.new_ladder}? Answer independently of (4).
+
+          (6) back_to_base: in PHASE 4, is the game in the ordinary base game, ready to spin, with
+          the bonus over?
+
+          (7) bet_after_bonus_is_new_default: in PHASE 4, does the bet readout show
+          {facts.new_default_bet}?
+
+          (8) ui_broken: in PHASE 3 or PHASE 4, is anything overlapping, cut off, placeholder or
+          visibly broken?
+        output_schema:
+          reload_visible: { type: boolean }
+          bonus_resumed: { type: boolean }
+          coins_same_after_reopen: { type: boolean }
+          bet_during_bonus_is_old: { type: boolean }
+          bet_during_bonus_is_new_value: { type: boolean }
+          back_to_base: { type: boolean }
+          bet_after_bonus_is_new_default: { type: boolean }
+          ui_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # ⚠ `bet_during_bonus_is_old` assumes this build SHOWS a bet readout during Hold & Spin.
+          # If the first live run finds it hidden, this goes false on a healthy build: drop it from
+          # here and let the stream half (`pending_stake_is_trigger`, `bet_during_bonus_is_old`)
+          # carry the claim, which reads the client's state whether or not it is drawn.
+          ZZ-57:
+            reload_visible: true
+            bonus_resumed: true
+            coins_same_after_reopen: true
+            bet_during_bonus_is_old: true
+            bet_during_bonus_is_new_value: false
+            ui_broken: false
+            confidence: medium
+          ZZ-58:
+            reload_visible: true
+            back_to_base: true
+            bet_after_bonus_is_new_default: true
+            ui_broken: false
+            confidence: medium
+      cases:
+        - id: ZZ-57
+          title: "A bonus resumed after a BO denomination change plays out at the bet it was triggered at"
+          assert:
+            # THE PREMISE: the ladder really changed, reached the client, and does not contain X.
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            - stream: "{facts.trigger_base_stake} > 0"
+            # THE GATE: the reopen really resumed an owed bonus.
+            - stream: "{facts.info_captured} == True"
+            - stream: "{facts.is_pending_freespin} == True"
+            # Rule 17: "the bet stayed X in every resumed round" needs more than one round. The
+            # fixture gives three; the close comes before the client fires the first.
+            - stream: "{facts.resumed_rounds} >= 2"
+            # THE CASE. The server froze X for the bonus...
+            - stream: "{facts.pending_stake_is_trigger} == True"
+            # ...and the client kept showing X in every resumed round, never a new-ladder value.
+            - stream: "{facts.bet_during_bonus_is_old} == True"
+            - stream: "{facts.bet_during_bonus_on_new_ladder} == False"
+            # the resumed rounds were free and the bonus finished cleanly
+            - stream: stake_zero_in_freespins
+            - stream: terminal_reached
+            - stream: conservation
+
+        - id: ZZ-58
+          title: "After the resumed bonus ends, the bet switches to the new denomination's default"
+          assert:
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            # "after the bonus ends" presupposes one ran and ended
+            - stream: "{facts.info_captured} == True"
+            - stream: "{facts.is_pending_freespin} == True"
+            - stream: "{facts.resumed_rounds} >= 1"
+            - stream: terminal_reached
+            # THE CASE: the base game opens on the new ladder's default...
+            - stream: "{facts.new_default_bet} != None"
+            - stream: "{facts.bet_after_bonus_is_new_default} == True"
+            # ...which is, necessarily, a value of the new ladder, not the old X.
+            - stream: "{facts.bet_after_bonus_on_new_ladder} == True"

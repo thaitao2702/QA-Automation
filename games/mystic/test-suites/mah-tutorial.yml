@@ -1,0 +1,99 @@
+# Mystic — Tutorial cases (Mah_057, 059, 060) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-tutorial.yml
+#
+# Covered here (open-tutorial opens the Info/Tutorial popup and pages it top → bottom):
+#   Mah_057 open Tutorial · Mah_059 content correct · Mah_060 images correct
+#
+# The guide spans SEVERAL screens. Mah_059/060 say "read the entire content" / "observe all the
+# illustrations", so a clip of just the first screen cannot support them — the scenario wheels the
+# whole page and pauses at each screenful, and the prompt tells the model to judge every one.
+#
+# ⚠ The tutorial is a CROSS-ORIGIN WebView. The browser blocks the bridge from touching it, so only a
+# real mouse wheel scrolls it and its scroll position cannot be read back (bridge-qa-api.md,
+# "Scrolling the tutorial"). Consequences:
+#   · `reached_bottom` means "the full planned scroll was issued", NOT "the document ended here" —
+#     the step count is fixed and over-wheeling harmlessly clamps at the bottom.
+#   · Nothing but the VIDEO can prove the pixels moved, hence `content_scrolled` in the schema.
+#     A frozen WebView would otherwise pass as "the whole guide renders fine" off one screen.
+# If the guide grows past 12 screenfuls, raise `scroll_steps` on the scenario.
+#
+# NOT covered (needs more than a scroll):
+#   Mah_058 page navigation -> the guide scrolls rather than paging with Next/Previous buttons. The
+#            closest honest automation is paging down then back up: construct the scenario with
+#            scroll_back=True and assert `{facts.scrolled_back} > 0` plus a "no page skipped or
+#            repeated" video claim. Not enabled here — confirm with QA that scroll == navigation
+#            for this game before counting Mah_058 as covered.
+#   Mah_061/062 symbol payout / payout-updates-with-bet -> needs a "select a Tutorial symbol" button
+#                and a payout read; no such button in bridge-qa-api.md.
+#   Mah_063 Tutorial after language change -> needs a language switch (Playsite/user locale).
+#
+# ── Last Bet (Mah_081..087): BLOCKED. The bridge exposes no `lastBet` button (see bridge-qa-api.md
+#    "Button names"); there is no way to open the Last Bet panel from the test API today. Needs a
+#    bridge affordance (e.g. a `lastBet` button + a `lastBet` popup label) before these can be
+#    automated. Tracked in docs/mahjong-coverage.md.
+
+runs:
+  # ── Mah_057 + Mah_059 + Mah_060 : one full-guide clip, ONE video, graded across the cases ──
+  # open-tutorial opens the popup, pauses at the top, wheels down a screenful at a time, and rests at
+  # the end. All three checks read that same clip, so one AI call is graded per case
+  # (expected_by_case): the popup opens (057), the content renders on every screen (059), and the
+  # images render on every screen (060).
+  - run:
+      scenario: open-tutorial
+      cases:
+        - id: Mah_057
+          title: "Tutorial / Info opens successfully"
+          assert:
+            # hard: a real WebView was found, not an empty popup frame
+            - stream: "{facts.tutorial_open} == True"
+        - id: Mah_059
+          title: "Tutorial content renders correctly through the whole guide"
+          assert:
+            # hard: the full scroll was issued. Without this a no-op scroll would grade only the
+            # first screen while the case claims the entire document was read.
+            - stream: "{facts.reached_bottom} == True"
+        - id: Mah_060
+          title: "Tutorial images / symbols render correctly through the whole guide"
+          assert:
+            - stream: "{facts.reached_bottom} == True"
+      video:                                 # ONE AI call over the whole-guide clip, graded per case
+        timestamp: true                      # ACTION TIMELINE marks TUTORIAL TOP / each scroll / BOTTOM
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot. In this clip the player taps the Info / Tutorial button, the
+          guide opens at the TOP of the page, and the page is then SCROLLED all the way to the BOTTOM in
+          discrete steps — it pauses at each screenful, so every part of the document is on screen at
+          some point — and finally rests at the end. The ACTION TIMELINE below gives the exact
+          clip-relative time of the top, each scroll step and the bottom; line those up with the
+          burned-in timestamps. Judge the ENTIRE document across the whole scroll, not just the first
+          screen. Answer each: (1) does a Tutorial / Info / Help popup open and display, rather than
+          nothing happening or an error (tutorial_opened)? (2) does the page visibly SCROLL — different
+          content on screen at the end than at the start, rather than a frozen page (content_scrolled)?
+          (3) does the content render cleanly on EVERY screenful — readable text, no missing /
+          placeholder / broken text, no overflowing or clipped text, coherent layout (content_renders) —
+          and is any content anywhere broken (content_broken)? (4) do the illustrations / symbol images
+          display correctly everywhere, with no missing images, blank boxes or broken graphics
+          (images_render) — and are any images anywhere broken (images_broken)? For the "broken"
+          answers, report a problem seen on ANY screen, not only the first.
+        output_schema:
+          tutorial_opened: { type: boolean }
+          content_scrolled: { type: boolean }
+          content_renders: { type: boolean }
+          content_broken: { type: boolean }
+          images_render: { type: boolean }
+          images_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_057:
+            tutorial_opened: true
+            confidence: high
+          Mah_059:
+            content_scrolled: true           # the pixels really moved — the bridge cannot confirm this
+            content_renders: true
+            content_broken: false
+            confidence: medium
+          Mah_060:
+            content_scrolled: true
+            images_render: true
+            images_broken: false
+            confidence: medium

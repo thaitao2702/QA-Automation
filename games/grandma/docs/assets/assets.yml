@@ -1,0 +1,95 @@
+# assets.yml — Grandma Pets asset manifest.
+# Symbol IDs are the ids the BET response and getDisplayedGrid() use
+# (games/grandma/bet-response.md §3), confirmed by the game team 2026-09-22.
+# Descriptions are written from the art in symbols/ so the AI can tell the three
+# cats and the two dogs apart in a grid read — do not paraphrase them loosely.
+
+symbols:
+
+  # ---------------------------------------------------------------------------
+  # Low-value card symbols
+  # ---------------------------------------------------------------------------
+  a:
+    file: symbols/A.png
+    name: "A"
+    type: low
+    Symbol ID: 1
+    description: "Playing-card letter A."
+
+  j:
+    file: symbols/J.png
+    name: "J"
+    type: low
+    Symbol ID: 2
+    description: "Playing-card letter J."
+
+  q:
+    file: symbols/Q.png
+    name: "Q"
+    type: low
+    Symbol ID: 3
+    description: "Playing-card letter Q."
+
+  k:
+    file: symbols/K.png
+    name: "K"
+    type: low
+    Symbol ID: 4
+    description: "Playing-card letter K."
+
+  # ---------------------------------------------------------------------------
+  # Premium / high-value symbols — three CATS and two DOGS.
+  # The Cat vs Dog drama fights one cat against one dog (bridge-api.md §8.5):
+  # cats are ids 5, 7, 8 and dogs are ids 6, 18.
+  # ---------------------------------------------------------------------------
+  p1:
+    file: symbols/P1.png
+    name: "P1"
+    type: high
+    Symbol ID: 5
+    description: "CAT. A fluffy white cat wearing pink headphones and a pink bow, on a pink and white panel. The only white cat."
+
+  p2:
+    file: symbols/P2.png
+    name: "P2"
+    type: high
+    Symbol ID: 6
+    description: "DOG. A fawn pug with a wrinkled flat face and a red bow tie, on a blue panel. The only pug."
+
+  p3:
+    file: symbols/P3.png
+    name: "P3"
+    type: high
+    Symbol ID: 7
+    description: "CAT. An orange ginger tabby cat with a raised front paw, on a green panel. The only orange cat."
+
+  p4:
+    file: symbols/P4.png
+    name: "P4"
+    type: high
+    Symbol ID: 8
+    description: "CAT. A long-haired grey-lilac cat with yellow eyes, on a purple panel. The only grey cat."
+
+  p5:
+    file: symbols/P5.png
+    name: "P5"
+    type: high
+    Symbol ID: 18
+    description: "DOG. A black-and-tan dachshund wearing a grey bonnet, on a purple panel. The only long-eared dog."
+
+  # ---------------------------------------------------------------------------
+  # Special symbols
+  # ---------------------------------------------------------------------------
+  wild:
+    file: symbols/Wild.png
+    name: "Wild"
+    type: wild
+    Symbol ID: 19
+    description: "The grandma: white curly hair and dark sunglasses, with the word WILD in gold letters. In free spins she drives a pink car and walks across the reels."
+
+  scatter:
+    file: symbols/Scatter.png
+    name: "Scatter"
+    type: bonus
+    Symbol ID: 11
+    description: "The BONUS symbol: a golden paw print set with pink, green, blue and yellow gems. Landing it on 3, 4 or 5 different reels awards 8, 12 or 15 free spins."

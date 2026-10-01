@@ -1,0 +1,335 @@
+# Zeus — Auto Mode (ZZ-08, ZZ-13 … ZZ-21) from test-case-zeus.xlsx.
+#
+# Run:  python scripts/run_scenario.py --game zeus --env dev --suite games/zeus/test-suites/zz-autoplay.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game zeus
+#
+# Every scenario here is mechanism-free and shared with Mystic and Chaos. The only Zeus-specific
+# part is the dialect the profile supplies: `auto:package:<i>` instead of `auto:count:<i>`,
+# `auto:cancel` instead of `auto:close`, and a main-screen `stopAuto` alongside the popup's
+# `auto:stop`.
+#
+# ── RULE 4 IS THE SPINE OF THIS FILE ────────────────────────────────────────────────────────
+# Every case below claims "…and then it stops", which is a NEGATIVE claim — and a negative is only
+# worth something if you waited. Each scenario ends with `confirm_stopped()`: it watches
+# `awaitBetResponse` for a few seconds (NOTHING ARRIVING IS THE EVIDENCE), reads the client's own
+# auto flag, then HOLDS so the still screen is actually filmed. So every case asserts
+#     {facts.extra_round_after_stop} == False      no further bet was wagered
+#     {facts.auto_flag_after} == False             the client agrees it is no longer running
+# and every prompt tells the model to judge the TAIL. Counting N rounds only proves OUR loop ended;
+# a clip that merely ends is not evidence that anything stopped. The one deliberate exception is
+# ZZ-08/16 — see the note there (Rule 15).
+#
+# ── ⚠ THE AUTOPLAY COUNTS ARE ZEUS'S OWN PACKAGES ───────────────────────────────────────────
+# AUTO_COUNTS in the profile is still the shared default (10/20/30/50/unlimited). Confirm it against
+# the live build's `auto:package:<i>` list and correct the profile if it differs, or ZZ-14 asserts
+# the wrong number of spins — and asserts it CONFIDENTLY, because `rounds_played == auto_count`
+# compares the client against the same wrong constant on both sides.
+#
+# ── ⚠ D1 ────────────────────────────────────────────────────────────────────────────────────
+# docs/zeus-bridge-defects.md D1 makes the autoplay PANEL flash shut ~0.4s after it opens on a
+# fresh session — and the panel is how every run here starts. Ironically the defect clears itself
+# once one autoplay has run and stopped (`autoSpinsRemaining` -1 -> 0), so the FIRST run of a
+# session is the fragile one.
+
+runs:
+  # ── ZZ-13 + ZZ-14 + ZZ-19 + ZZ-20 : one auto run, one clip, four verdicts ──────────
+  # These were three runs (auto-play twice, for ZZ-13/14/20 and again for ZZ-19). ZZ-19's second
+  # run played ten more real spins to film a question the first clip already answered. Rule 16:
+  # one run-level `video:` block, analysed ONCE and graded per case with `expected_by_case`.
+  #
+  # count: 10 is the shortest package. The panel OPENS on 10, so clicking 10 would change nothing
+  # and the selection step would be invisible — the scenario therefore selects a different count
+  # FIRST and changes back, so the count visibly moves out and back without paying for a longer run.
+  - run:
+      scenario: auto-play
+      teardown: return-to-base
+      params: { count: 10 }
+      video:
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with 5 paylines. In this clip the player opens the auto-play panel,
+          first selects {facts.via_count} spins, then changes it back to {facts.auto_count}, and
+          confirms; auto-play then runs all {facts.auto_count} spins and stops. (The panel opens on
+          {facts.auto_count}, so the detour is what makes the count visibly change.) The ACTION
+          TIMELINE below gives the clip-relative second of each step — use it to find them rather
+          than guessing. Answer each of the following about the moment it names, independently:
+
+          (1) auto_ran: does the game spin repeatedly ON ITS OWN, without a click per spin?
+
+          (2) auto_stopped_at_end: once the {facts.auto_count} spins are done, has auto-play
+          stopped? The clip deliberately continues for about {facts.stop_watch_s} seconds AFTER the
+          last spin finishes and then holds still — during that tail the reels must not start again
+          and no new spin may begin. A clip that simply ends is not evidence; judge the tail.
+
+          (3) count_shown / count_decrements: WHILE auto is running, does the Spin button (or a
+          counter beside it) show how many spins are left, and does that number count DOWN as the
+          spins play? clears_at_end: does it disappear or reset once auto-play finishes?
+
+          (4) bet_locked: WHILE auto is running, are the bet controls (the bet button / the +/-)
+          disabled or visibly locked? unlocked_after: are they usable again once auto-play has
+          ended?
+        output_schema:
+          auto_ran: { type: boolean }
+          auto_stopped_at_end: { type: boolean }
+          count_shown: { type: boolean }
+          count_decrements: { type: boolean }
+          clears_at_end: { type: boolean }
+          bet_locked: { type: boolean }
+          unlocked_after: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-13: { auto_ran: true, confidence: medium }
+          ZZ-14: { auto_stopped_at_end: true, confidence: medium }
+          ZZ-19: { bet_locked: true, unlocked_after: true, confidence: medium }
+          ZZ-20: { count_shown: true, count_decrements: true, confidence: medium }
+      cases:
+        - id: ZZ-13
+          title: "Autoplay starts from the popup and runs"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"
+            # the panel really accepted a count — without this, "it spun" cannot tell auto-play
+            # apart from a stray manual spin
+            - stream: "{facts.auto_spins_at_start} >= 1"
+
+        - id: ZZ-14
+          title: "Autoplay stops after the selected number of spins"
+          assert:
+            # exact: the client played the configured number of base spins...
+            - stream: "{facts.rounds_played} == {facts.auto_count}"
+            - stream: "{facts.completed} == True"
+            # ...and it really STOPPED (Rule 4). Counting N proves our loop ended, not that the
+            # client did: one that overruns keeps wagering, and that extra BET is the evidence.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: "{facts.auto_stopped} == True"
+            # the panel ended on OUR count, not the one we detoured through
+            - stream: "{facts.auto_spins_at_start} >= {facts.auto_count} - 1"
+            - stream: "{facts.auto_spins_at_start} < {facts.via_count}"
+
+        - id: ZZ-19
+          title: "Bet controls are disabled while autoplay is running"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"    # there was a run to be locked during
+            # EXACT, and stronger than the video half: the bet cannot have moved during the
+            # sequence, because every paid round was charged the same stake. An AI read of the bet
+            # label cannot tell "never changed" from "changed and changed back between two frames".
+            - stream: "{facts.stake_constant} == True"
+            - stream: "{facts.stakes_seen} == 1"
+
+        - id: ZZ-20
+          title: "The Spin button shows the remaining autoplay count while it runs"
+          assert:
+            - stream: "{facts.rounds_played} >= 2"    # a countdown needs at least two spins to be visible
+            # The number itself is a client-side render with no response field behind it, so the
+            # count is the AI's part. What the stream CAN pin is that there really were spins for
+            # it to count down through.
+
+  # ── ZZ-15 : stop at any win ────────────────────────────────────────────────────────
+  # `stop_on: base_win` rather than the default `any`. A win comes in two shapes that look nothing
+  # alike on screen — a line win, or a Hold & Spin feature being awarded — and a prompt written for
+  # "whichever lands first" cannot describe what is on screen. This run is about the line-win
+  # shape; a feature stop is DISCARDED and the hunt resumes (facts.discarded_stops counts them).
+  # The feature shape is ZZ-30's subject and is covered under its own forced paytable.
+  - run:
+      scenario: auto-stop-at-win
+      teardown: return-to-base
+      params: { stop_on: base_win }
+      cases:
+        - id: ZZ-15
+          title: "Stop at any win halts autoplay on the first winning spin"
+          assert:
+            # NOT `{facts.won_via} == base_win`: the evaluator interpolates the VALUE into a Python
+            # expression, so a bare word becomes a NameError. Assert the boolean.
+            - stream: "{facts.won_by_feature} == False"    # this run is about the line-win shape
+            - stream: "{facts.won_payout} > 0"             # it stopped ON a win, not merely stopped
+            - stream: "{facts.spins_to_win} >= 1"
+            - stream: "{facts.auto_stopped} == True"
+            - stream: conservation
+            # Rule 4
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                at: [win, win_end]
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with 5 paylines. Auto-play was running with "stop at any win"
+                  enabled, and this clip covers the spin that ENDED it plus everything after, up to
+                  the game sitting still. That spin paid a LINE WIN of {facts.won_payout} — no Hold
+                  & Spin feature was awarded. Answer: (1) was auto-play visibly running — spins
+                  starting on their own without a click (auto_ran)? (2) is a win presented for that
+                  spin — a win amount shown and the winning payline(s) marked (win_shown)? (3) in
+                  the still tail at the end, does the screen show auto-play is NO LONGER running —
+                  no auto or remaining-spins counter, the Spin button back to its normal idle look,
+                  and no further spin starting by itself (auto_stopped_on_screen)? (4) is anything
+                  visibly broken — a counter still ticking, a stuck overlay, placeholder text
+                  (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  win_shown: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  win_shown: true
+                  auto_stopped_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── ZZ-08 + ZZ-16 : autoplay stops when the balance runs out ───────────────────────
+  # Needs PLAYSITE_* wallet credentials to fund a deterministic drain; unreached without them.
+  # Rule 7: this run MOVES THE MONEY, so it declares restore-balance.
+  #
+  # Rule 13 — the END CONDITION IS THE SERVER BALANCE, never the funding count. Funding N bets does
+  # not mean the wallet is empty after N spins: an auto spin can win, and a Hold & Spin trigger pays
+  # across a whole feature. The scenario reads the balance after every round and stops when it can
+  # no longer cover a bet, which is why `balance_below_bet` is the assert that makes this a
+  # MONEY stop and not some other kind.
+  #
+  # Rule 15 — `auto_flag_after` is deliberately NOT asserted here, and it is the only place in this
+  # file that omits it. When the balance runs out the game raises the out-of-money popup, and it is
+  # the POPUP that prevents any further bet; the client's internal auto flag may legitimately stay
+  # set until the popup is dealt with. Ask what the player can actually DO: nothing was wagered and
+  # the screen is plainly idle, so the behaviour is correct whatever the flag says. The two cases
+  # where no popup blocks the game (ZZ-14, ZZ-15, ZZ-17, ZZ-18) still assert it.
+  - run:
+      scenario: auto-until-empty
+      teardown: restore-balance   # put the wallet back exactly as it was
+      video:
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot. In this clip the wallet was funded with {facts.funded_balance} — about
+          {facts.fund_spins} spins at a stake of {facts.bet} — and auto-play was started with an
+          unlimited count, so only running out of money can stop it. It played
+          {facts.spins_played} round(s) and the balance ended at {facts.final_balance}, below one
+          bet. The clip then deliberately continues for about {facts.stop_watch_s} seconds and
+          holds still. The ACTION TIMELINE marks the moment the balance fell below one bet. Answer
+          each independently: (1) auto_ran: was auto-play visibly running — spins starting on their
+          own? (2) out_of_money_popup: does a popup or message appear telling the player they do not
+          have enough balance? (3) auto_stopped_on_screen: during the still tail at the end, has
+          auto-play stopped — no further spin starts by itself and no reels turn? A clip that
+          simply ends is not evidence; judge the tail.
+        output_schema:
+          auto_ran: { type: boolean }
+          out_of_money_popup: { type: boolean }
+          auto_stopped_on_screen: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-08: { out_of_money_popup: true, auto_stopped_on_screen: true, confidence: medium }
+          ZZ-16: { auto_ran: true, auto_stopped_on_screen: true, confidence: medium }
+      cases:
+        - id: ZZ-08
+          title: "Running out of balance during autoplay stops it and warns the player"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"   # the stop really was about MONEY
+            - stream: "{facts.extra_round_after_stop} == False"
+        - id: ZZ-16
+          title: "Autoplay stops when the balance reaches zero"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"
+            - stream: "{facts.spins_played} >= 1"
+            - stream: "{facts.final_balance} < {facts.bet}"
+            - stream: "{facts.extra_round_after_stop} == False"
+
+  # ── ZZ-17 : user stops autoplay ────────────────────────────────────────────────────
+  # The scenario runs at the UNLIMITED count on purpose (Rule 13): a finite one could run out on
+  # its own before the player pressed Stop, and the case would then pass for the wrong reason.
+  - run:
+      scenario: auto-user-stop
+      teardown: return-to-base
+      cases:
+        - id: ZZ-17
+          title: "Stopping autoplay by hand halts it immediately"
+          assert:
+            - stream: "{facts.auto_stopped} == True"
+            - stream: "{facts.spins_before_stop} >= 1"      # there was a run to interrupt
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. Auto-play is running with an unlimited count, and partway
+                  through the clip the player presses Stop; the ACTION TIMELINE marks exactly when.
+                  After that the clip continues for about {facts.stop_watch_s} seconds and holds
+                  still. Answer: (1) was auto-play visibly running before the Stop — spins starting
+                  on their own (auto_ran)? (2) after Stop is pressed, does auto-play halt — at most
+                  the current spin finishes and no new one begins (stopped_on_user_stop)? (3) during
+                  the still tail at the end, does the screen show auto is no longer running — no
+                  auto counter, the Spin button back to its idle look
+                  (auto_stopped_on_screen)? A clip that simply ends is not evidence; judge the tail.
+                output_schema:
+                  auto_ran: { type: boolean }
+                  stopped_on_user_stop: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  stopped_on_user_stop: true
+                  auto_stopped_on_screen: true
+                  confidence: medium
+
+  # ── ZZ-18 : reload cancels autoplay ────────────────────────────────────────────────
+  - run:
+      scenario: auto-reload-cancels
+      teardown: return-to-base
+      cases:
+        - id: ZZ-18
+          title: "Reloading the game cancels a running autoplay"
+          assert:
+            - stream: "{facts.auto_cancelled} == True"
+            - stream: "{facts.spins_before_reload} >= 1"    # auto really was running before the reload
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. Auto-play was running, then the game was RELOADED; the ACTION
+                  TIMELINE marks the reload. A reload lands on a fresh, idle game, which looks
+                  identical to "auto was cancelled" and identical to "the clip just ended" — so the
+                  clip deliberately continues for about {facts.stop_watch_s} seconds after the
+                  reload and holds still. Answer: (1) was auto-play visibly running BEFORE the
+                  reload (auto_ran_before)? (2) after the reload finishes, is the game sitting idle
+                  in the base game with auto-play NOT running — no auto spins firing on their own,
+                  no auto counter, the Spin button in its normal idle state
+                  (auto_not_running_after_reload)? Judge the tail, not the fact that the clip
+                  stops.
+                output_schema:
+                  auto_ran_before: { type: boolean }
+                  auto_not_running_after_reload: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran_before: true
+                  auto_not_running_after_reload: true
+                  confidence: medium
+
+  # ── ZZ-21 : bet chosen before confirming is the bet autoplay uses ──────────────────
+  - run:
+      scenario: auto-change-bet-first
+      teardown: return-to-base
+      cases:
+        - id: ZZ-21
+          title: "Autoplay runs at the bet chosen before it was confirmed"
+          assert:
+            # exact: the first auto spin was charged the stake that was picked
+            - stream: "{res.stake} == {facts.picked_bet}"
+            - stream: "{facts.picked_bet} > 0"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. In this clip the player opens the autoplay panel, changes the
+                  bet to {facts.picked_bet} from inside it, confirms, and auto-play then runs. The
+                  ACTION TIMELINE gives the time of each step. Answer: (1) after the bet is changed,
+                  does the bet / stake readout show {facts.picked_bet} (bet_readout_matches)? (2) do
+                  the auto spins run at that bet — the stake shown stays {facts.picked_bet} for
+                  every spin rather than reverting to the previous value (bet_stays_at_chosen)?
+                  Judge the bet readout only, not the balance.
+                output_schema:
+                  bet_readout_matches: { type: boolean }
+                  bet_stays_at_chosen: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_readout_matches: true
+                  bet_stays_at_chosen: true
+                  confidence: medium

@@ -1,0 +1,45 @@
+{
+    "status": 1,
+    "code": 0,
+    "msg": "",
+    "timestamp": 1787731633936,
+    "result": {
+        "result": {
+            "views": [
+                { "id": 1, "value": [13, 13, 13] },
+                { "id": 2, "value": [9, 3, 4] },
+                { "id": 3, "value": [4, 6, 4] }
+            ]
+        },
+        "freeSpinInfo": { "freespins": 3, "totalFreeSpin": 0, "accumulateWin": 0 },
+        "coinCount": 3,
+        "coinPositions": [
+            { "row": 0, "col": 0, "coinValue": 6, "multiplier": 2, "type": 1 },
+            { "row": 1, "col": 0, "coinValue": 30, "multiplier": 10, "type": 1 },
+            { "row": 2, "col": 0, "coinValue": 6, "multiplier": 2, "type": 1 }
+        ],
+        "anteMultiplier": 0,
+        "paylines": [
+            { "symbols": [-1, -1, -1], "payline": -1, "payoutRate": 0, "winType": "FreeSpin" }
+        ],
+        "id": "923609513267822593",
+        "refId": "923609513276211201",
+        "roundId": "923609513276211201",
+        "baseStake": 3,
+        "stake": 3,
+        "rawPayout": 0,
+        "payout": 0,
+        "accumulatedWinAmount": 0,
+        "winlose": -3,
+        "betTime": 1787731633899,
+        "processedTime": 1787731633901,
+        "settledTime": 1787731633901,
+        "betLines": 5,
+        "jackpot": 0,
+        "balance": 16501.85,
+        "hasReachedMaxWin": false,
+        "maxWin": 300000,
+        "gameState": 2,
+        "promoResult": null
+    }
+}

@@ -1,0 +1,297 @@
+# Treasures of the Dragon VIP — Spin mechanism, Turbo, Sound, Reconnect (DV-22, DV-24 … DV-29, DV-44 … DV-50).
+#
+# Run:  python scripts/run_scenario.py --game dragon-vip --env dev
+#       --suite games/dragon-vip/test-suites/dv-input-sound-reconnect.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon-vip
+#
+# DV-NN is DR-NN of games/dragon/test-suites/dr-input-sound-reconnect.yml, which is ZZ-NN of
+# test-case-zeus.xlsx (games/zeus/test-suites/zz-input-sound-reconnect.yml has the history).
+# Timing-sensitive: real pointer/keyboard holds, double-clicks and network drops. The bridge has no
+# hold call (game-bridge-api.md §7 lists none) — a hold is a real mouse.down → wait → mouse.up, so
+# if a hold case fails the fix is the gesture (timing, target rect), not a different API.
+#
+# VIP dialect that matters here (bridge §3, §6.1, §6.8):
+#   * `stop` is the Spin node itself while its STOP face shows; `waitForSpinClickable` also refuses
+#     while the spin button is held (`hold_spin_running`), so a hold cannot be mistaken for idle;
+#   * holding Spin is hold-for-turbo (bridge §3, `hold_spin_running`), so a hold's spins may run faster;
+#   * the main-screen `sound` button toggles sound AND music together — `sound-toggles` uses the
+#     Settings panel's separate `settings:sound` / `settings:music`, which is what makes DV-25 a
+#     separate claim at all;
+#   * toggling Turbo raises the `turboNotify` toast, listed in `visiblePopups` (§6.8). It takes
+#     no input and does not hold back `waitForSpinClickable`.
+#
+# THE SOUND CASES ARE EXACT: isSoundEnabled() / isMusicEnabled() read the model, so "volume = 0" is
+# not guessed from a video. What the getters cannot say is whether the control on screen agrees with
+# them, which is why DV-24/25 still carry a clip (Rule 10).
+
+runs:
+  # ── DV-44 … DV-50 : every spin input, one recording ────────────────────────────────
+  # Rule 16: one clip, one AI call, seven case verdicts via `expected_by_case`.
+  - run:
+      scenario: spin-inputs
+      teardown: return-to-base
+      cases:
+        - id: DV-44
+          title: "Spin with the Spin button starts the reels"
+          assert:
+            # "one input started exactly ONE spin": a double-fire looks like one spin on video and is
+            # two responses in the stream. base_rounds_since() counts PAID BASE rounds only.
+            - stream: "{facts.click_rounds} == 1"
+        - id: DV-45
+          title: "Spin with the Space key starts the reels"
+          assert:
+            - stream: "{facts.key_rounds} == 1"
+        - id: DV-46
+          title: "Holding Spin or Space starts continuous auto-spin"
+          assert:
+            # the gesture really fired — otherwise the AI is asked about a hold that never happened
+            - stream: "{facts.hold_done} == True"
+        - id: DV-47
+          title: "Holding Spin while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: DV-48
+          title: "Releasing the hold stops the auto-spin"
+          assert:
+            - stream: "{facts.hold_done} == True"
+        - id: DV-49
+          title: "Double-clicking while the reels turn triggers a sudden stop"
+          assert:
+            - stream: "{facts.dblclick_done} == True"
+        - id: DV-50
+          title: "The result after a sudden stop is correct, with no animation glitch"
+          assert:
+            # the sudden stop must not corrupt the round: the server response still balances
+            - stream: conservation
+            - stream: "{facts.rounds_total} >= 4"     # all four input variants really ran
+      video:
+        high_fps: true                       # 16fps effective — holds and sudden stops are sub-second
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with 5 paylines. Several distinct spin inputs are
+          performed in sequence. The ACTION TIMELINE below gives the EXACT time of each one — line
+          them up with the burned-in timestamps and judge the game AT that moment; do not confuse one
+          action with another. Answer: (1) at "SPIN via the Spin button", do the reels spin normally
+          (btn_spin_works)? (2) at "SPIN via the Space key", do they spin normally
+          (space_spin_works)? (3) starting at "HOLD the Spin button ...", does the game keep
+          auto-spinning while held (hold_starts_autospin) and STOP when released
+          (release_stops_autospin)? Spins during a hold may run faster than normal — this game
+          engages turbo while Spin is held — and that is expected. (4) at "SUDDEN STOP: hold Spin
+          ...", does holding during a turning reel stop it immediately (hold_sudden_stop)? (5) at
+          "SUDDEN STOP: double-click Spin ...", does the double-click stop it immediately
+          (doubleclick_sudden_stop)? (6) after each sudden stop, does the grid settle on a clean,
+          complete result with no visual glitch or stuck animation (result_clean_after_stop)?
+        output_schema:
+          btn_spin_works: { type: boolean }
+          space_spin_works: { type: boolean }
+          hold_starts_autospin: { type: boolean }
+          release_stops_autospin: { type: boolean }
+          hold_sudden_stop: { type: boolean }
+          doubleclick_sudden_stop: { type: boolean }
+          result_clean_after_stop: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-44: { btn_spin_works: true, confidence: medium }
+          DV-45: { space_spin_works: true, confidence: medium }
+          DV-46: { hold_starts_autospin: true, confidence: low }
+          DV-47: { hold_sudden_stop: true, confidence: low }
+          DV-48: { release_stops_autospin: true, confidence: low }
+          DV-49: { doubleclick_sudden_stop: true, confidence: low }
+          DV-50: { result_clean_after_stop: true, confidence: low }
+
+  # ── DV-22 : Turbo ──────────────────────────────────────────────────────────────────
+  # `turbo-modes`, NOT `toggle-turbo`: the case is "the reels spin faster", and `toggle-turbo` places
+  # no bet — no reel ever turns in its clip. `turbo-modes` toggles Turbo on, SPINS, and toggles it off.
+  # The VIP build's `turbo` is one control that toggles speed mode both ways (bridge §6.1), so one
+  # role serves both directions.
+  - run:
+      scenario: turbo-modes
+      teardown: return-to-base
+      cases:
+        - id: DV-22
+          title: "Turbo makes the reels resolve faster"
+          assert:
+            # EXACT: the game's own speed mode really changed. `speed_toggled` is the COMPARISON
+            # computed in the scenario, so it does not care how a build spells the mode.
+            - stream: "{facts.speed_toggled} == True"
+            # 'UNKNOWN' means "unanswerable" (scene not up), not a failed toggle — this keeps the two apart
+            - stream: "{facts.has_speed_getter} == True"
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+            - stream: "{facts.turbo_control_present} == True"
+            - video:
+                high_fps: true              # 16fps effective — reel-speed differences are sub-second
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot with a Turbo (fast spin) feature. In
+                  this clip one spin is first played with Turbo OFF; then the Turbo control is
+                  clicked ON, a spin is played, and Turbo is clicked back OFF. The ACTION TIMELINE
+                  gives the exact time of each click and each spin. A short banner announcing Turbo
+                  on or off may appear and fade — that is expected. Answer: (1) do the reels of the
+                  spin played with Turbo ON resolve visibly FASTER than the first spin, played with
+                  Turbo OFF (reels_faster)? (2) does the Turbo control itself visibly change state
+                  when clicked — highlighted, lit, or swapped for its "on" icon
+                  (button_state_changed)? (3) does the result of a turbo spin still land on a clean,
+                  complete grid with no glitch or stuck animation (result_clean_in_turbo)?
+                output_schema:
+                  reels_faster: { type: boolean }
+                  button_state_changed: { type: boolean }
+                  result_clean_in_turbo: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reels_faster: true
+                  button_state_changed: true
+                  result_clean_in_turbo: true
+                  confidence: medium
+
+  # ── DV-24 + DV-25 : sound and music off ────────────────────────────────────────────
+  # EXACT through isSoundEnabled()/isMusicEnabled(). No AI is asked to judge silence; the clip is
+  # asked whether the controls on screen agree with the model — a toggle that mutes the game while
+  # still drawing itself ON passes every stream assert and fails only there (Rule 10).
+  - run:
+      scenario: sound-toggles
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot. In this clip the Settings panel is opened and the
+          Sound and Music toggles are switched OFF and then back ON; the ACTION TIMELINE gives the
+          exact time of each click. Judge only what is DRAWN — you cannot hear the clip, and you are
+          not being asked to. Answer: (1) does the Settings panel open and show sound and music
+          controls (settings_opened)? (2) after each control is switched off, does it visibly change
+          to an OFF / muted state — a struck-through icon, a dimmed control, a slider at zero
+          (controls_show_off)? (3) after they are switched back on, do they return to their ON state
+          (controls_restored)? (4) is anything about the panel visibly broken — overlapping labels,
+          missing icons, a control that does not react at all (panel_broken)?
+        output_schema:
+          settings_opened: { type: boolean }
+          controls_show_off: { type: boolean }
+          controls_restored: { type: boolean }
+          panel_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-24: { settings_opened: true, controls_show_off: true, controls_restored: true, panel_broken: false, confidence: medium }
+          DV-25: { controls_show_off: true, controls_restored: true, confidence: medium }
+      cases:
+        - id: DV-24
+          title: "Turning BGM/Sound off sets the volume to zero"
+          assert:
+            - stream: "{facts.toggled} == True"          # the control was really clickable
+            - stream: "{facts.sound_before} == True"     # it started ON, so turning it off means something
+            - stream: "{facts.sound_after_off} == False"
+            - stream: "{facts.sound_restored} == True"   # ...and the run left the game as it found it
+        - id: DV-25
+          title: "Turning Music off sets the volume to zero"
+          assert:
+            - stream: "{facts.music_before} == True"
+            - stream: "{facts.music_after_off} == False"
+            - stream: "{facts.music_restored} == True"
+
+  # ── DV-26 : brief disconnect, auto-recovers ────────────────────────────────────────
+  - run:
+      scenario: reconnect-brief
+      teardown: return-to-base
+      cases:
+        - id: DV-26
+          title: "A disconnect under 20s reconnects and play continues normally"
+          assert:
+            - stream: "{facts.recovered} == True"
+            # the case says play CONTINUES — without a round after the reconnect, "recovered" only
+            # means the socket came back
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: "{facts.offline_s} < 20"           # this run really is the SHORT-drop case
+            - stream: conservation                       # the round after the drop still balances
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot. In this clip the network is dropped for
+                  about {facts.offline_s} seconds and then restored; afterwards one more round is
+                  played. The ACTION TIMELINE marks when the network went down and came back.
+                  Answer: (1) does the game show a reconnecting indicator or message while offline
+                  (reconnect_shown)? (2) does it resume where it was, without dumping the player out
+                  to a lobby or landing page (resumed_in_place)? (3) does the round played after the
+                  reconnect behave normally — reels spin, a result lands, the balance updates
+                  (play_continues)? (4) is the UI consistent afterwards, with no stuck overlay or
+                  stale readout (state_consistent)?
+                output_schema:
+                  reconnect_shown: { type: boolean }
+                  resumed_in_place: { type: boolean }
+                  play_continues: { type: boolean }
+                  state_consistent: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  resumed_in_place: true
+                  play_continues: true
+                  state_consistent: true
+                  confidence: medium
+
+  # ── DV-27 + DV-28 : long disconnect / network switch -> popup, back to home ────────
+  # ONE run, two cases, one clip (Rule 16): to the CLIENT a Wi-Fi handover IS a drop and a restore.
+  # A genuine hardware switch stays manual; the drop length is asserted so neither case can be graded
+  # on a two-second blip.
+  - run:
+      scenario: reconnect-long
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot. In this clip the network is dropped for
+          {facts.offline_s} seconds — longer than the game's reconnect threshold of 20 seconds — and
+          then restored. The ACTION TIMELINE marks when it went down and came back. Answer: (1) does
+          a popup or message appear telling the player the connection was lost (disconnect_popup)?
+          (2) does the game LEAVE the play screen — back to a lobby, landing or home page — rather
+          than silently resuming (returns_to_home)? (3) is the transition clean, with no frozen
+          reels, stuck spinner or half-drawn screen left behind (transition_clean)?
+        output_schema:
+          disconnect_popup: { type: boolean }
+          returns_to_home: { type: boolean }
+          transition_clean: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-27: { disconnect_popup: true, returns_to_home: true, transition_clean: true, confidence: medium }
+          DV-28: { disconnect_popup: true, returns_to_home: true, confidence: medium }
+      cases:
+        - id: DV-27
+          title: "A disconnect over 20s shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+        - id: DV-28
+          title: "Switching network (Wi-Fi A to B) shows a popup and returns to the lobby"
+          assert:
+            - stream: "{facts.offline_s} > 20"
+
+  # ── DV-29 : same account in a second tab ───────────────────────────────────────────
+  - run:
+      scenario: multi-tab-session
+      teardown: return-to-base
+      cases:
+        - id: DV-29
+          title: "Opening the same account in another tab ends this session"
+          assert:
+            - stream: "{facts.second_opened} == True"    # a second session really was opened
+            - stream: "{facts.wait_s} > 0"               # ...and we waited for the first to react
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot. Partway through this clip the SAME account
+                  is opened in a second browser session; the ACTION TIMELINE marks when, and the clip
+                  continues for about {facts.wait_s} seconds afterwards so the first session has
+                  time to react. You are watching the FIRST session throughout. Answer: (1) does it
+                  show a popup or message saying it has been disconnected, taken over, or logged in
+                  elsewhere (session_popup)? (2) does it stop being playable — returned to a lobby,
+                  blocked, or otherwise no longer able to spin (session_ended)? Judge the tail: a
+                  clip that simply ends is not evidence that the session was closed.
+                output_schema:
+                  session_popup: { type: boolean }
+                  session_ended: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  session_popup: true
+                  session_ended: true
+                  confidence: medium
+
+# ── NOT IN THIS SUITE ──────────────────────────────────────────────────────────────────
+#   DV-23  tab-switch mutes all sound -> not automated, as ZZ-23: it needs a browser visibility change
+#          with isSoundEnabled/isMusicEnabled polled from the backgrounded context. A small scenario,
+#          not yet written — and deliberately not an AI-only case, since "is it silent?" is exactly
+#          what a video cannot answer and this build can answer it exactly.

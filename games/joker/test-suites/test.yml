@@ -1,0 +1,139 @@
+runs:
+  # ── DV-70 : changing the bet amount after a round does not change what the game reopens on ──
+  # CR_095: play one round at bet amount X, change the bet amount to Y in the bet list (no spin),
+  # then reopen the game. It must come back on X, the bet of the round actually played.
+  #
+  # Why X and not Y: changing the bet in the list sends nothing to the server. The only record the
+  # reopened session has is `lastBet`, the round played at X — so a client that comes back on Y has
+  # kept client-side state across a reload that it should have discarded.
+  #
+  # `change_bet_after: true` does the change. `bet_moved_after_round` is the gate: it is False when
+  # the bet list would not open, or the pick landed back on X — either way X and Y are the same
+  # number and the case would pass without testing anything.
+  #
+  # ⚠ `stakeIncrease` opens the list but is DISABLED at the maximum bet (bridge §6.1). A session left
+  # at the top bet reports `changed_bet_to: None` and the gate goes red — reset the bet, rather than
+  # reading it as a Last Bet defect.
+  - run:
+      scenario: bonus-resume-denomination-swap
+      paytable: { ref: joker-fs-easy, max_win_x: 100 }
+      teardown: [reset-denomination, return-to-base]
+      params: { max_spins: 20 }
+      # ONE clip for both cases: the trigger, the close, the reopen, the resumed bonus, and the base
+      # game after it. Each case grades the phase that is its claim (expected_by_case).
+      video:
+        at: [trigger, restored]
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines and a FREE SPINS bonus in
+          which a WILD landing on certain reels expands to cover the whole reel. This clip has FOUR
+          PHASES. The ACTION TIMELINE marks the trigger, the close, the bet-ladder change, the
+          reopen, and the return to the base game — use it rather than guessing where each phase
+          begins.
+
+          PHASE 1: a base spin at a bet amount of {facts.trigger_base_stake} triggers FREE SPINS.
+          Note the bet readout and the reels.
+
+          PHASE 2: the game is CLOSED (a blank or loading screen) while the bonus is still owed.
+          While it is closed, the available bet amounts are changed in the back office to a
+          completely different set, {facts.new_ladder}.
+
+          PHASE 3: the game is reopened. The free spins are expected to CONTINUE on their own —
+          the game plays them itself, with no input — and run to the end of the bonus.
+
+          PHASE 4: the bonus has ended and the game is back in the ordinary base game, sitting
+          ready for a few seconds.
+
+          Answer each question about the phase it names, independently:
+
+          (1) reload_visible: does the clip actually contain the game closing and reopening — a
+          blank or loading state, then the game again? Answer false if no such break occurs.
+
+          (2) bonus_resumed: in PHASE 3, does the free-spin bonus continue — further spins playing
+          by themselves, a free-spin counter, possibly a wild expanding — rather than the game
+          reopening straight into an ordinary base game?
+
+          (3) bet_during_bonus_is_old: during PHASE 3, does the bet readout show
+          {facts.trigger_base_stake}, the bet amount from PHASE 1? Answer false if it shows
+          anything else, or if no bet readout is visible during the bonus.
+
+          (4) bet_during_bonus_is_new_value: during PHASE 3, does the bet readout instead show one
+          of the new values, {facts.new_ladder}? Answer independently of (3).
+
+          (5) back_to_base: in PHASE 4, is the game in the ordinary base game, ready to spin, with
+          the bonus over?
+
+          (6) bet_after_bonus_is_new_default: in PHASE 4, does the bet readout show
+          {facts.new_default_bet}?
+
+          (7) ui_broken: in PHASE 3 or PHASE 4, is anything overlapping, cut off, placeholder or
+          visibly broken?
+        output_schema:
+          reload_visible: { type: boolean }
+          bonus_resumed: { type: boolean }
+          bet_during_bonus_is_old: { type: boolean }
+          bet_during_bonus_is_new_value: { type: boolean }
+          back_to_base: { type: boolean }
+          bet_after_bonus_is_new_default: { type: boolean }
+          ui_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # ⚠ `bet_during_bonus_is_old` assumes this build SHOWS a bet readout during free spins.
+          # If the first live run finds it hidden, this goes false on a healthy build: drop it from
+          # here and let the stream half (`pending_stake_is_trigger`, `bet_during_bonus_is_old`)
+          # carry the claim, which reads the client's state whether or not it is drawn.
+          JK-57:
+            reload_visible: true
+            bonus_resumed: true
+            bet_during_bonus_is_old: true
+            bet_during_bonus_is_new_value: false
+            ui_broken: false
+            confidence: medium
+          JK-58:
+            reload_visible: true
+            back_to_base: true
+            bet_after_bonus_is_new_default: true
+            ui_broken: false
+            confidence: medium
+      cases:
+        - id: JK-57
+          title: "A bonus resumed after a BO denomination change plays out at the bet it was triggered at"
+          assert:
+            # THE PREMISE: the ladder really changed, reached the client, and does not contain X.
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            - stream: "{facts.trigger_base_stake} > 0"
+            # THE GATE: the reopen really resumed an owed bonus.
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.is_pending_freespin} == True"
+            # Rule 17: "the bet stayed X in every resumed round" needs more than one round. The
+            # smallest award this fixture can produce is 12, and the close comes before the client
+            # fires the first, so all of them are resumed rounds.
+            - stream: "{facts.resumed_rounds} >= 2"
+            # THE CASE. The server froze X for the bonus...
+            - stream: "{facts.pending_stake_is_trigger} == True"
+            # ...and the client kept showing X in every resumed round, never a new-ladder value.
+            - stream: "{facts.bet_during_bonus_is_old} == True"
+            - stream: "{facts.bet_during_bonus_on_new_ladder} == False"
+            # the resumed rounds were free and the bonus finished cleanly
+            - stream: stake_zero_in_freespins
+            - stream: terminal_reached
+            - stream: conservation
+
+        - id: JK-58
+          title: "After the resumed bonus ends, the bet switches to the new denomination's default"
+          assert:
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            # "after the bonus ends" presupposes one ran and ended
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.is_pending_freespin} == True"
+            - stream: "{facts.resumed_rounds} >= 1"
+            - stream: terminal_reached
+            # THE CASE: the base game opens on the new ladder's default...
+            - stream: "{facts.new_default_bet} != None"
+            - stream: "{facts.bet_after_bonus_is_new_default} == True"
+            # ...which is, necessarily, a value of the new ladder, not the old X.
+            - stream: "{facts.bet_after_bonus_on_new_ladder} == True"

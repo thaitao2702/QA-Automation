@@ -1,0 +1,165 @@
+# Mystic — Feature-toggle popups (Mah_105-108) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-popups.yml
+#
+# The SUBJECT of these cases is the on-screen notification ("Turbo Enabled/Disabled", ...), which no
+# bridge getter reports — so the popup itself is always a `video:` (orange-only) claim. What the bridge
+# DOES expose (getSpeedMode, isAutoPlay) is captured as a fact and asserted with `stream:`, so "the
+# feature really toggled" stays a hard, exact check and only "the notification appeared" is AI-graded.
+# Every toggle is marked, so each prompt runs with `timestamp: true` and the ACTION TIMELINE tells the
+# model exactly when to look.
+#
+# One run per feature (rather than one shared clip) on purpose: a missing feature must make only ITS
+# case inconclusive, never red, and never the others'.
+#
+# ⚠ Mah_106 (Ante Bet popup) has NO run here: Mystic has no Ante Bet, so the case's precondition
+# ("the game supports Ante") cannot be met. The `toggle-ante` scenario has been removed too — if a
+# later build gains the feature, it is a near-copy of `toggle-turbo` (probe `anteBet`, toggle on/off,
+# dwell for the notification) minus the speed-mode facts, since the bridge exposes no ante getter.
+#
+# ⚠ LIVE-UNVERIFIED. Notifications may be short-lived; if the AI keeps missing them, add
+# `high_fps: true` to that video block (16fps effective instead of 4fps).
+
+runs:
+  # ── Mah_105 : Turbo Enabled / Disabled popup ───────────────────────────────────────
+  - run:
+      scenario: toggle-turbo
+      teardown: return-to-base
+      cases:
+        - id: Mah_105
+          title: "Turning Turbo on and off shows the Turbo Enabled / Disabled popup"
+          assert:
+            # hard: the feature genuinely toggled (bridge model truth, not the button's look)
+            - stream: "'{facts.speed_after_on}' == 'TURBO'"
+            - stream: "'{facts.speed_after_off}' == 'NORMAL'"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot with a Turbo (fast spin) feature. In this clip the
+                  Turbo button is clicked TWICE with a pause in between: the first click turns Turbo ON,
+                  the second turns it back OFF. The ACTION TIMELINE below gives the exact clip-relative
+                  time of each click — line it up with the burned-in timestamps and look at the moments
+                  just AFTER each click. Answer: (1) right after the first click, does a notification /
+                  popup / toast appear telling the player Turbo is ENABLED or ON
+                  (turbo_enabled_popup)? (2) right after the second click, does a notification appear
+                  telling the player Turbo is DISABLED or OFF (turbo_disabled_popup)? (3) do those
+                  notifications disappear on their own rather than staying on screen for the rest of the
+                  clip (popup_auto_closed)? Judge only the notification — ignore reel speed.
+                output_schema:
+                  turbo_enabled_popup: { type: boolean }
+                  turbo_disabled_popup: { type: boolean }
+                  popup_auto_closed: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  turbo_enabled_popup: true
+                  turbo_disabled_popup: true
+                  confidence: medium
+
+  # ── Mah_107 : Auto Play Enabled / Disabled popup ───────────────────────────────────
+  - run:
+      scenario: toggle-auto
+      teardown: return-to-base
+      cases:
+        - id: Mah_107
+          title: "Starting and stopping Auto Play shows the Auto Play Enabled / Disabled popup"
+          assert:
+            # hard: auto really ran and really stopped (bridge isAutoPlay + the collected responses)
+            - stream: "{facts.auto_started} == True"
+            - stream: "{facts.auto_stopped} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot with an Auto Play feature. In this clip Auto Play is
+                  STARTED (the autoplay popup is opened, a spin count is chosen, and Start/Confirm is
+                  pressed), one automatic spin plays, and then Auto Play is STOPPED from the main screen.
+                  The ACTION TIMELINE below gives the exact clip-relative time of the start and the stop —
+                  line it up with the burned-in timestamps. Answer: (1) right after Auto Play is
+                  confirmed, does a notification / popup / toast appear telling the player Auto Play is
+                  ENABLED or started (auto_enabled_popup)? (2) right after Auto Play is stopped, does a
+                  notification appear telling the player Auto Play is DISABLED or stopped
+                  (auto_disabled_popup)? (3) do those notifications disappear on their own
+                  (popup_auto_closed)? The autoplay SETTINGS panel (where the spin count is chosen) is NOT
+                  the notification — do not count it as one.
+                output_schema:
+                  auto_enabled_popup: { type: boolean }
+                  auto_disabled_popup: { type: boolean }
+                  popup_auto_closed: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_enabled_popup: true
+                  auto_disabled_popup: true
+                  confidence: medium
+
+  # ── Mah_108 : several popups in a row — no overlap, right order, auto-close ─────────
+  # `toggles_landed` guards against a vacuous pass: if the burst never happened there was nothing to
+  # stack, and the AI's "no overlap" would be meaningless. `max_concurrent_popups` / `popup_order` are
+  # reported as DIAGNOSTICS only — the game's notifications may not be registered popups, in which case
+  # the bridge sees nothing and only the video can judge overlap.
+  #
+  # The case's precondition names Turbo + Ante + Auto, but MYSTIC HAS NO ANTE BET and this run does not
+  # start Auto Play — the case is about the notifications, and a spin would only put animation between
+  # them. The scenario PROBES which feature buttons the build actually has and bursts on those (here:
+  # Turbo + sound, each toggled ON/OFF twice = 8 taps); an absent button is skipped instantly rather
+  # than stalling the burst it is meant to create. So the prompt below deliberately does NOT name a
+  # fixed sequence: `timestamp: true` feeds the model the real per-tap ACTION TIMELINE
+  # ("TOGGLE: turbo", "TOGGLE: sound", ...) recorded during the run.
+  #
+  # `>= 4` is the floor for a build with only ONE probeable feature (1 feature x 2 cycles x on/off);
+  # Mystic's two features give 8. It is a guard against a vacuous pass, not a target.
+  - run:
+      scenario: stacked-popups
+      cases:
+        - id: Mah_108
+          title: "Rapidly toggling several features does not stack or overlap the popups"
+          assert:
+            - stream: "{facts.toggles_landed} >= 4"
+            # NOT asserted: {facts.popups_cleared_after_idle}. Mystic does not report these
+            # notifications in `visiblePopups` (probed 2026-09-02: the toast is on screen while the
+            # snapshot reads []), so "no popups are left" is true on every build — including one
+            # where a notification really is stuck. The scenario now reports it as UNKNOWN rather
+            # than True. Until the bridge surfaces notifications, the screen claims are the only
+            # real evidence, so they are graded from pixels.
+            - image:
+                # ONE still of the settled screen after the idle stretch. A single full-resolution
+                # frame is a far easier question than "did it close during the tail?" of a video —
+                # which the AI got wrong on a clip that plainly showed it closing.
+                at: after-idle
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This still was captured after the game sat
+                  IDLE for several seconds following a burst of feature toggles. Any notification
+                  banner raised by those toggles ("Turbo Spin Enabled", "Turbo Spin Disabled",
+                  "Sound On", ...) should have closed itself by now. Is the screen free of any
+                  such notification banner or toast?
+                output_schema:
+                  screen_free_of_notifications: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  screen_free_of_notifications: true
+                  confidence: medium
+            - video:
+                high_fps: true          # 16fps effective — notifications land close together here
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. In this clip its main-screen feature toggles are
+                  switched ON and OFF repeatedly, BACK-TO-BACK with no pause between clicks, so several
+                  notifications ("Turbo Enabled", "Turbo Disabled", ...) are requested within a second or
+                  two of each other. No spin is played — the reels stay still throughout — and the clip
+                  finishes with a quiet IDLE stretch where nothing is clicked. Do NOT assume a sequence:
+                  the ACTION TIMELINE below lists EVERY toggle as "TOGGLE: <button>" with its exact
+                  clip-relative time, in the real order they were clicked, plus the start of the idle
+                  stretch — line those up with the burned-in timestamps and judge what is on screen at
+                  those moments. Answer: (1) do the notifications ever OVERLAP or sit stacked on top of one
+                  another / on the same screen area at the same moment (popups_overlap)? (2) does each one
+                  appear one at a time, in the same order as the toggles in the ACTION TIMELINE
+                  (popups_in_order)? Judge ONLY the burst — whether the screen ends clean is graded
+                  separately from a still, so do not answer that here. Judge only the notifications — a toggle that
+                  raises no notification at all is not an overlap and not an ordering error, so ignore it
+                  for (1) and (2).
+                output_schema:
+                  popups_overlap: { type: boolean }
+                  popups_in_order: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  popups_overlap: false
+                  popups_in_order: true
+                  confidence: medium

@@ -171,13 +171,50 @@ def find_default_paytable(row, prefer_rtp_level=None):
     return defaults[0]
 
 
-def build_submit_row(row, paytable, max_payout_default):
+def find_current_paytable(row):
+    """The paytable the row is on RIGHT NOW — the payTableList entry whose payTableId matches.
+
+    For a change that is not about the paytable (a denomination assignment), `build_submit_row`
+    still needs a paytable to rebuild the row from. Falls back to a synthetic entry carrying the
+    row's own ids, so a row whose list does not include its current paytable still round-trips
+    unchanged instead of being silently moved to another one.
+    """
+    for pt in row.get("payTableList") or []:
+        if pt.get("payTableId") == row.get("payTableId"):
+            return pt
+    return {
+        "payTableId": row.get("payTableId"),
+        "isDefault": (
+            STATUS_ACTIVE
+            if row.get("isDefaultPaytable") == PAYTABLE_FOLLOWING_DEFAULT
+            else STATUS_INACTIVE
+        ),
+    }
+
+
+def build_submit_row(row, paytable, max_payout_default, max_payout=None,
+                     denomination_id=None, is_denom_override=None):
     """
     Build one submit gameSettings row from a raw GET row + a chosen paytable,
     changing only the paytable and preserving every other current value.
     Reproduces handleOnBeforeSubmit + getInitialMaxPayout field-by-field.
 
     isDefaultPaytable is derived from the chosen paytable's isDefault flag.
+
+    `max_payout` OVERRIDES the agent's max payout for this game:
+      * a number -> turn the override ON and cap the payout at that amount. A forced paytable can
+        award a very long bonus (a Chaos free-spin run at a 40% scatter weight retriggers for
+        hundreds of spins), and the cap is what makes such a run END: the server truncates at the
+        cap and flags `hasReachedMaxWin`, which the framework already treats as terminal.
+      * `False` -> clear the override, restoring the agent's default cap (used by the teardown, so
+        a test's cap cannot leak into the next run).
+      * `None` (default) -> preserve whatever the row already has.
+
+    `denomination_id` / `is_denom_override` do the same job for the DENOMINATION (the callers are
+    in framework/bo/denominations.py). `None` preserves the row's current value, which is what
+    keeps a paytable change from moving the denomination and vice versa. `is_denom_override`
+    truthy = this agent OVERRIDES the master game's denomination (1); falsy = follow the master
+    default (0) — the reverse reading of `isDefaultPaytable` above.
     """
     # getInitialMaxPayout (GameSettingUpdate.tsx:287-303)
     override = row.get("override") or STATUS_INACTIVE
@@ -186,6 +223,10 @@ def build_submit_row(row, paytable, max_payout_default):
         effective_max = max_payout_default
     else:
         effective_max = custom
+    if max_payout is False:                 # teardown: back to the agent default
+        override, effective_max = STATUS_INACTIVE, max_payout_default
+    elif max_payout is not None:            # setup: cap this game for the run
+        override, effective_max = STATUS_ACTIVE, max_payout
 
     is_default_paytable = (
         PAYTABLE_FOLLOWING_DEFAULT
@@ -200,11 +241,18 @@ def build_submit_row(row, paytable, max_payout_default):
         "maxPayoutCustom": _num(effective_max) if effective_max else None,
         "override": STATUS_INACTIVE if not override else STATUS_ACTIVE,
         "payTableId": paytable.get("payTableId"),
-        "denominationId": row.get("denominationId"),
+        # `denomination_id` / `is_denom_override` default to None = PRESERVE, so a paytable change
+        # never moves the denomination, and a denomination change never moves the paytable.
+        "denominationId": (
+            row.get("denominationId") if denomination_id is None else denomination_id
+        ),
         "rtpLevel": row.get("rtpLevel"),
         # JS: maxMultiplier ? Number(...) : null  (0 -> null)
         "maxMultiplier": _num(row["maxMultiplier"]) if row.get("maxMultiplier") else None,
-        "isDenomOverride": row.get("isDenomOverride"),
+        "isDenomOverride": (
+            row.get("isDenomOverride") if is_denom_override is None
+            else (STATUS_ACTIVE if is_denom_override else STATUS_INACTIVE)
+        ),
         "isDefaultPaytable": is_default_paytable,
     }
 
@@ -237,16 +285,19 @@ def set_agent_paytable(
     game_code,
     paytable_code,
     auto_finalization=None,
+    max_payout=None,
 ):
     """
     SETUP: point `game_code`'s paytable at the one named `paytable_code`
     (e.g. "AutomationTest"). Fetches current settings, exact-matches the game,
     preserves all other fields, submits one row. Returns the update response.
+
+    `max_payout` (optional) also caps the agent's payout for this game — see build_submit_row.
     """
     data = get_agent_game_settings(client, agent_id, currency_id, game_code=game_code)
     row = find_game_row(data, game_code=game_code)
     paytable = find_paytable_by_code(row, paytable_code)
-    submit_row = build_submit_row(row, paytable, data.get("maxPayout"))
+    submit_row = build_submit_row(row, paytable, data.get("maxPayout"), max_payout)
     af = auto_finalization or _auto_finalization_from(data)
     logger.info(
         "Set paytable: agent=%s game=%s id=%s -> %s (payTableId=%s, isDefaultPaytable=%s)",
@@ -271,7 +322,8 @@ def reset_agent_paytable_to_default(
     data = get_agent_game_settings(client, agent_id, currency_id, game_code=game_code)
     row = find_game_row(data, game_code=game_code)
     paytable = find_default_paytable(row, prefer_rtp_level=row.get("rtpLevel"))
-    submit_row = build_submit_row(row, paytable, data.get("maxPayout"))
+    # `False` clears any max-payout override a run set, so the cap never leaks into the next test.
+    submit_row = build_submit_row(row, paytable, data.get("maxPayout"), max_payout=False)
     af = auto_finalization or _auto_finalization_from(data)
     logger.info(
         "Reset paytable to default: agent=%s game=%s id=%s -> %s (payTableId=%s)",

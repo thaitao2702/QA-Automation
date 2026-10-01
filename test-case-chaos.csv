@@ -1,0 +1,438 @@
+ID,Module,Test case,Điều kiện,Các bước thực hiện,Kết quả mong đợi
+CR_001,Khởi tạo & Loading,Kiểm tra thanh Loading khi Game Info trả về trong vòng 10 giây,Game hoạt động bình thường,"1. Mở game.
+2. Quan sát thanh Loading trong quá trình tải game.
+3. Theo dõi thời điểm Game Info được trả về (≤ 10 giây).","- Thanh Loading chạy từ 1% → 30%.
+- Sau khi nhận được Game Info (trong vòng 10 giây), game tự động chuyển sang trang Landing Page.
+- Thanh Loading tiếp tục chạy cho đến khi game tải hoàn tất."
+CR_002,Khởi tạo & Loading,Kiểm tra thanh Loading khi Game Info trả về sau 10 giây,Giả lập hoặc cấu hình Game Info trả về sau 10 giây,"1. Mở game.
+2. Quan sát thanh Loading trong quá trình tải game.
+3. Theo dõi thời điểm Game Info được trả về (> 10 giây).","- Thanh Loading chạy từ 1% → 30%.
+- Thanh Loading dừng tại 30% và chờ Game Info.
+- Sau khi nhận được Game Info, game chuyển sang trang Landing Page.
+- Thanh Loading tiếp tục chạy cho đến khi game tải hoàn tất."
+CR_003,Khởi tạo & Loading,Kiểm tra game khởi tạo thành công sau khi tải hoàn tất,Game hoạt động bình thường,"1. Mở game.
+2. Chờ game tải hoàn tất.
+3. Quan sát giao diện sau khi vào game.","- Game vào màn hình chính thành công.
+- Các thành phần giao diện (Reels, Balance, Bet Amount, nút Spin, Menu...) hiển thị đầy đủ.
+- Không xuất hiện lỗi hoặc màn hình trắng sau khi tải xong."
+CR_004,Bet & Denomination,Kiểm tra Denomination hiển thị đúng theo cấu hình BO,Game đã được cấu hình Denomination trên BO,"1. Mở game.
+2. Mở Console hoặc xem Game Info trả về.
+3. Kiểm tra danh sách Denomination.
+4. Đối chiếu với cấu hình trên BO.","- Danh sách Denomination giống cấu hình trên BO.
+- Không thiếu hoặc thừa giá trị.
+- Thứ tự Denomination đúng."
+CR_005,Bet & Denomination,Kiểm tra chức năng tăng/giảm Bet Amount,Game đang ở trạng thái chờ,"1. Nhấn nút (+) nhiều lần.
+2. Nhấn nút (-) nhiều lần.","- Bet Amount tăng/giảm đúng theo danh sách Denomination.
+- Không vượt quá giá trị Min/Max.
+- Total Bet cập nhật đúng sau mỗi lần thay đổi."
+CR_006,Bet & Denomination,Kiểm tra Bet Level mặc định,BO đã cấu hình Bet Level mặc định,"1. Mở game.
+2. Quan sát Bet Amount khi vào game.","- Bet Level mặc định đúng theo cấu hình BO.
+- Total Bet hiển thị đúng với Bet Level mặc định."
+CR_007,Balance,Kiểm tra trừ Balance khi thực hiện Spin,Balance đủ để đặt cược,"1. Ghi nhận Balance hiện tại.
+2. Ghi nhận Bet Amount.
+3. Nhấn Spin.","- Balance bị trừ ngay sau khi nhấn Spin.
+- Balance mới = Balance cũ − Bet Amount."
+CR_008,Balance,Kiểm tra cộng Balance sau khi có kết quả Spin,Có kết quả thắng,"1. Thực hiện một lượt quay có thắng.
+2. Chờ reels quay xong.
+3. Quan sát Balance.","- Balance được cộng sau khi reels kết thúc.
+- Balance mới = Balance sau khi trừ cược + Payout."
+CR_009,Balance,Kiểm tra khi Balance không đủ để Spin,Balance nhỏ hơn Bet Amount,"1. Giảm Balance nhỏ hơn mức cược.
+2. Nhấn Spin.","- Game không cho phép đặt cược.
+- Hiển thị popup thông báo hết số dư.
+- Không gửi request Bet lên server."
+CR_010,Balance,Kiểm tra Auto Play khi hết Balance,Auto Play đang chạy,"1. Bật Auto Play.
+2. Chờ Balance nhỏ hơn mức cược.","- Auto Play tự động dừng.
+- Hiển thị popup thông báo hết số dư.
+- Không thực hiện thêm lượt quay mới."
+CR_011,Balance,Kiểm tra khi hết Balance trong Free Spin/Buy Bonus/Promo,Đang ở Feature Game,"1. Kích hoạt Free Spin hoặc Buy Bonus hoặc Promo.
+2. Để Balance về 0 trong lúc feature đang chạy.
+3. Tiếp tục chơi đến khi feature kết thúc.","- Feature vẫn chạy đến hết.
+- Không hiển thị popup hết số dư trong Feature.
+- Sau khi quay về Base Game mới kiểm tra Balance như bình thường."
+CR_012,History,Kiểm tra lịch sử cược trong Game,Đã thực hiện ít nhất 1 lượt quay,"1. Thực hiện một hoặc nhiều lượt quay.
+2. Mở cửa sổ History trong game.
+3. Kiểm tra thông tin của các lượt cược.","- History hiển thị đúng theo thiết kế.
+- Thông tin hiển thị chính xác (Bet Amount, Win Amount, thời gian, kết quả...).
+- Thứ tự các lượt cược đúng."
+CR_013,History,Kiểm tra lịch sử cược trên BO,Đã thực hiện ít nhất 1 lượt quay và có quyền truy cập BO,"1. Thực hiện một hoặc nhiều lượt quay.
+2. Đăng nhập BO.
+3. Tìm lịch sử cược của player.
+4. Đối chiếu với History trong game.","- Dữ liệu trên BO khớp với dữ liệu trong game.
+- Bet Amount, Win Amount, trạng thái và thời gian chính xác.
+- Không thiếu hoặc trùng dữ liệu."
+CR_014,Paytable popup,Kiểm tra giao diện Paytable popup,Game mở thành công,"1. Click vào symbol
+2. Quan sát toàn bộ giao diện.","- Giao diện hiển thị đúng thiết kế.
+- Có thể mở/đóng Paytable popup bình thường."
+CR_015,Paytable popup,Kiểm tra giá trị payout thay đổi theo Bet Amount,Game mở thành công,"1. Click vào symbol
+2. Ghi nhận giá trị payout.
+3. Thay đổi Bet Amount.
+4. Chọn lại biểu tượng và kiểm tra payout.","- Giá trị payout được cập nhật theo Bet Amount hiện tại.
+- Công thức hiển thị đúng: Payout = Total Bet / 20 × Symbol Multiplier."
+CR_016,Paytable popup,Kiểm tra thông tin payout của tất cả Symbol,Game mở thành công,1. Lần lượt chọn từng Symbol mở paytable popup,"- Mỗi Symbol hiển thị đúng hình ảnh, tên và payout theo Paytable.
+- Không có Symbol bị thiếu hoặc hiển thị sai."
+CR_017,Paytable popup,Kiểm tra cập nhật Paytable popup sau khi thay đổi Bet Amount nhiều lần,Game mở thành công,"1. Mở Paytable popup.
+2. Thay đổi Bet Amount liên tục bằng nút (+)/(-).
+3. Quan sát giá trị payout của các Symbol.",- Mọi giá trị payout được cập nhật đúng theo Bet Amount mới khi mở lại paytable popup
+CR_018,Auto Play,Kiểm tra bật Auto Play,Game đang ở trạng thái chờ,"1. Nhấn nút Auto Play.
+2. Chọn số lượt quay và các điều kiện dừng mong muốn.
+3. Nhấn Confirm.","- Auto Play được kích hoạt thành công.
+- Game tự động thực hiện các lượt quay.
+- Nút Spin hiển thị số lượt quay còn lại."
+CR_019,Auto Play,Kiểm tra Auto Play dừng khi hết số lượt quay,Auto Play đang hoạt động,"1. Chọn số lượt quay (ví dụ: 10).
+2. Nhấn Confirm để bắt đầu Auto Play.
+3. Chờ Auto Play chạy hết số lượt đã chọn.","- Auto Play tự động dừng sau khi hoàn thành đúng số lượt quay đã thiết lập.
+- Không thực hiện thêm lượt quay mới."
+CR_020,Auto Play,Kiểm tra Auto Play dừng khi kích hoạt Stop at Any Win,Auto Play đang hoạt động và đã bật Stop at Any Win,"1. Bật tùy chọn Stop at Any Win.
+2. Bắt đầu Auto Play.
+3. Chờ đến khi xuất hiện một lượt quay thắng.","- Auto Play dừng ngay sau khi kết thúc lượt quay có thắng.
+- Không tiếp tục thực hiện lượt quay tiếp theo."
+CR_021,Auto Play,Kiểm tra Auto Play dừng khi hết số dư,Balance nhỏ hơn Bet Amount sau một số lượt quay,"1. Bật Auto Play.
+2. Chờ Balance không còn đủ để đặt cược.","- Auto Play tự động dừng.
+- Hiển thị popup thông báo hết số dư theo thiết kế.
+- Không gửi thêm yêu cầu đặt cược."
+CR_022,Auto Play,Kiểm tra Auto Play dừng khi người chơi nhấn Stop,Auto Play đang hoạt động,"1. Bật Auto Play.
+2. Trong khi Auto Play đang chạy, nhấn Stop.","- Auto Play dừng theo đúng thiết kế (ngay lập tức hoặc sau khi kết thúc lượt quay hiện tại).
+- Không thực hiện thêm lượt quay mới."
+CR_023,Auto Play,Kiểm tra Auto Play sau khi reload hoặc mở lại game,Auto Play đang hoạt động,"1. Bật Auto Play.
+2. Reload trang hoặc đóng và mở lại game.","- Auto Play không tiếp tục sau khi vào lại game.
+- Game trở về trạng thái mặc định theo thiết kế."
+CR_024,Auto Play,Kiểm tra trạng thái các nút khi Auto Play hoạt động,Auto Play đang hoạt động,"1. Bật Auto Play.
+2. Quan sát trạng thái các nút trên giao diện trong quá trình Auto Play.","- Nút +, - bị khóa.
+- Các nút Trophy, Paytable, Sound, Info, Menu bị disable.
+- Nút Spin hiển thị đúng số lượt quay còn lại."
+CR_025,Auto Play,Kiểm tra Bet Amount khi sử dụng Auto Play,Game đang ở trạng thái chờ,"1. Điều chỉnh Bet Amount bằng nút +/-.
+2. Bật Auto Play.
+3. Quan sát các lượt quay trong Auto Play.","- Auto Play sử dụng đúng Bet Amount đã chọn trước khi bắt đầu.
+- Bet Amount không thay đổi trong suốt quá trình Auto Play."
+CR_026,Turbo,Kiểm tra bật/tắt chế độ Turbo,Game đang ở trạng thái chờ,"1. Nhấn nút Turbo để bật.
+2. Thực hiện một lượt quay.
+3. Nhấn nút Turbo để tắt.
+4. Thực hiện thêm một lượt quay.","- Khi bật Turbo, tốc độ quay của reels nhanh hơn bình thường.
+- Chức năng Stop Now được kích hoạt.
+- Khi tắt Turbo, tốc độ quay trở về bình thường."
+CR_027,Turbo,Kiểm tra Hold for Turbo bằng chuột,Game đang ở trạng thái chờ,"1. Nhấn giữ nút Spin khoảng 1 giây.
+2. Quan sát trạng thái Turbo.
+3. Thả chuột.","- Turbo được kích hoạt trong thời gian giữ chuột.
+- Nút Turbo sáng.
+- Chức năng Stop Now được kích hoạt.
+- Khi thả chuột, Turbo tự động tắt và trở về trạng thái ban đầu."
+CR_028,Turbo,Kiểm tra Hold for Turbo bằng phím Space,Game đang ở trạng thái chờ,"1. Nhấn giữ phím Space khoảng 1 giây.
+2. Quan sát trạng thái Turbo.
+3. Thả phím Space.","- Turbo được kích hoạt trong thời gian giữ phím.
+- Nút Turbo sáng.
+- Chức năng Stop Now được kích hoạt.
+- Khi thả phím, Turbo tự động tắt và trở về trạng thái ban đầu."
+CR_029,Turbo,Kiểm tra Turbo khi giữ chuột/phím trong lúc reels đang quay,Turbo đang bật hoặc Hold for Turbo đang hoạt động,"1. Bắt đầu một lượt quay.
+2. Nhấn giữ chuột hoặc phím Space trong khi reels đang quay.
+3. Thả chuột/phím.","- Reels được Sudden Stop theo thiết kế.
+- Không xảy ra lỗi animation hoặc kẹt trạng thái Turbo.
+- Sau khi thả chuột/phím, Turbo trở về trạng thái đúng theo thiết lập trước đó."
+CR_030,Sound,Kiểm tra tắt âm thanh khi chuyển tab hoặc ẩn trình duyệt,Game đang phát âm thanh,"1. Mở game.
+2. Chuyển sang tab khác hoặc thu nhỏ trình duyệt.","- Toàn bộ âm thanh của game được tắt khi tab không còn được focus.
+- Âm thanh phát lại bình thường khi quay lại game."
+CR_031,Sound,Kiểm tra bật/tắt Sound (SFX),Game đang hoạt động,"1. Bật/Tắt Sound trong phần cài đặt.
+2. Thực hiện một lượt quay.","- Khi tắt Sound, toàn bộ hiệu ứng âm thanh (Spin, Win, Button...) không phát.
+- Khi bật lại, hiệu ứng âm thanh phát bình thường."
+CR_032,Sound,Kiểm tra bật/tắt Music (BGM),Game đang hoạt động,"1. Bật/Tắt Music trong phần cài đặt.
+2. Quan sát âm thanh nền.","- Khi tắt Music, âm nhạc nền có Volume = 0.
+- Khi bật lại, nhạc nền phát bình thường."
+CR_033,Auto Reconnect,Kiểm tra tự động kết nối lại khi mất mạng dưới 20 giây,Game đang hoạt động,"1. Mở game.
+2. Ngắt kết nối mạng dưới 20 giây.
+3. Kết nối mạng lại.","- Hiển thị trạng thái đang kết nối lại.
+- Game tự động reconnect thành công.
+- Người chơi tiếp tục chơi bình thường tại trạng thái trước khi mất kết nối."
+CR_034,Auto Reconnect,Kiểm tra khi mất kết nối trên 20 giây,Game đang hoạt động,"1. Mở game.
+2. Ngắt kết nối mạng trên 20 giây.
+3. Kết nối mạng lại.","- Không tự reconnect vào game.
+- Hiển thị popup thông báo.
+- Người chơi được chuyển về Landing Page/Home theo thiết kế."
+CR_035,Auto Reconnect,Kiểm tra khi chuyển đổi mạng (Wi-Fi A → Wi-Fi B),Game đang hoạt động,"1. Mở game bằng Wi-Fi A.
+2. Chuyển sang Wi-Fi B trong khi game đang mở.","- Hệ thống xử lý đúng theo thiết kế.
+- Nếu không thể duy trì session, hiển thị popup và chuyển về Landing Page/Home."
+CR_036,Auto Reconnect,Kiểm tra đăng nhập cùng tài khoản trên nhiều tab,Đã mở game trên Tab 1,"1. Mở cùng game với cùng tài khoản trên Tab 2.
+2. Quay lại Tab 1.","- Session cũ bị vô hiệu theo thiết kế.
+- Hiển thị popup thông báo.
+- Tab cũ được chuyển về Landing Page/Home."
+CR_037,Auto Reconnect,Kiểm tra Auto Reconnect khi đang Auto Play,Auto Play đang hoạt động,"1. Bật Auto Play.
+2. Ngắt mạng dưới 20 giây.
+3. Kết nối lại mạng.","- Game reconnect thành công.
+- Trạng thái Auto Play được xử lý đúng theo thiết kế (tiếp tục hoặc dừng tùy requirement).
+- Không bị mất đồng bộ dữ liệu."
+CR_038,Auto Reconnect,Kiểm tra khi ẩn/chuyển tab trong thời gian dài,Game đang hoạt động,"1. Mở game.
+2. Chuyển sang tab khác hoặc thu nhỏ trình duyệt trong khoảng 30–45 phút.
+3. Quay lại game.","- Session được xử lý đúng theo thiết kế.
+- Nếu session hết hạn, hiển thị popup và chuyển về Landing Page/Home.
+- Nếu session còn hiệu lực, game tiếp tục hoạt động bình thường."
+CR_039,Auto Reconnect,Kiểm tra khi quay lại tab game,Game đang hoạt động,"1. Mở game.
+2. Chuyển sang tab khác trong thời gian ngắn.
+3. Quay lại tab game.","- Game tiếp tục hoạt động bình thường.
+- Balance, trạng thái game và giao diện được đồng bộ chính xác.
+- Không tự động reload hoặc hiển thị lỗi."
+CR_040,Auto Reconnect,Kiểm tra trong điều kiện mạng chậm hoặc không ổn định,Game đang hoạt động,"1. Giả lập mạng chậm hoặc mạng có độ trễ cao.
+2. Thực hiện nhiều lượt quay và thao tác trong game.","- Game xử lý ổn định.
+- Không bị treo giao diện.
+- Không gửi request trùng.
+- Đồng bộ đúng trạng thái sau khi nhận được phản hồi từ server."
+CR_041,Cơ chế quay,Kiểm tra thực hiện Spin bằng nút Spin và phím Space,Game ở trạng thái chờ,"1. Nhấn nút Spin.
+2. Chờ lượt quay kết thúc.
+3. Nhấn phím Space để quay tiếp.","- Cả nút Spin và phím Space đều kích hoạt lượt quay thành công.
+- Reels bắt đầu quay bình thường.
+- Chỉ thực hiện 01 lượt quay cho mỗi thao tác."
+CR_042,Cơ chế quay,Kiểm tra Hold Spin để kích hoạt Auto Spin và Sudden Stop,Game ở trạng thái chờ,"1. Nhấn giữ nút Spin hoặc phím Space khoảng 1 giây.
+2. Quan sát khi game tự động quay.
+3. Tiếp tục giữ trong lúc reels đang quay.
+4. Thả chuột/phím.","- Khi giữ đủ thời gian, Auto Spin được kích hoạt.
+- Khi tiếp tục giữ trong lúc reels đang quay, Sudden Stop được kích hoạt.
+- Khi thả chuột/phím, Auto Spin dừng theo thiết kế."
+CR_043,Cơ chế quay,Kiểm tra Double Click để kích hoạt Sudden Stop,Reels đang quay,"1. Thực hiện một lượt quay.
+2. Trong khi reels đang quay, nhấn Spin thêm một lần (double click theo thiết kế).","- Reels dừng ngay lập tức (Sudden Stop).
+- Kết quả trả thưởng vẫn chính xác.
+- Không bị lỗi animation, đứng reels hoặc mất kết quả."
+CR_044,Reel Glow,Kiểm tra Reel Glow khi xuất hiện 2 Bonus trên 2 reel khác nhau,Có kết quả trả về chứa Bonus trên 2 reel khác nhau,"1. Thực hiện lượt quay có Bonus theo điều kiện.
+2. Quan sát hiệu ứng Reel Glow.","- Các symbol không phải Bonus bị làm tối trên các reel chứa Bonus.
+- Các reel còn lại hiển thị hiệu ứng Reel Glow theo đúng thiết kế.
+- Hiệu ứng kết thúc đúng thời điểm."
+CR_045,Reel Glow,Kiểm tra Reel Glow khi xuất hiện điều kiện thắng của P1,Có kết quả thắng với P1,"1. Thực hiện lượt quay có P1 trên các reel thắng.
+2. Quan sát hiệu ứng.","- Các symbol không thuộc line thắng bị làm tối.
+- Reel còn lại hiển thị hiệu ứng Glow theo thiết kế.
+- Hiệu ứng không ảnh hưởng đến kết quả hoặc animation khác."
+CR_046,Free Spin,Kiểm tra kích hoạt Free Spin,Game đang ở Base Game,1. Thực hiện lượt quay có đủ điều kiện kích hoạt Free Spin (Bonus xuất hiện trên 3 reel theo thiết kế).,"- Free Spin được kích hoạt.
+- Chuyển sang màn hình Free Spin đúng thiết kế.
+- Hiển thị số lượt Free Spin được nhận."
+CR_047,Free Spin,Kiểm tra giao diện và trạng thái trong Free Spin,Đang trong Free Spin,"1. Kích hoạt Free Spin.
+2. Quan sát toàn bộ giao diện trong quá trình chơi.","- Hiển thị Random Multiplier cho từng lượt quay (nếu có).
+- Nút +, -, Auto Play bị khóa.
+- Nút Spin hiển thị số lượt Free Spin còn lại.
+- Các nút Trophy, Paytable, Sound, Info, Menu bị disable theo thiết kế."
+CR_048,Free Spin,Kiểm tra kết thúc Free Spin,Đang trong Free Spin,"1. Chơi đến khi hết toàn bộ lượt Free Spin.
+2. Quan sát quá trình kết thúc.","- Game kết thúc Free Spin đúng sau khi dùng hết số lượt.
+- Tổng tiền thắng được cộng chính xác.
+- Game quay về Base Game và mở lại các chức năng đã bị khóa."
+CR_049,Kiểm tra giao diện Ante Bet,Game hỗ trợ tính năng Ante Bet,"1. Mở game.
+2. Quan sát nút Ante Bet và giao diện hiển thị.","- Nút Ante Bet hiển thị đúng theo thiết kế.
+- Trạng thái ON/OFF hiển thị đúng.
+- Không bị lỗi giao diện hoặc chồng lấp với các thành phần khác.",High
+CR_050,Ante Bet,Kiểm tra panel thông tin khi hover vào nút Ante Bet,Nút Ante Bet đang hiển thị,1. Di chuột vào nút Ante Bet.,"- Hiển thị panel thông tin theo đúng thiết kế.
+- Panel hiển thị đầy đủ Stake thường và Stake Ante Bet.
+- Giá trị stake được tính toán chính xác theo cấu hình hiện tại."
+CR_051,Ante Bet,Kiểm tra bật/tắt Ante Bet,Game hỗ trợ Ante Bet,"1. Chuyển Ante Bet sang ON.
+2. Kiểm tra Bet Amount.
+3. Chuyển Ante Bet sang OFF.","- Khi ON, Stake Ante Bet được áp dụng đúng theo Ante Multiplier.
+- Khi OFF, game sử dụng Stake thường theo Denomination.
+- Giá trị Bet Amount cập nhật chính xác sau mỗi lần chuyển đổi."
+CR_052,Ante Bet,Kiểm tra khi tính năng Ante Bet bị tắt theo cấu hình,BO cấu hình Ante Bet = OFF,1. Mở game với cấu hình Ante Bet = OFF.,"- Nút Ante Bet không hiển thị.
+- Toàn bộ thông tin liên quan đến Ante Bet trong Tutorial được ẩn.
+- Người chơi không thể sử dụng tính năng Ante Bet."
+CR_053,Ante Bet,"Kiểm tra trạng thái Ante Bet trong Free Spin, Buy Bonus và Auto Play","Đang trong Free Spin, Buy Bonus hoặc Auto Play","1. Bật Ante Bet.
+2. Kích hoạt Free Spin / Buy Bonus / Auto Play.","- Không thể thay đổi trạng thái Ante Bet trong khi đang ở Feature hoặc Auto Play.
+- Nút/Panel Ante Bet bị disable theo thiết kế."
+CR_054,Ante Bet,Kiểm tra trạng thái Ante Bet khi reels đang quay,Game đang thực hiện Spin,"1. Bật Ante Bet.
+2. Thực hiện một lượt quay.
+3. Quan sát nút Ante Bet trong lúc reels đang quay.","- Không thể thay đổi trạng thái Ante Bet khi reels đang quay.
+- Sau khi kết thúc lượt quay, Ante Bet hoạt động bình thường."
+CR_055,Ante Bet,Kiểm tra giữ nguyên Ante Multiplier trong Free Spin khi thay đổi cấu hình,Đã kích hoạt Free Spin với Ante Multiplier = 2,"1. Bật Ante Bet với Ante Multiplier = 2 và kích hoạt Free Spin.
+2. Trong khi đang chơi Free Spin, thay đổi cấu hình Ante Multiplier = 3 trên BO.
+3. Reload game.
+4. Tiếp tục chơi Free Spin.
+5. Kết thúc Free Spin.","- Trong suốt Free Spin, game vẫn sử dụng Ante Multiplier = 2 (frozen config).
+- Hover vào panel Ante Bet vẫn hiển thị đúng Stake thường và Stake Ante Bet theo Ante Multiplier = 2.
+- Sau khi Free Spin kết thúc và quay về Base Game, game mới cập nhật và hiển thị Ante Multiplier = 3."
+CR_056,Ante Bet,Kiểm tra thay đổi trạng thái Ante Bet (Feature ON/OFF) trong khi đang chơi Free Spin,Đã kích hoạt Free Spin khi Ante Bet Feature = ON,"1. Mở game với Ante Bet Feature = ON.
+2. Bật Ante Bet và kích hoạt Free Spin.
+3. Trong khi đang chơi Free Spin, thay đổi cấu hình Ante Bet Feature = OFF trên BO.
+4. Reload game.
+5. Tiếp tục chơi đến khi kết thúc Free Spin.
+6. Quan sát giao diện trong Free Spin và sau khi kết thúc Free Spin.","- Trong suốt Free Spin, game vẫn giữ cấu hình Ante Bet Feature = ON (Frozen Config).
+- Nút Ante Bet và panel thông tin vẫn hiển thị đúng theo cấu hình trước khi vào Free Spin.
+- Không phát sinh lỗi giao diện hoặc tính toán stake.
+- Sau khi kết thúc Free Spin và quay về Base Game, game áp dụng cấu hình mới (Ante Bet Feature = OFF): nút Ante Bet và toàn bộ thông tin Ante Bet trong Tutorial được ẩn."
+CR_057,Random Multiplier,Kiểm tra hiệu ứng Random Multiplier,Có kết quả trả về Random Multiplier,"1. Thực hiện lượt quay có Random Multiplier.
+2. Quan sát animation.","- Random Multiplier quay theo thứ tự từ trái sang phải.
+- Hiệu ứng hiển thị đúng theo thiết kế."
+CR_058,Random Multiplier,Kiểm tra Random Multiplier trong Base Game và Free Spin,Có thể kích hoạt Random Multiplier ở cả Base Game và Free Spin,"1. Thực hiện lượt quay ở Base Game.
+2. Thực hiện lượt quay trong Free Spin.",- Random Multiplier xuất hiện đúng ở cả Base Game và Free Spin theo thiết kế.
+CR_059,Raining Wild,Kiểm tra hiệu ứng Raining Wild,Response trả về từ 2 Wild trở lên,"1. Thực hiện lượt quay có từ 2 Wild trở lên.
+2. Quan sát hiệu ứng.","- Hiệu ứng Raining Wild được kích hoạt khi reels đang quay.
+- Wild rơi theo thứ tự từ Reel 1 → Reel 5 đúng vị trí trong kết quả.
+- Sau khi Wild rơi xong, các symbol còn lại mới hiển thị."
+CR_060,Raining Wild,Kiểm tra Raining Wild kết hợp Reel Glow,Response trả về từ 2 Wild trở lên và có điều kiện Reel Glow,"1. Thực hiện lượt quay có Wild và Reel Glow.
+2. Quan sát toàn bộ animation.","- Raining Wild diễn ra trước.
+- Sau khi Wild rơi hoàn tất, Reel Glow được hiển thị đúng theo thiết kế.
+- Không bị chồng hoặc mất animation."
+CR_061,Raining Wild,Kiểm tra Raining Wild kết hợp Bonus,"Response trả về Wild và Bonus trên Reel 1, Reel 2","1. Thực hiện lượt quay có Wild và Bonus theo điều kiện.
+2. Quan sát animation sau khi Wild kết thúc.","- Symbol không phải Bonus hoặc Wild trên Reel 1 và Reel 2 bị làm tối.
+- Reel tiếp theo hiển thị hiệu ứng Glow đúng thiết kế.
+- Animation diễn ra đúng thứ tự và không ảnh hưởng kết quả trả thưởng."
+CR_062,Gun (P1),Kiểm tra vị trí xuất hiện của Symbol P1,Game hoạt động bình thường,"1. Thực hiện nhiều lượt quay.
+2. Quan sát vị trí xuất hiện của Symbol P1 trên các reel.","- Symbol P1 chỉ xuất hiện trên Reel 1, Reel 3 và Reel 5.
+- Không xuất hiện trên Reel 2 và Reel 4."
+CR_063,Gun (P1),Kiểm tra điều kiện thắng của Symbol P1,Có thể trigger kết quả thắng của P1,"1. Thực hiện lượt quay có Symbol P1 trên Reel 1, Reel 3 và Reel 5.
+2. Quan sát kết quả trả thưởng.","- Người chơi thắng khi có 01 Symbol P1 trên mỗi Reel 1, Reel 3 và Reel 5.
+- Win Amount được tính đúng theo Paytable."
+CR_064,Multi-language,Kiểm tra hiển thị đa ngôn ngữ,Game hỗ trợ nhiều ngôn ngữ,"1. Đổi lần lượt các ngôn ngữ được hỗ trợ.
+2. Kiểm tra toàn bộ text trong game.","- Toàn bộ text được hiển thị đúng theo ngôn ngữ đã chọn.
+- Không hiển thị sai key hoặc text mặc định."
+CR_065,Multi-language,Kiểm tra đồng bộ ngôn ngữ giữa các game,Hệ thống có nhiều game,"1. Đổi ngôn ngữ ở Game A.
+2. Mở Game B.","- Game B sử dụng cùng ngôn ngữ đã chọn.
+- Không cần đổi lại ngôn ngữ."
+CR_066,Multi-language,Kiểm tra Auto Text Scaling,Chuyển sang các ngôn ngữ có chuỗi dài (ví dụ: Burmese/Myanmar),"1. Đổi sang tiếng Myanmar.
+2. Kiểm tra các popup, button, tutorial, paytable...","- Text tự động scale theo kích thước phù hợp.
+- Không bị tràn khỏi vùng hiển thị."
+CR_067,Multi-language,Kiểm tra text không bị cắt,Chuyển sang các ngôn ngữ có ký tự đặc biệt,"1. Đổi sang tiếng Myanmar.
+2. Kiểm tra toàn bộ text trong game.","- Text hiển thị đầy đủ.
+- Không bị cắt chữ, mất dấu hoặc mất chân ký tự."
+CR_068,Tutorial,Kiểm tra luồng Tutorial,Game mở thành công,"1. Mở Tutorial.
+2. Chuyển qua từng trang.","- Luồng Tutorial đúng theo thiết kế Figma.
+- Có thể chuyển Next/Previous bình thường.
+- Không bị lỗi giao diện."
+CR_069,Tutorial,Kiểm tra nội dung Tutorial,Tutorial hiển thị,"1. Mở từng trang Tutorial.
+2. Kiểm tra text và thông tin.","- Nội dung đúng theo tài liệu thiết kế.
+- Không sai chính tả, không thiếu thông tin.
+- Đúng ngôn ngữ đang sử dụng."
+CR_070,Tutorial,Kiểm tra payout của Base Symbol,Tutorial hiển thị Paytable,"1. Mở Tutorial.
+2. Ghi nhận payout của một Symbol.
+3. Thay đổi Bet Amount.
+4. Mở lại Tutorial.","- Payout của Base Symbol được cập nhật theo Bet Amount hiện tại.
+- Giá trị khớp với Paytable."
+CR_071,Tutorial,Kiểm tra hình ảnh trong Tutorial,Tutorial hiển thị bình thường,"1. Mở toàn bộ các trang Tutorial.
+2. Kiểm tra hình ảnh, icon và animation (nếu có).","- Hình ảnh đúng theo thiết kế.
+- Không bị mờ, vỡ hoặc sai asset.
+- Đúng Feature hiện có của game."
+CR_072,Replay,Kiểm tra Balance trước khi reels quay,Có link Replay của một lượt bet normal,"1. Mở Replay.
+2. Quan sát Balance trước khi reels bắt đầu quay.","- Balance hiển thị trước khi quay = Balance sau cược - Win Amount + Stake.
+- Hiển thị khoảng 0.5 giây trước khi reels quay."
+CR_073,Replay,Kiểm tra Balance sau khi reels dừng,Đang xem Replay,"1. Chạy Replay.
+2. Quan sát Balance ngay sau khi reels dừng.","- Balance = Balance sau cược - Win Amount.
+- Giá trị khớp dữ liệu replay."
+CR_074,Replay,Kiểm tra Balance sau khi Replay kết thúc,Replay hoàn thành,"1. Chạy Replay đến hết.
+2. Quan sát Balance cuối cùng.",- Balance hiển thị đúng bằng Balance sau cược theo dữ liệu replay.
+CR_075,Replay,Kiểm tra Replay của lượt cược Big Win,Có replay Big Win,"1. Mở Replay của Big Win.
+2. Quan sát animation.","- Animation Big Win hiển thị đúng.
+- Win Amount chính xác.
+- Không thể thao tác sai trong khi Replay đang chạy."
+CR_076,Replay,Kiểm tra Replay của Big Win trong Free Spin,Có Replay của Big Win trong Free Spin,"1. Mở Replay.
+2. Quan sát toàn bộ quá trình.","- Replay hiển thị đúng toàn bộ Free Spin.
+- Big Win xuất hiện đúng thời điểm.
+- Tổng Win chính xác."
+CR_077,Replay,Kiểm tra trạng thái các nút trong Replay,Đang xem Replay,"1. Mở Replay.
+2. Quan sát toàn bộ các button.","- Disable các nút: +, -, Autoplay, History, Mount Win, Setting.
+- Enable nút Turbo và Audio."
+CR_078,Replay,Kiểm tra hiển thị nhãn Replay,Đang xem Replay,"1. Mở Replay.
+2. Quan sát khu vực nút Spin.",- Hiển thị text Replay bên dưới nút Spin theo đúng thiết kế.
+CR_079,Replay,Kiểm tra chức năng Watch Again,Replay đã kết thúc,"1. Chạy Replay đến cuối.
+2. Nhấn Watch Again.","- Replay được phát lại từ đầu.
+- Dữ liệu và animation giống lần phát đầu tiên."
+CR_080,Replay,Kiểm tra chức năng Copy Link,Replay đang mở,"1. Nhấn Copy Link.
+2. Mở link trên tab khác hoặc trình duyệt khác.","- Link được copy thành công.
+- Mở đúng Replay tương ứng.
+- Dữ liệu Replay chính xác."
+CR_081,Promo,Kiểm tra giao diện Promo,Game có Promo,"1. Nhận Promo.
+2. Quan sát giao diện.","- UI hiển thị đúng thiết kế.
+- Đúng thông tin số lượt Promo, tên Promo, trạng thái."
+CR_082,Promo,Kiểm tra Promo dạng Count,Có Promo Count,"1. Claim Promo.
+2. Thực hiện các lượt quay.","- Số lượt Promo giảm đúng sau mỗi lượt quay.
+- Không giảm sai số lượng."
+CR_083,Promo,Kiểm tra Promo Countdown,Có Promo Countdown,"1. Claim Promo.
+2. Quan sát thời gian đếm ngược.","- Countdown hiển thị đúng thời gian.
+- Hết thời gian thì Promo kết thúc theo thiết kế."
+CR_084,Compliance Setting,Kiểm tra cấu hình autoPlay = false,BO cấu hình autoPlay = false,"1. Cập nhật Compliance Setting autoPlay = false.
+2. Mở game.","- Nút Auto Play không hiển thị.
+- Nội dung hướng dẫn Auto Play trong Tutorial được ẩn.
+- Người chơi không thể kích hoạt Auto Play."
+CR_085,Compliance Setting,Kiểm tra cấu hình turboMode = false,BO cấu hình turboMode = false,"1. Cập nhật Compliance Setting turboMode = false.
+2. Mở game.
+3. Thực hiện một lượt quay.","- Nút Turbo không hiển thị.
+- Nội dung Turbo trong Tutorial được ẩn.
+- Không thể Hold Spin/Hold Space để kích hoạt Turbo.
+- Không thể Skip Big Win, Total Win hoặc các animation bằng Turbo.
+- Không hiển thị text ""Press/Hold..."" liên quan đến Turbo."
+CR_086,Compliance Setting,Kiểm tra cấu hình minSpinDurationSec,BO cấu hình minSpinDurationSec (ví dụ: 5 giây),"1. Thiết lập minSpinDurationSec.
+2. Mở game.
+3. Thực hiện nhiều lượt quay.","- Thời gian quay của reels không nhỏ hơn giá trị cấu hình.
+- Animation diễn ra bình thường.
+- Không bị giật hoặc dừng bất thường."
+CR_087,Compliance Setting,Kiểm tra cấu hình oneClickPerSpin = true,BO cấu hình oneClickPerSpin = true,"1. Mở game.
+2. Nhấn giữ nút Spin hoặc phím Space.","- Không kích hoạt Hold Spin hoặc Auto Spin bằng thao tác giữ.
+- Mỗi lần nhấn chỉ thực hiện đúng một lượt quay."
+CR_088,Compliance Setting,Kiểm tra cấu hình realityCheckEnabled,BO bật Reality Check,"1. Thiết lập thời gian Reality Check.
+2. Chơi game đến khi hết thời gian.","- Popup Reality Check hiển thị đúng thời điểm.
+- Nội dung popup đúng theo thiết kế."
+CR_089,Compliance Setting,Kiểm tra cấu hình maxSessionTimeMin,BO cấu hình giới hạn thời gian chơi,"1. Thiết lập maxSessionTimeMin.
+2. Chơi liên tục đến khi hết thời gian.","- Hiển thị popup thông báo hết thời gian chơi.
+- Game xử lý theo đúng thiết kế sau khi popup xuất hiện."
+CR_090,Compliance Setting,Kiểm tra cấu hình bonusBuyAllowed = false,BO cấu hình bonusBuyAllowed = false,1. Mở game.,"- Nút Buy Bonus không hiển thị.
+- Nội dung Buy Bonus trong Tutorial được ẩn.
+- Người chơi không thể mua Buy Bonus."
+CR_091,Compliance Setting,Kiểm tra Compliance Setting trong Replay,Có Replay,"1. Mở Replay.
+2. Chơi Replay trong thời gian đủ để kích hoạt Reality Check hoặc Max Session.","- Replay không hiển thị popup Reality Check.
+- Replay không hiển thị popup Max Session Time.
+- Replay diễn ra liên tục đến khi kết thúc."
+CR_092,Last Bet,Kiểm tra Last Bet của lượt cược thường không thắng,Thực hiện một lượt cược không thắng,"1. Thực hiện lượt quay không thắng.
+2. Mở Last Bet.","- Hiển thị đúng Stake.
+- Không hiển thị Win Amount.
+- Giao diện đúng thiết kế."
+CR_093,Last Bet,Kiểm tra Last Bet của lượt cược thường có thắng,Thực hiện một lượt cược thắng,"1. Thực hiện lượt quay thắng.
+2. Mở Last Bet.","- Hiển thị đúng Stake.
+- Hiển thị Win Amount và Win Line chính xác.
+- Dữ liệu khớp với kết quả thực tế."
+CR_094,Last Bet,Kiểm tra Last Bet của Buy Bonus,Thực hiện Buy Bonus,"1. Chơi Buy Bonus.
+2. Mở Last Bet.","- Hiển thị đúng Stake của Buy Bonus.
+- Hiển thị đúng loại Spin theo thiết kế."
+CR_095,Last Bet,Kiểm tra Last Bet khi thay đổi Denomination,Thay đổi bet level sau khi chơi,"1. Thực hiện một lượt quay.
+2. Thay đổi bet amount level.
+3. Mở lại game.","- Last Bet vẫn hiển thị Stake theo bet level của lượt cược đã chơi.
+- Các lượt cược mới sử dụng bet level mới."
+CR_096,Last Bet,Kiểm tra Last Bet trong Free Spin,Kích hoạt Free Spin,"1. Vào Free Spin.
+2. Thay đổi Denomination trên BO.
+3. Reload game.
+4. Mở Last Bet trong Free Spin và sau khi kết thúc.","- Trong Free Spin, Last Bet vẫn hiển thị Stake theo cấu hình đã freeze.
+- Sau khi kết thúc Free Spin mới áp dụng Denomination mới."
+CR_097,Last Bet,Kiểm tra Last Bet của Promo,Chơi Promo,"1. Thực hiện Promo Spin.
+2. Mở Last Bet.
+3. Kết thúc Promo.","- Trong Promo hiển thị đúng Stake của Promo.
+- Sau khi Promo kết thúc, Last Bet hiển thị Stake theo Bet Level mặc định hiện tại."
+CR_099,Dynamic Game Help,Kiểm tra hiển thị mục Max Win,maxWinEnabled = true/false,"1. Thay đổi cấu hình maxWinEnabled.
+2. Mở Game Help.","- Khi ON, mục Max Win hiển thị đúng.
+- Khi OFF, mục này được ẩn."
+CR_100,Dynamic Game Help,Kiểm tra hiển thị mục Game Limits,gameLimitsEnabled = true/false,"1. Thay đổi cấu hình.
+2. Mở Game Help.",- Hiển thị/ẩn đúng theo cấu hình BO.
+CR_101,Dynamic Game Help,Kiểm tra hiển thị mục Volatility,volatilityEnabled = true/false,"1. Thay đổi cấu hình.
+2. Mở Game Help.",- Hiển thị/ẩn đúng theo cấu hình BO.
+CR_102,Dynamic Game Help,Kiểm tra hiển thị mục RTP Display,rtpDisplayEnabled = true/false,"1. Thay đổi cấu hình.
+2. Mở Game Help.",- Mục RTP hiển thị hoặc ẩn đúng theo cấu hình.
+CR_103,Dynamic Game Help,Kiểm tra hiển thị mục Interruption Policy,interruptionPolicyEnabled = true/false,"1. Thay đổi cấu hình.
+2. Mở Game Help.",- Hiển thị hoặc ẩn đúng theo cấu hình BO.
+CR_104,Dynamic Game Help,Kiểm tra hiển thị Auto Finalize Duration,BO cấu hình thời gian Auto Finalize,"1. Thay đổi giá trị Auto Finalize Duration.
+2. Mở Game Help.",- Hiển thị đúng thời gian được cấu hình từ BO.
+CR_105,Dynamic Game Help,Kiểm tra hiển thị Status,BO thay đổi Status,"1. Thay đổi Status trên BO.
+2. Mở Game Help.",- Status hiển thị đúng theo cấu hình BO.
+CR_106,Dynamic Game Help,Kiểm tra hiển thị giá trị RTP,BO cấu hình RTP,"1. Cập nhật các giá trị RTP.
+2. Mở Game Help.",- Giá trị RTP hiển thị đúng với dữ liệu trả về từ BO.
+CR_107,Dynamic Game Help,Kiểm tra mapping các biến động trong Game Help,BO trả về đầy đủ các key RTP,"1. Cấu hình các giá trị:
+- gameRTP
+- bonusTheoRTP
+- buyBonusRTP
+- anteTheoRTP
+- anteRTP
+2. Mở Game Help.","- Nội dung hiển thị đúng theo template:
+• The theoretical RTP of this game is gameRTP%.
+• The bonus game's theoretical RTP is bonusTheoRTP%...
+• Buy Bonus RTP = buyBonusRTP%.
+• Ante RTP = anteRTP%.
+- Không hiển thị sai key hoặc thiếu dữ liệu."
+CR_108,Popup Notification,Kiểm tra popup khi bật/tắt Turbo,Game hỗ trợ Turbo,"1. Bật Turbo.
+2. Tắt Turbo.","- Khi bật hiển thị popup ""Turbo Enabled"".
+- Khi tắt hiển thị popup ""Turbo Disabled"".
+- Nội dung đúng theo thiết kế và đa ngôn ngữ."
+CR_109,Popup Notification,Kiểm tra popup khi bật/tắt Ante Bet,Game hỗ trợ Ante Bet,"1. Bật Ante Bet.
+2. Tắt Ante Bet.","- Khi bật hiển thị popup ""Ante Bet Enabled"".
+- Khi tắt hiển thị popup ""Ante Bet Disabled""."
+CR_110,Popup Notification,Kiểm tra popup khi bật/tắt Auto Play,Game hỗ trợ Auto Play,"1. Bật Auto Play.
+2. Dừng Auto Play.","- Khi bật hiển thị popup ""Auto Play Enabled"".
+- Khi tắt hiển thị popup ""Auto Play Disabled""."
+CR_111,Popup Notification,Kiểm tra nhiều popup xuất hiện liên tiếp,"Game hỗ trợ Turbo, Ante Bet và Auto Play","1. Bật/Tắt Turbo liên tục.
+2. Bật/Tắt Ante Bet ngay sau đó.
+3. Bật Auto Play.","- Các popup hiển thị lần lượt theo đúng thứ tự.
+- Không bị chồng lấp (overlap).
+- Không che các thành phần quan trọng của UI.
+- Popup cũ tự động đóng trước khi popup mới hiển thị (theo thiết kế)."

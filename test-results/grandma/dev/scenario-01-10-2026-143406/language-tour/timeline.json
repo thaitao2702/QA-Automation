@@ -1,0 +1,938 @@
+[
+  {
+    "id": "language-0",
+    "action": "language",
+    "description": "relaunch in English (en)",
+    "start_ms": 400596,
+    "end_ms": 406739,
+    "result": {
+      "language": "en"
+    }
+  },
+  {
+    "id": "mark-1",
+    "action": "mark",
+    "description": "LANGUAGE en: English",
+    "start_ms": 406739,
+    "end_ms": 406739,
+    "result": null
+  },
+  {
+    "id": "mark-2",
+    "action": "mark",
+    "description": "SURFACE: base screen",
+    "start_ms": 406739,
+    "end_ms": 406739,
+    "result": null
+  },
+  {
+    "id": "shot-3",
+    "action": "shot",
+    "description": "screenshot: en English - base screen",
+    "start_ms": 408742,
+    "end_ms": 408913,
+    "result": {
+      "label": "en English - base screen",
+      "file": "00-en-english-base-screen.png"
+    }
+  },
+  {
+    "id": "mark-4",
+    "action": "mark",
+    "description": "SURFACE: bet list",
+    "start_ms": 408913,
+    "end_ms": 408913,
+    "result": null
+  },
+  {
+    "id": "click-5",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 408913,
+    "end_ms": 411239,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "shot-6",
+    "action": "shot",
+    "description": "screenshot: en English - bet list",
+    "start_ms": 411239,
+    "end_ms": 411339,
+    "result": {
+      "label": "en English - bet list",
+      "file": "01-en-english-bet-list.png"
+    }
+  },
+  {
+    "id": "click-7",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 411339,
+    "end_ms": 412671,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "mark-8",
+    "action": "mark",
+    "description": "SURFACE: settings",
+    "start_ms": 412679,
+    "end_ms": 412679,
+    "result": null
+  },
+  {
+    "id": "click-9",
+    "action": "click",
+    "description": "click settings",
+    "start_ms": 412679,
+    "end_ms": 414999,
+    "result": {
+      "button": "settings"
+    }
+  },
+  {
+    "id": "shot-10",
+    "action": "shot",
+    "description": "screenshot: en English - settings",
+    "start_ms": 414999,
+    "end_ms": 415069,
+    "result": {
+      "label": "en English - settings",
+      "file": "02-en-english-settings.png"
+    }
+  },
+  {
+    "id": "click-11",
+    "action": "click",
+    "description": "click settings:close",
+    "start_ms": 415069,
+    "end_ms": 416399,
+    "result": {
+      "button": "settings:close"
+    }
+  },
+  {
+    "id": "mark-12",
+    "action": "mark",
+    "description": "SURFACE: tutorial",
+    "start_ms": 416402,
+    "end_ms": 416402,
+    "result": null
+  },
+  {
+    "id": "click-13",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 416404,
+    "end_ms": 416716,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-14",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 416402,
+    "end_ms": 420061,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-15",
+    "action": "shot",
+    "description": "screenshot: en English - tutorial",
+    "start_ms": 420061,
+    "end_ms": 420133,
+    "result": {
+      "label": "en English - tutorial",
+      "file": "03-en-english-tutorial.png"
+    }
+  },
+  {
+    "id": "mark-16",
+    "action": "mark",
+    "description": "SURFACE: auto play panel",
+    "start_ms": 420136,
+    "end_ms": 420136,
+    "result": null
+  },
+  {
+    "id": "click-17",
+    "action": "click",
+    "description": "click auto",
+    "start_ms": 420136,
+    "end_ms": 422464,
+    "result": {
+      "button": "auto"
+    }
+  },
+  {
+    "id": "shot-18",
+    "action": "shot",
+    "description": "screenshot: en English - auto play panel",
+    "start_ms": 422464,
+    "end_ms": 422582,
+    "result": {
+      "label": "en English - auto play panel",
+      "file": "04-en-english-auto-play-panel.png"
+    }
+  },
+  {
+    "id": "click-19",
+    "action": "click",
+    "description": "click auto:close",
+    "start_ms": 422582,
+    "end_ms": 423903,
+    "result": {
+      "button": "auto:close"
+    }
+  },
+  {
+    "id": "mark-20",
+    "action": "mark",
+    "description": "SURFACE: history",
+    "start_ms": 423907,
+    "end_ms": 423907,
+    "result": null
+  },
+  {
+    "id": "click-21",
+    "action": "click",
+    "description": "open settings to reach settings:history",
+    "start_ms": 423909,
+    "end_ms": 424218,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:history"
+    }
+  },
+  {
+    "id": "click-22",
+    "action": "click",
+    "description": "click settings:history",
+    "start_ms": 423907,
+    "end_ms": 427556,
+    "result": {
+      "button": "settings:history"
+    }
+  },
+  {
+    "id": "shot-23",
+    "action": "shot",
+    "description": "screenshot: en English - history",
+    "start_ms": 427556,
+    "end_ms": 427631,
+    "result": {
+      "label": "en English - history",
+      "file": "05-en-english-history.png"
+    }
+  },
+  {
+    "id": "language-24",
+    "action": "language",
+    "description": "relaunch in Burmese (my)",
+    "start_ms": 427906,
+    "end_ms": 434247,
+    "result": {
+      "language": "my"
+    }
+  },
+  {
+    "id": "mark-25",
+    "action": "mark",
+    "description": "LANGUAGE my: Burmese (switched from English)",
+    "start_ms": 434247,
+    "end_ms": 434247,
+    "result": null
+  },
+  {
+    "id": "mark-26",
+    "action": "mark",
+    "description": "SURFACE: base screen",
+    "start_ms": 434247,
+    "end_ms": 434247,
+    "result": null
+  },
+  {
+    "id": "shot-27",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - base screen",
+    "start_ms": 436251,
+    "end_ms": 436435,
+    "result": {
+      "label": "my Burmese (switched from en English) - base screen",
+      "file": "06-my-burmese-switched-from-en-english-base-screen.png"
+    }
+  },
+  {
+    "id": "mark-28",
+    "action": "mark",
+    "description": "SURFACE: bet list",
+    "start_ms": 436435,
+    "end_ms": 436435,
+    "result": null
+  },
+  {
+    "id": "click-29",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 436435,
+    "end_ms": 438772,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "shot-30",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - bet list",
+    "start_ms": 438772,
+    "end_ms": 438895,
+    "result": {
+      "label": "my Burmese (switched from en English) - bet list",
+      "file": "07-my-burmese-switched-from-en-english-bet-list.png"
+    }
+  },
+  {
+    "id": "click-31",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 438895,
+    "end_ms": 440212,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "mark-32",
+    "action": "mark",
+    "description": "SURFACE: settings",
+    "start_ms": 440216,
+    "end_ms": 440216,
+    "result": null
+  },
+  {
+    "id": "click-33",
+    "action": "click",
+    "description": "click settings",
+    "start_ms": 440216,
+    "end_ms": 442539,
+    "result": {
+      "button": "settings"
+    }
+  },
+  {
+    "id": "shot-34",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - settings",
+    "start_ms": 442539,
+    "end_ms": 442608,
+    "result": {
+      "label": "my Burmese (switched from en English) - settings",
+      "file": "08-my-burmese-switched-from-en-english-settings.png"
+    }
+  },
+  {
+    "id": "click-35",
+    "action": "click",
+    "description": "click settings:close",
+    "start_ms": 442608,
+    "end_ms": 443920,
+    "result": {
+      "button": "settings:close"
+    }
+  },
+  {
+    "id": "mark-36",
+    "action": "mark",
+    "description": "SURFACE: tutorial",
+    "start_ms": 443922,
+    "end_ms": 443922,
+    "result": null
+  },
+  {
+    "id": "click-37",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 443924,
+    "end_ms": 444232,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-38",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 443922,
+    "end_ms": 447569,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-39",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - tutorial",
+    "start_ms": 447569,
+    "end_ms": 447667,
+    "result": {
+      "label": "my Burmese (switched from en English) - tutorial",
+      "file": "09-my-burmese-switched-from-en-english-tutorial.png"
+    }
+  },
+  {
+    "id": "mark-40",
+    "action": "mark",
+    "description": "SURFACE: auto play panel",
+    "start_ms": 447672,
+    "end_ms": 447672,
+    "result": null
+  },
+  {
+    "id": "click-41",
+    "action": "click",
+    "description": "click auto",
+    "start_ms": 447672,
+    "end_ms": 450006,
+    "result": {
+      "button": "auto"
+    }
+  },
+  {
+    "id": "shot-42",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - auto play panel",
+    "start_ms": 450006,
+    "end_ms": 450158,
+    "result": {
+      "label": "my Burmese (switched from en English) - auto play panel",
+      "file": "10-my-burmese-switched-from-en-english-auto-play-panel.png"
+    }
+  },
+  {
+    "id": "click-43",
+    "action": "click",
+    "description": "click auto:close",
+    "start_ms": 450158,
+    "end_ms": 451493,
+    "result": {
+      "button": "auto:close"
+    }
+  },
+  {
+    "id": "mark-44",
+    "action": "mark",
+    "description": "SURFACE: history",
+    "start_ms": 451500,
+    "end_ms": 451500,
+    "result": null
+  },
+  {
+    "id": "click-45",
+    "action": "click",
+    "description": "open settings to reach settings:history",
+    "start_ms": 451507,
+    "end_ms": 451825,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:history"
+    }
+  },
+  {
+    "id": "click-46",
+    "action": "click",
+    "description": "click settings:history",
+    "start_ms": 451500,
+    "end_ms": 455170,
+    "result": {
+      "button": "settings:history"
+    }
+  },
+  {
+    "id": "shot-47",
+    "action": "shot",
+    "description": "screenshot: my Burmese (switched from en English) - history",
+    "start_ms": 455170,
+    "end_ms": 455255,
+    "result": {
+      "label": "my Burmese (switched from en English) - history",
+      "file": "11-my-burmese-switched-from-en-english-history.png"
+    }
+  },
+  {
+    "id": "language-48",
+    "action": "language",
+    "description": "relaunch in Simplified Chinese (zh)",
+    "start_ms": 455488,
+    "end_ms": 461811,
+    "result": {
+      "language": "zh"
+    }
+  },
+  {
+    "id": "mark-49",
+    "action": "mark",
+    "description": "LANGUAGE zh: Simplified Chinese (switched from Burmese)",
+    "start_ms": 461811,
+    "end_ms": 461811,
+    "result": null
+  },
+  {
+    "id": "mark-50",
+    "action": "mark",
+    "description": "SURFACE: base screen",
+    "start_ms": 461811,
+    "end_ms": 461811,
+    "result": null
+  },
+  {
+    "id": "shot-51",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - base screen",
+    "start_ms": 463813,
+    "end_ms": 463999,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - base screen",
+      "file": "12-zh-simplified-chinese-switched-from-my-burmese-base-screen.png"
+    }
+  },
+  {
+    "id": "mark-52",
+    "action": "mark",
+    "description": "SURFACE: bet list",
+    "start_ms": 463999,
+    "end_ms": 463999,
+    "result": null
+  },
+  {
+    "id": "click-53",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 463999,
+    "end_ms": 466329,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "shot-54",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - bet list",
+    "start_ms": 466330,
+    "end_ms": 466415,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - bet list",
+      "file": "13-zh-simplified-chinese-switched-from-my-burmese-bet-list.png"
+    }
+  },
+  {
+    "id": "click-55",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 466415,
+    "end_ms": 467740,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "mark-56",
+    "action": "mark",
+    "description": "SURFACE: settings",
+    "start_ms": 467746,
+    "end_ms": 467746,
+    "result": null
+  },
+  {
+    "id": "click-57",
+    "action": "click",
+    "description": "click settings",
+    "start_ms": 467746,
+    "end_ms": 470079,
+    "result": {
+      "button": "settings"
+    }
+  },
+  {
+    "id": "shot-58",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - settings",
+    "start_ms": 470079,
+    "end_ms": 470132,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - settings",
+      "file": "14-zh-simplified-chinese-switched-from-my-burmese-settings.png"
+    }
+  },
+  {
+    "id": "click-59",
+    "action": "click",
+    "description": "click settings:close",
+    "start_ms": 470132,
+    "end_ms": 471467,
+    "result": {
+      "button": "settings:close"
+    }
+  },
+  {
+    "id": "mark-60",
+    "action": "mark",
+    "description": "SURFACE: tutorial",
+    "start_ms": 471470,
+    "end_ms": 471470,
+    "result": null
+  },
+  {
+    "id": "click-61",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 471473,
+    "end_ms": 471780,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-62",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 471470,
+    "end_ms": 475119,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-63",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - tutorial",
+    "start_ms": 475120,
+    "end_ms": 475221,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - tutorial",
+      "file": "15-zh-simplified-chinese-switched-from-my-burmese-tutorial.png"
+    }
+  },
+  {
+    "id": "mark-64",
+    "action": "mark",
+    "description": "SURFACE: auto play panel",
+    "start_ms": 475224,
+    "end_ms": 475224,
+    "result": null
+  },
+  {
+    "id": "click-65",
+    "action": "click",
+    "description": "click auto",
+    "start_ms": 475224,
+    "end_ms": 477553,
+    "result": {
+      "button": "auto"
+    }
+  },
+  {
+    "id": "shot-66",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - auto play panel",
+    "start_ms": 477553,
+    "end_ms": 477698,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - auto play panel",
+      "file": "16-zh-simplified-chinese-switched-from-my-burmese-auto-play-panel.png"
+    }
+  },
+  {
+    "id": "click-67",
+    "action": "click",
+    "description": "click auto:close",
+    "start_ms": 477698,
+    "end_ms": 479012,
+    "result": {
+      "button": "auto:close"
+    }
+  },
+  {
+    "id": "mark-68",
+    "action": "mark",
+    "description": "SURFACE: history",
+    "start_ms": 479015,
+    "end_ms": 479015,
+    "result": null
+  },
+  {
+    "id": "click-69",
+    "action": "click",
+    "description": "open settings to reach settings:history",
+    "start_ms": 479019,
+    "end_ms": 479327,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:history"
+    }
+  },
+  {
+    "id": "click-70",
+    "action": "click",
+    "description": "click settings:history",
+    "start_ms": 479015,
+    "end_ms": 482655,
+    "result": {
+      "button": "settings:history"
+    }
+  },
+  {
+    "id": "shot-71",
+    "action": "shot",
+    "description": "screenshot: zh Simplified Chinese (switched from my Burmese) - history",
+    "start_ms": 482655,
+    "end_ms": 482746,
+    "result": {
+      "label": "zh Simplified Chinese (switched from my Burmese) - history",
+      "file": "17-zh-simplified-chinese-switched-from-my-burmese-history.png"
+    }
+  },
+  {
+    "id": "language-72",
+    "action": "language",
+    "description": "relaunch in Russian (ru)",
+    "start_ms": 482980,
+    "end_ms": 489508,
+    "result": {
+      "language": "ru"
+    }
+  },
+  {
+    "id": "mark-73",
+    "action": "mark",
+    "description": "LANGUAGE ru: Russian (switched from Simplified Chinese)",
+    "start_ms": 489508,
+    "end_ms": 489508,
+    "result": null
+  },
+  {
+    "id": "mark-74",
+    "action": "mark",
+    "description": "SURFACE: base screen",
+    "start_ms": 489508,
+    "end_ms": 489508,
+    "result": null
+  },
+  {
+    "id": "shot-75",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - base screen",
+    "start_ms": 491510,
+    "end_ms": 491707,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - base screen",
+      "file": "18-ru-russian-switched-from-zh-simplified-chinese-base-screen.png"
+    }
+  },
+  {
+    "id": "mark-76",
+    "action": "mark",
+    "description": "SURFACE: bet list",
+    "start_ms": 491707,
+    "end_ms": 491707,
+    "result": null
+  },
+  {
+    "id": "click-77",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 491707,
+    "end_ms": 494046,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "shot-78",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - bet list",
+    "start_ms": 494046,
+    "end_ms": 494151,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - bet list",
+      "file": "19-ru-russian-switched-from-zh-simplified-chinese-bet-list.png"
+    }
+  },
+  {
+    "id": "click-79",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 494151,
+    "end_ms": 495482,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "mark-80",
+    "action": "mark",
+    "description": "SURFACE: settings",
+    "start_ms": 495486,
+    "end_ms": 495486,
+    "result": null
+  },
+  {
+    "id": "click-81",
+    "action": "click",
+    "description": "click settings",
+    "start_ms": 495486,
+    "end_ms": 497815,
+    "result": {
+      "button": "settings"
+    }
+  },
+  {
+    "id": "shot-82",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - settings",
+    "start_ms": 497815,
+    "end_ms": 497884,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - settings",
+      "file": "20-ru-russian-switched-from-zh-simplified-chinese-settings.png"
+    }
+  },
+  {
+    "id": "click-83",
+    "action": "click",
+    "description": "click settings:close",
+    "start_ms": 497884,
+    "end_ms": 499207,
+    "result": {
+      "button": "settings:close"
+    }
+  },
+  {
+    "id": "mark-84",
+    "action": "mark",
+    "description": "SURFACE: tutorial",
+    "start_ms": 499210,
+    "end_ms": 499210,
+    "result": null
+  },
+  {
+    "id": "click-85",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 499212,
+    "end_ms": 499524,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-86",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 499210,
+    "end_ms": 502890,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-87",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - tutorial",
+    "start_ms": 502890,
+    "end_ms": 502960,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - tutorial",
+      "file": "21-ru-russian-switched-from-zh-simplified-chinese-tutorial.png"
+    }
+  },
+  {
+    "id": "mark-88",
+    "action": "mark",
+    "description": "SURFACE: auto play panel",
+    "start_ms": 502963,
+    "end_ms": 502963,
+    "result": null
+  },
+  {
+    "id": "click-89",
+    "action": "click",
+    "description": "click auto",
+    "start_ms": 502963,
+    "end_ms": 505286,
+    "result": {
+      "button": "auto"
+    }
+  },
+  {
+    "id": "shot-90",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - auto play panel",
+    "start_ms": 505286,
+    "end_ms": 505430,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - auto play panel",
+      "file": "22-ru-russian-switched-from-zh-simplified-chinese-auto-play-panel.png"
+    }
+  },
+  {
+    "id": "click-91",
+    "action": "click",
+    "description": "click auto:close",
+    "start_ms": 505430,
+    "end_ms": 506769,
+    "result": {
+      "button": "auto:close"
+    }
+  },
+  {
+    "id": "mark-92",
+    "action": "mark",
+    "description": "SURFACE: history",
+    "start_ms": 506782,
+    "end_ms": 506782,
+    "result": null
+  },
+  {
+    "id": "click-93",
+    "action": "click",
+    "description": "open settings to reach settings:history",
+    "start_ms": 506791,
+    "end_ms": 507118,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:history"
+    }
+  },
+  {
+    "id": "click-94",
+    "action": "click",
+    "description": "click settings:history",
+    "start_ms": 506782,
+    "end_ms": 510456,
+    "result": {
+      "button": "settings:history"
+    }
+  },
+  {
+    "id": "shot-95",
+    "action": "shot",
+    "description": "screenshot: ru Russian (switched from zh Simplified Chinese) - history",
+    "start_ms": 510456,
+    "end_ms": 510523,
+    "result": {
+      "label": "ru Russian (switched from zh Simplified Chinese) - history",
+      "file": "23-ru-russian-switched-from-zh-simplified-chinese-history.png"
+    }
+  }
+]

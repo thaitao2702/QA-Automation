@@ -1,0 +1,486 @@
+# Zeus — Hold & Spin + Buy Bonus (ZZ-30 … ZZ-43) from test-case-zeus.xlsx.
+#
+# Run:  python scripts/run_scenario.py --game zeus --env dev --suite games/zeus/test-suites/zz-holdspin.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game zeus
+#
+# THE POINT OF THIS SUITE: every Hold & Spin rule is in the BET response — held coin positions,
+# coin count, respins remaining — so those are EXACT `stream:` checks, not AI reads. The v2 bridge
+# deliberately dropped its `verifyHoldSpin*` analysers ("the framework owns the logic"); the rules
+# now live in scripts/scenario_engine.py as invariants and are asserted here by name:
+#
+#   holdspin_award                 3+ coins award 3 respins                        ZZ-30
+#   holdspin_coins_held            a landed coin is never re-spun away             ZZ-32 / ZZ-33
+#   holdspin_reset_on_new_coin     a new coin resets the counter to 3              ZZ-34
+#   holdspin_countdown             no new coin -> counter decrements by one        ZZ-35
+#   holdspin_ends_correctly        ends at 0 respins OR a full grid, not before    ZZ-36 / ZZ-37
+#   holdspin_payout_matches_coins  the meter pays the coins actually collected     ZZ-30 / ZZ-36
+#
+# ...but exact is not the same as complete (Rule 10). Held positions and counters are what the
+# SERVER says; whether the coins visibly stay put, whether the counter on screen matches it and
+# whether the total-win popup appears are things only the clip can answer. Each run therefore
+# carries ONE run-level `video:` block graded per case (Rule 16) instead of one `video:` per case
+# re-analysing identical footage.
+#
+# ── FORCED OUTCOMES (Rule 17) ───────────────────────────────────────────────────────────────
+# A natural trigger is rare and the count-down / new-coin / full-grid paths rarer still, so every
+# run that needs a NATURAL trigger FORCES its layout with a BO paytable fixture
+# (games/zeus/paytables/). It does not hunt: a hunt budget is real spins paid before the footage the
+# run exists for even starts, and a budget that runs out reports `unreached`, which reads as
+# coverage and is not.
+#
+# The Buy Bonus run (ZZ-39..43) forces NOTHING — buying is itself the deterministic entry, and
+# forcing the respin weights there would only make it less representative. See its own note below.
+#
+# DevMode (`setDevModeResult`) is NOT usable here: it forces ONE client-side spin, and a Hold & Spin
+# is a server-driven sequence. If BO is unconfigured the run is SKIPPED with an error rather than
+# running unforced — an unforced run would grade whatever the RNG happened to do.
+#
+# Which fixture reaches which path (`FreeSpinGame.CoinWeight` is a PER-EMPTY-CELL probability, not a
+# next-count distribution — games/zeus/paytables/paytable.md §CoinDistributions):
+#
+#   fixture                base reels        FS CoinWeight   what the feature does        cases
+#   ─────────────────────  ────────────────  ──────────────  ──────────────────────────  ─────────────
+#   fs-trigger3-countdown  COIN on reel 1    all 0           no new coin ever: 3->2->1->0 30/32/33/35/36/38
+#   fs-trigger3-reset      COIN on reel 1    all 300 (p=.30) a coin lands, grid does NOT  34
+#                                                            fill -> counter must reset
+#   fs-trigger3-addcoin    COIN on reel 1    all 1000        every empty cell fills at    37
+#                                                            once -> 9 DURING the feature
+#   fs-trigger9            COIN on all 3     all 0           9 coins on the TRIGGER, no   31
+#                                                            respin is fired at all
+#
+# ⚠ `fs-trigger3-reset` IS NEW, AND ZZ-34 WAS VACUOUS WITHOUT IT. ZZ-34 ran on
+# `fs-trigger3-addcoin`, whose weight of 1000 is p = 1.0 per empty cell — so all six empty cells
+# fill on the first respin, the grid reaches 9, and the feature ends there. `holdspin_reset_on_new_coin`
+# deliberately SKIPS a round that fills the grid (a full grid ends the feature; no reset is due), so
+# the invariant passed without ever testing the reset, and `coins_added >= 1` passed on the six
+# coins that ended the bonus. Rule 6: aim at the MIDDLE of the distribution, not the top. At p = 0.30
+# from a 3-coin trigger (6 empty cells) a respin adds at least one coin 88% of the time and fills
+# the grid outright 0.07% of the time — so the reset is observable on essentially every run that
+# adds a coin at all. `fs-trigger3-addcoin` is kept, because its instant fill is exactly what ZZ-37
+# needs.
+#
+# ── ON `max_win_x` (Rules 9 and 17) ──────────────────────────────────────────────────────────
+# Every forced run carries a cap, but a LOOSE one — a runaway backstop, not the usual tight
+# `10 * bet`. A tight cap would truncate the feature mid-respin, and a truncated Hold & Spin ends
+# with respins still owed and the grid not full, which is precisely the shape `holdspin_ends_correctly`
+# reports as a violation. That would be a RED that blames the game for the cap. The feature is
+# bounded anyway — at most 9 coins, and the drain fails loudly at 60 respins (Rule 13) — so there is
+# nothing here for a tight cap to protect against. Every case that needs the whole feature asserts
+# `{facts.capped} == False`, so a cap that DOES bite is reported on a fact that names the cause
+# instead of appearing as a mysterious invariant failure.
+#
+# ── ⚠ D1 ─────────────────────────────────────────────────────────────────────────────────────
+# docs/zeus-bridge-defects.md D1 makes the Buy Bonus popup flash shut ~0.4s after opening on a
+# fresh session, which is how the ZZ-39..43 run starts. `{facts.popup_loaded}` and
+# `{facts.confirmed}` are the tell.
+
+runs:
+  # ── ZZ-30/32/33/35/36/38 : trigger on 3 coins, no new coins, count down to 0 ────────
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: fs-trigger3-countdown }
+      teardown: return-to-base
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with a Hold & Spin bonus. Gold Coin symbols that land are LOCKED in
+          place; only the cells without a Coin respin. This clip covers one whole Hold & Spin: it
+          triggers on {facts.trigger_coins} Coin(s) and plays {facts.respins_played} respin(s),
+          ending with {facts.final_coins} of 9 cells filled and the respin counter at 0. No new Coin
+          lands during this feature — that is what the run is set up to produce, not a fault. The
+          ACTION TIMELINE marks the trigger and every respin. Answer each independently:
+
+          (1) feature_entered: does the game clearly enter a Hold & Spin / respin bonus, distinct
+          from an ordinary base spin?
+
+          (2) coins_visibly_held: across the respins, do the locked Coins stay in the SAME grid
+          positions rather than moving or disappearing? coin_cell_respun: does any cell that already
+          holds a Coin visibly spin again?
+
+          (3) only_empty_cells_spin: during each respin, do ONLY the cells without a Coin
+          spin/animate, while the Coin cells stay completely still?
+
+          (4) counter_counts_down: is a respin counter shown, and does it decrease as the respins
+          play, reaching 0 at the end? Judge the trend across the whole feature — do NOT try to read
+          the exact number at the moment the bonus starts, which changes within a few frames.
+
+          (5) total_payout_shown: when the feature ends, is a total-payout / total-win figure
+          presented? returns_to_base: does the game then return to the base game?
+
+          (6) bet_locked / auto_locked: WHILE the feature is running, are the bet controls and the
+          Autoplay control disabled or visibly locked?
+        output_schema:
+          feature_entered: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          coin_cell_respun: { type: boolean }
+          only_empty_cells_spin: { type: boolean }
+          counter_counts_down: { type: boolean }
+          total_payout_shown: { type: boolean }
+          returns_to_base: { type: boolean }
+          bet_locked: { type: boolean }
+          auto_locked: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-30: { feature_entered: true, confidence: medium }
+          ZZ-32: { coins_visibly_held: true, coin_cell_respun: false, confidence: medium }
+          ZZ-33: { only_empty_cells_spin: true, coin_cell_respun: false, confidence: medium }
+          ZZ-35: { counter_counts_down: true, confidence: medium }
+          ZZ-36: { total_payout_shown: true, returns_to_base: true, confidence: medium }
+          ZZ-38: { bet_locked: true, auto_locked: true, confidence: medium }
+      cases:
+        - id: ZZ-30
+          title: "3-8 Coins trigger Hold & Spin and award 3 respins"
+          assert:
+            - stream: holdspin_award
+            - stream: "{facts.trigger_coins} >= 3"
+            - stream: "{facts.trigger_coins} < 9"
+            - stream: "{facts.capped} == False"          # the award was not cut short by the cap
+
+        - id: ZZ-32
+          title: "Triggering Coins are held in place for the whole feature"
+          assert:
+            - stream: holdspin_coins_held
+            # Rule 17: the invariant is a per-round comparison, so it is VACUOUSLY true of a feature
+            # with no respins to compare. Assert the length the claim needs.
+            - stream: "{facts.respins_played} >= 2"
+            - stream: "{facts.capped} == False"
+
+        - id: ZZ-33
+          title: "Only the positions without a Coin are re-spun"
+          assert:
+            # the same evidence read the other way: if a coin position were re-spun, the held set
+            # would not grow monotonically
+            - stream: holdspin_coins_held
+            - stream: "{facts.final_coins} >= {facts.trigger_coins}"
+            - stream: "{facts.respins_played} >= 2"
+
+        - id: ZZ-35
+          title: "A respin with no new Coin counts the respins down"
+          assert:
+            - stream: holdspin_countdown
+            # this fixture forces the count-down path: no coin may be added at all
+            - stream: "{facts.coins_added} == 0"
+            # a countdown needs at least two rounds before it is visible as a countdown
+            - stream: "{facts.respins_played} >= 2"
+            - stream: "{facts.capped} == False"
+
+        - id: ZZ-36
+          title: "Running out of respins ends the feature and pays the total"
+          assert:
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.respins_left} == 0"
+            - stream: "{facts.grid_filled} == False"     # this fixture ends on the COUNTER, not a full grid
+            - stream: holdspin_payout_matches_coins
+            - stream: "{facts.bonus_total} > 0"
+            # Rule 9: a max-win truncation also ends with the counter cleared and would satisfy
+            # every assert above while proving nothing about running out of respins.
+            - stream: "{facts.capped} == False"
+
+        - id: ZZ-38
+          title: "Bet and Autoplay controls are locked during the feature"
+          assert:
+            - stream: "{facts.respins_played} >= 1"      # there was a feature to lock during
+            # The lock itself is a client-side control state with no response field behind it, so
+            # the video half above carries the claim. What the stream pins is that the feature
+            # really ran, so the AI is not being asked about a screen that never showed one.
+
+  # ── ZZ-34 : a new Coin resets the respin counter back to 3 ─────────────────────────
+  # `fs-trigger3-reset`, not `fs-trigger3-addcoin` — see the fixture table at the head of this file.
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: fs-trigger3-reset}
+      teardown: return-to-base
+      cases:
+        - id: ZZ-34
+          title: "A new Coin is held and resets the respin counter to 3"
+          assert:
+            - stream: holdspin_reset_on_new_coin
+            - stream: holdspin_coins_held
+            # ANTI-VACUITY, and the whole reason this run has its own fixture. The invariant checks
+            # only the rounds that ADDED a coin, and skips one that filled the grid — so with no
+            # adding round it is silently true, and with an instantly-filling one it is silently
+            # true as well. Both halves are needed: a coin was added, AND the grid did not fill on
+            # the round that added it (or there was no reset due and nothing was tested).
+            - stream: "{facts.coins_added} >= 1"
+            - stream: "{facts.respins_played} >= 2"
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.capped} == False"
+            - video:
+                at: [trigger, terminal]
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with a Hold & Spin bonus: landed gold Coins are LOCKED, only
+                  empty cells respin, and every NEW Coin resets the respin counter back to 3. This
+                  clip covers one whole feature. It triggered on {facts.trigger_coins} Coin(s),
+                  {facts.coins_added} further Coin(s) landed during the respins, and it ended with
+                  {facts.final_coins} of 9 cells filled after {facts.respins_played} respin(s). The
+                  ACTION TIMELINE marks the trigger and each respin, and each respin's caption says
+                  how many Coins were held at that point — use it to find the respins where the
+                  count WENT UP. Answer: (1) at a respin where a new Coin lands, does the respin
+                  counter jump back UP to 3 (counter_resets_on_new_coin)? (2) does that newly landed
+                  Coin then stay locked in place for the rest of the feature, like the triggering
+                  ones (new_coin_held)? (3) on respins where NO new Coin lands, does the counter
+                  instead go down by one (counter_counts_down_otherwise)? Judge the counter's
+                  behaviour across the feature; do not try to read its value in the first few frames
+                  of the bonus, which change too fast.
+                output_schema:
+                  counter_resets_on_new_coin: { type: boolean }
+                  new_coin_held: { type: boolean }
+                  counter_counts_down_otherwise: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  counter_resets_on_new_coin: true
+                  new_coin_held: true
+                  confidence: medium
+
+  # ── ZZ-31 : 9 Coins in the BASE GAME — the respins are skipped entirely ────────────
+  # `fs-trigger9` puts COIN on all three base reels, so every visible cell is a Coin and the grid is
+  # full on the trigger itself. That is the path this case names, and `filled_on_trigger` asserts it
+  # rather than accepting either path: ZZ-31 and ZZ-37 are two DIFFERENT situations, and letting one
+  # fixture answer "whichever it produced" meant one of the two was always graded on the other's
+  # footage.
+  - run:
+      scenario: hold-spin-full-grid
+      paytable: { ref: fs-trigger9, max_win_x: 500 }
+      teardown: return-to-base
+      cases:
+        - id: ZZ-31
+          title: "9 Coins in the base game pay out immediately without respinning"
+          assert:
+            - stream: "{facts.grid_filled} == True"
+            - stream: "{facts.final_coins} == 9"
+            - stream: "{facts.filled_on_trigger} == True"   # this is the base-game path, not the in-feature one
+            - stream: "{facts.respins_played} == 0"         # ...so NO respin was fired at all
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.capped} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with a Hold & Spin bonus in which 3 or more gold Coins normally
+                  award 3 respins. In this clip a base spin lands Coins in ALL NINE cells at once,
+                  so there is nothing left to respin. Answer: (1) does the grid visibly fill with
+                  nine Coins on that spin (grid_visibly_full)? (2) does the game pay out
+                  straight away WITHOUT playing any respins — no respin counter counting down, no
+                  further reel movement (no_respins_played)? (3) does a total-payout / total-win
+                  popup appear (total_payout_shown)? (4) does the game then return to the base game
+                  (returns_to_base)?
+                output_schema:
+                  grid_visibly_full: { type: boolean }
+                  no_respins_played: { type: boolean }
+                  total_payout_shown: { type: boolean }
+                  returns_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  grid_visibly_full: true
+                  no_respins_played: true
+                  total_payout_shown: true
+                  returns_to_base: true
+                  confidence: medium
+
+  # ── ZZ-37 : filling all 9 Coins DURING the feature stops it immediately ────────────
+  # `fs-trigger3-addcoin` at p = 1.0 per empty cell: a 3-coin trigger, then every empty cell fills
+  # on the first respin. That is the in-feature fill this case is about, and it is the one path the
+  # 100% force is the RIGHT tool for — the outcome does not scale with the weight, it either fills
+  # or it does not (Rule 6's exception, written down here as that rule asks).
+  - run:
+      scenario: hold-spin-full-grid
+      paytable: { ref: fs-trigger3-addcoin, max_win_x: 500 }
+      teardown: return-to-base
+      cases:
+        - id: ZZ-37
+          title: "Filling all 9 Coins during the feature stops it immediately"
+          assert:
+            - stream: "{facts.grid_filled} == True"
+            - stream: "{facts.final_coins} == 9"
+            - stream: "{facts.filled_on_trigger} == False"  # the grid filled DURING the feature...
+            - stream: "{facts.respins_played} >= 1"         # ...so at least one respin really ran
+            # flags any round AFTER the grid filled: the rule is that it stops IMMEDIATELY
+            - stream: holdspin_ends_correctly
+            - stream: holdspin_coins_held
+            - stream: "{facts.capped} == False"
+            - video:
+                at: [trigger, terminal]
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with a Hold & Spin bonus. This clip covers one whole feature: it
+                  triggered on 3 gold Coins, and during the respins the remaining cells filled until
+                  all 9 held a Coin, after {facts.respins_played} respin(s). The ACTION TIMELINE
+                  marks the trigger and each respin. Answer: (1) does the grid visibly reach nine
+                  Coins during the RESPINS — not on the triggering spin (grid_filled_during_respins)?
+                  (2) once it is full, does the feature stop immediately — no further respin is
+                  played even though the counter had respins left (stops_when_full)? (3) is a
+                  total-payout / total-win figure then presented (total_payout_shown)? (4) does the
+                  game return to the base game afterwards (returns_to_base)?
+                output_schema:
+                  grid_filled_during_respins: { type: boolean }
+                  stops_when_full: { type: boolean }
+                  total_payout_shown: { type: boolean }
+                  returns_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  grid_filled_during_respins: true
+                  stops_when_full: true
+                  total_payout_shown: true
+                  returns_to_base: true
+                  confidence: medium
+
+  # ── ZZ-39..43 : Buy Bonus ──────────────────────────────────────────────────────────
+  # A bought round enters Hold & Spin directly, so the SAME invariants apply to it unchanged —
+  # which IS what ZZ-42/43 ask ("the bonus behaves like a natural one"). The scenario drains it with
+  # the same `play_out_holdspin` a natural trigger uses, for the same reason: if buying took a
+  # different code path, the shared drain and the shared invariants are what would show it.
+  #
+  # NO FORCED PAYTABLE, and no cap. Buying IS the deterministic entry — that is the whole point of
+  # the feature — so there is nothing to force to reach the bonus, and forcing one would make this
+  # run LESS representative, not more: `FreeSpinGame.CoinWeight` governs the RESPINS, so
+  # `fs-trigger3-countdown` (all 0) meant no coin could ever be added and `holdspin_reset_on_new_coin`
+  # was vacuously true. On the real weights each rule is exercised when the bonus actually produces
+  # it, which is what "behaves like a natural one" means. `facts.coins_added` says whether this run
+  # happened to exercise the reset.
+  #
+  # The feature is bounded anyway — at most 9 coins, and the drain fails loudly at 60 respins — so
+  # it needs no runaway backstop. Dropping the paytable also drops two BO round trips per run.
+  - run:
+      scenario: buy-bonus
+      teardown: return-to-base
+      video:
+        # NO `at:` — the WHOLE scenario is the case: open the panel, select, Buy, confirm, every
+        # respin, the payout, the return to base. `at:` narrows the clip to a ROUND's window, and a
+        # round's window starts when the framework began AWAITING that bet — for the purchase that
+        # is just after the confirm click, so the panel, the package and both clicks fell outside
+        # it. (Measured: the purchase round starts 7.2s into a 45.7s scenario.) A mark cannot fix
+        # that either — `marks` map a name to a round SEQ, not to a moment.
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with a Buy Bonus feature that enters the Hold & Spin bonus directly.
+          The clip BEGINS in the ordinary base game, before anything is clicked. Then the Buy Bonus
+          popup is opened with the bet at {facts.bet}, a package priced at {facts.price} is
+          selected, Buy is pressed, a confirmation is accepted, and the bought bonus plays out IN
+          FULL: it
+          started with {facts.trigger_coins} Coin(s) on the grid, played {facts.respins_played}
+          respin(s), ended with {facts.final_coins} of 9 cells filled, paid {facts.bonus_total},
+          and handed back to the base game. The ACTION TIMELINE marks the popup opening, the package
+          selection, the confirmation, each respin, the end of the feature and the return to base.
+          Answer each independently:
+
+          (1) popup_opened: does the Buy Bonus popup open and render, showing purchasable package(s)
+          with a price? popup_stayed_open: does it stay open long enough to be used, rather than
+          closing itself within a second?
+
+          (2) price_shown_matches: does the popup show a total price consistent with {facts.price}?
+          price_scales_with_bet: is the price presented as a multiple of the bet — a "x N"
+          multiplier, or a price that plainly scales with the bet of {facts.bet}?
+
+          (3) starts_with_three_coins: when the bought bonus begins, does the grid show exactly
+          three gold Coins and no more?
+
+          (4) coins_visibly_held: during the bought bonus, do the locked Coins stay in the same
+          positions while only the empty cells respin — the same behaviour as a naturally triggered
+          Hold & Spin?
+
+          (5) played_to_the_end: do the respins run until the feature is over — the counter
+          reaching zero or the grid filling — rather than stopping partway or freezing?
+
+          (6) total_payout_shown: when it ends, is a total-payout / total-win figure presented?
+          returns_to_base: does the game then return to the ordinary base game, with the reels and
+          the Spin button back to their normal idle look and ready to play again? The clip
+          deliberately continues for about {facts.base_watch_s} seconds after the bonus ends and
+          then HOLDS STILL for about {facts.base_hold_s} more — during that tail the reels must not
+          start again and no new round may begin. A clip that simply ends is not evidence; judge
+          the tail.
+        output_schema:
+          popup_opened: { type: boolean }
+          popup_stayed_open: { type: boolean }
+          price_shown_matches: { type: boolean }
+          price_scales_with_bet: { type: boolean }
+          starts_with_three_coins: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          played_to_the_end: { type: boolean }
+          total_payout_shown: { type: boolean }
+          returns_to_base: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-39: { popup_opened: true, popup_stayed_open: true, price_scales_with_bet: true, confidence: medium }
+          ZZ-40: { price_shown_matches: true, confidence: medium }
+          ZZ-41: { starts_with_three_coins: true, confidence: medium }
+          ZZ-42: { coins_visibly_held: true, confidence: medium }
+          ZZ-43: { played_to_the_end: true, total_payout_shown: true, returns_to_base: true, confidence: medium }
+      cases:
+        - id: ZZ-39
+          title: "Buy Bonus total price follows the current bet"
+          assert:
+            - stream: "{facts.popup_loaded} == True"
+            - stream: "{facts.packages} > 0"
+            - stream: "{facts.bet} > 0"
+            # The package selection LANDED. `buyBonusSelectedPrice` is 0 when nothing is selected,
+            # and confirming with nothing selected clicks a control that resolves while inert — the
+            # contract's stated worst case — after which no bet is ever sent.
+            - stream: "{facts.package_picked} == True"
+            - stream: "{facts.price} > 0"
+            # BUYING IS TWO CLICKS: `buyBonus:buy` raises a confirmation modal, `buyBonus:confirm`
+            # inside it is the actual purchase. A live run proved it by clicking only `confirm`
+            # first — scoped to a modal that did not exist yet, so it timed out, then the fallback
+            # raised the modal and left it un-clicked while the run waited 15s for a bet nobody had
+            # authorised. Both clicks are asserted so a green cannot hide half the flow.
+            - stream: "{facts.buy_clicked} == True"
+            - stream: "{facts.confirmed} == True"
+
+        - id: ZZ-40
+          title: "Total price = total bet x package price multiplier"
+          assert:
+            # The ratio is a constant per package, but the multiplier is SERVER CONFIG — so it is
+            # exposed as a fact rather than hard-coded here. Read it from one live run and then pin
+            # the exact value (`== <n>`); until then this only proves the price is a positive
+            # multiple of the bet, which is weaker and is deliberately not dressed up as more.
+            - stream: "{facts.price_ratio} > 0"
+            - stream: "{facts.paid_stake} > 0"        # the purchase was charged as a real bet
+
+        - id: ZZ-41
+          title: "A bought bonus starts with exactly 3 Coins on screen"
+          assert:
+            - stream: "{facts.trigger_coins} == 3"
+
+        - id: ZZ-42
+          title: "A bought bonus spins by the same rules as a natural Hold & Spin"
+          assert:
+            # The three respin rules, applied to a BOUGHT bonus. Each is checked wherever it
+            # applies; on the real weights a given run may not produce a new coin, and then
+            # `holdspin_reset_on_new_coin` is vacuously true — `{facts.coins_added}` says whether
+            # this run exercised it. The reset rule itself is proven on a natural trigger by ZZ-34,
+            # which forces the case with `fs-trigger3-reset`; ZZ-42's claim is that BUYING does not
+            # take a different code path, and a violation here would still be caught.
+            - stream: holdspin_coins_held
+            - stream: holdspin_reset_on_new_coin
+            - stream: holdspin_countdown
+            # every round of the feature was actually collected, not just its entry
+            - stream: "{facts.bonus_rounds} >= 3"
+            # Rule 17 again: all three invariants compare CONSECUTIVE rounds, so all three are
+            # vacuously true of a bought bonus that ended on its entry round.
+            - stream: "{facts.respins_played} >= 2"
+            - stream: "{facts.capped} == False"
+
+        - id: ZZ-43
+          title: "A bought bonus plays every round, pays out, and returns to the base game"
+          assert:
+            # it ENDED, on the game's own terms — the counter reached 0 or the grid filled...
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.bonus_ended} == True"
+            - stream: "{facts.respins_left} == 0"
+            # ...it PAID what the coins it collected are worth...
+            - stream: holdspin_payout_matches_coins
+            - stream: "{facts.bonus_total} > 0"
+            # ...it was not cut short by the cap (which also ends cleanly and would satisfy the
+            # asserts above while proving nothing about a full round)...
+            - stream: "{facts.capped} == False"
+            # ...and the game CAME BACK. This is the half nothing used to check: the scenario ended
+            # with a bare settle(), which cannot tell a clean return from its own 3s fallback and
+            # left the total-win popup up for the next run to inherit. `settle_to_base` waits for a
+            # base the game can actually spin and says whether it got there.
+            - stream: "{facts.returned_to_base} == True"
+            - stream: "{facts.popups_at_end} == 'none'"
+            # Rule 4: "it came back to base" is a NEGATIVE claim, so the scenario WATCHES for a
+            # further bet and then HOLDS on the still screen. Nothing arriving is the evidence —
+            # and the hold is what puts an idle base game on the clip for the AI to judge, instead
+            # of a video that merely stops the instant spin becomes clickable.
+            - stream: "{facts.bet_after_return} == False"

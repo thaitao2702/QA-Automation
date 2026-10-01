@@ -1,0 +1,287 @@
+[
+  {
+    "id": "base-0",
+    "action": "base",
+    "description": "base",
+    "start_ms": 289830,
+    "end_ms": 290009,
+    "result": {
+      "seq": 0,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 15141.336,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687274788880385"
+    }
+  },
+  {
+    "id": "settle-1",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 290016,
+    "end_ms": 294443,
+    "result": null
+  },
+  {
+    "id": "base-1",
+    "action": "base",
+    "description": "base",
+    "start_ms": 294948,
+    "end_ms": 295083,
+    "result": {
+      "seq": 1,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 15141.236,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687317721776129"
+    }
+  },
+  {
+    "id": "settle-3",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 295083,
+    "end_ms": 299459,
+    "result": null
+  },
+  {
+    "id": "base-2",
+    "action": "base",
+    "description": "base",
+    "start_ms": 299972,
+    "end_ms": 300105,
+    "result": {
+      "seq": 2,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 15141.136,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687359849365505"
+    }
+  },
+  {
+    "id": "settle-5",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 300105,
+    "end_ms": 303868,
+    "result": null
+  },
+  {
+    "id": "base-3",
+    "action": "base",
+    "description": "base",
+    "start_ms": 304376,
+    "end_ms": 304501,
+    "result": {
+      "seq": 3,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 15141.036,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687396801183745"
+    }
+  },
+  {
+    "id": "settle-7",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 304501,
+    "end_ms": 311726,
+    "result": null
+  },
+  {
+    "id": "base-4",
+    "action": "base",
+    "description": "base",
+    "start_ms": 312237,
+    "end_ms": 312365,
+    "result": {
+      "seq": 4,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.0,
+      "balance": 15140.936,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687462718865409"
+    }
+  },
+  {
+    "id": "settle-9",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 312365,
+    "end_ms": 316181,
+    "result": null
+  },
+  {
+    "id": "base-5",
+    "action": "base",
+    "description": "base",
+    "start_ms": 316694,
+    "end_ms": 316818,
+    "result": {
+      "seq": 5,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 0.1,
+      "base_stake": 0.1,
+      "payout": 0.03,
+      "balance": 15140.866,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949687500115279873"
+    }
+  },
+  {
+    "id": "settle-11",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 316818,
+    "end_ms": 323593,
+    "result": null
+  },
+  {
+    "id": "mark-12",
+    "action": "mark",
+    "description": "NORMAL WIN: one paying step (round 5, 1 paying step(s))",
+    "start_ms": 323593,
+    "end_ms": 323593,
+    "result": null
+  },
+  {
+    "id": "mark-13",
+    "action": "mark",
+    "description": "HISTORY [normal_win]: open the panel",
+    "start_ms": 325595,
+    "end_ms": 325595,
+    "result": null
+  },
+  {
+    "id": "click-14",
+    "action": "click",
+    "description": "open settings to reach settings:history",
+    "start_ms": 325598,
+    "end_ms": 325915,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:history"
+    }
+  },
+  {
+    "id": "click-15",
+    "action": "click",
+    "description": "click settings:history",
+    "start_ms": 325595,
+    "end_ms": 329265,
+    "result": {
+      "button": "settings:history"
+    }
+  },
+  {
+    "id": "mark-16",
+    "action": "mark",
+    "description": "BET DETAIL [normal_win]: open the newest row",
+    "start_ms": 329274,
+    "end_ms": 329274,
+    "result": null
+  },
+  {
+    "id": "mark-17",
+    "action": "mark",
+    "description": "BET DETAIL [normal_win]: no cluster win -- nothing below the fold",
+    "start_ms": 331315,
+    "end_ms": 331315,
+    "result": null
+  },
+  {
+    "id": "close-history-18",
+    "action": "close-history",
+    "description": "close-history [normal_win]: open before -> HistoryDetail, HistoryPopup",
+    "start_ms": 333333,
+    "end_ms": 333333,
+    "result": null
+  },
+  {
+    "id": "click-19",
+    "action": "click",
+    "description": "click historyDetail:close",
+    "start_ms": 333333,
+    "end_ms": 335644,
+    "result": {
+      "button": "historyDetail:close"
+    }
+  },
+  {
+    "id": "close-history-20",
+    "action": "close-history",
+    "description": "close-history [normal_win]: click `historyDetail:close` (the detail sits on top of the list) -> clicked in 2.31s",
+    "start_ms": 335644,
+    "end_ms": 335644,
+    "result": null
+  },
+  {
+    "id": "click-21",
+    "action": "click",
+    "description": "click history:close",
+    "start_ms": 335644,
+    "end_ms": 337965,
+    "result": {
+      "button": "history:close"
+    }
+  },
+  {
+    "id": "close-history-22",
+    "action": "close-history",
+    "description": "close-history [normal_win]: click `history:close` -> clicked in 2.33s; still open -> none",
+    "start_ms": 337970,
+    "end_ms": 337970,
+    "result": null
+  },
+  {
+    "id": "close-history-23",
+    "action": "close-history",
+    "description": "close-history [normal_win]: CLOSED via the close button in 4.64s; spin clickable in 0.51s",
+    "start_ms": 338478,
+    "end_ms": 338478,
+    "result": null
+  }
+]

@@ -1,0 +1,48 @@
+[
+  {
+    "id": "click-0",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 21464,
+    "end_ms": 23793,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "mark-1",
+    "action": "mark",
+    "description": "BET LIST: pick row 3 (7)",
+    "start_ms": 23797,
+    "end_ms": 23797,
+    "result": null
+  },
+  {
+    "id": "click-2",
+    "action": "click",
+    "description": "click bet:row:3",
+    "start_ms": 23797,
+    "end_ms": 26117,
+    "result": {
+      "button": "bet:row:3"
+    }
+  },
+  {
+    "id": "click-3",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 26117,
+    "end_ms": 28441,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "settle-4",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 28441,
+    "end_ms": 29450,
+    "result": null
+  }
+]

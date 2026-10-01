@@ -1,0 +1,37 @@
+# Mystic — Mah_011 : balance runs out during free spins (free spins keep playing).
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-freespin-balance.yml
+#
+# Flow: trigger free spins, ZERO the wallet (Playsite) and reload so the client re-reads balance 0
+# with the bonus pending -> the free spins must still play out (stake 0). Needs PLAYSITE_*.
+# ⚠ LIVE-UNVERIFIED: whether startGame resumes the bonus round-by-round (drainable, so the stream
+# proofs apply) or auto-plays it internally (then only the video proof applies). The teardown
+# tops the wallet back up.
+
+runs:
+  - run:
+      scenario: freespin-zero-balance
+      paytable: { ref: mystic-fs-easy }    # FreeSpin! ~30% on reels 1-3 -> triggers fast, still plays normally
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: Mah_011
+          title: "Free spins continue normally even when the balance is 0"
+          assert:
+            # response proofs (apply when the resumed free spins are observed round-by-round):
+            - stream: stake_zero_in_freespins          # every free spin costs 0 -> a 0 balance can't block it
+            - stream: conservation                     # balance stays consistent across the resumed rounds
+            - video:
+                at: trigger
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Free spins were triggered, then the player's
+                  balance was set to 0 and the game reloaded with the bonus pending. Do the free spins
+                  still start and play out on their own — with NO "not enough balance" / out-of-money
+                  popup blocking them — even though the balance is 0?
+                output_schema:
+                  free_spins_continue: { type: boolean }
+                  no_balance_block: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  free_spins_continue: true
+                  no_balance_block: true
+                  confidence: medium

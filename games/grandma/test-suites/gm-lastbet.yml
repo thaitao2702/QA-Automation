@@ -1,0 +1,375 @@
+# Grandma Pets — LAST BET. TC-082, TC-083, TC-085, TC-086.
+# (TC-084 and TC-087 are not covered — see docs/grandma-coverage.md.)
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-lastbet.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# ⚠ "Last Bet" is NOT a panel. The claim is that closing and reopening the game brings back the
+# round last played. `lastBet` drives a RESTORE (nothing owed); `pending` drives a RESUME (spins
+# owed and played). Runs 1-3 are restores; run 4 is a resume.
+#
+# ⚠ `applyLastBet()` NULLS `gameInfo.lastBet` at Start, so the evidence exists only between the
+# bridge installing and the Start click — hence the pre-start capture and the `info_captured` gate.
+
+runs:
+
+  # TC-082
+  # HOW:
+  #  - click spin (at most 60 times), each time waiting until the round has finished showing,
+  #    until a round wins nothing; a big-win celebration on the way is tapped away
+  #  - if a spin starts free spins, let the whole bonus play out (declining the extra-free-spins
+  #    offer at the end) and keep spinning — a bonus is never the round kept
+  #  - if no losing round comes in 60 spins, the run stops there as unreached
+  #  - hold the losing result on screen for 2 s
+  #  - reload the page and click Start — the player closing and reopening the game
+  #  - wait until the reopened game is ready to spin, then hold 2 s on it and take a screenshot
+  #  - the whole run is ONE video clip (result, reload, reopened screen); no picture is graded
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (last-bet-restore):
+  #  - outcome: lose (set here) — keep spinning until a round that wins nothing
+  #  - max_spins: 60 (default) — most spins tried before giving up
+  #  - dwell_s: 2 (set here) — seconds the reopened game is held on screen
+  #  - change_bet_after: false (default) — the bet is not touched between the round and the reload
+  #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before reload
+  # note: the stored round is read through the game's profile, never by raw field name: it does
+  # not spell its fields the same way a spin response does
+  - run:
+      scenario: last-bet-restore
+      params: { outcome: lose, dwell_s: 2 }
+      teardown: return-to-base
+      video:
+        asset_groups: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player plays one round, then
+          closes the game and opens it again. The ACTION TIMELINE marks two moments: BEFORE (the
+          game just before it is closed) and AFTER (the reopened game, ready). Compare the screen
+          at BEFORE with the screen at AFTER.
+
+          (1) grid_same: is the symbol grid the same — every one of the 20 cells (5 reels x 4 rows)
+          showing the same symbol at BEFORE and at AFTER?
+          (2) bet_same: is the bet amount the same at BEFORE and at AFTER?
+          (3) balance_same: is the balance the same at BEFORE and at AFTER?
+          (4) win_same: is the win shown the same at BEFORE and at AFTER — the same win amount, or
+          no win at either?
+          (5) ui_broken: at AFTER, is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: name every difference you found between BEFORE and AFTER, or "none".
+        output_schema:
+          grid_same: { type: boolean }
+          bet_same: { type: boolean }
+          balance_same: { type: boolean }
+          win_same: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-082: { grid_same: true, bet_same: true, balance_same: true, win_same: true,
+                    ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-082
+          title: "Reopening after a losing round restores that round and its stake"
+          assert:
+            # the gate: without a capture every assert below would be comparing nulls
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            # THE CASE: the stake that comes back is the stake that was played
+            - stream: "{facts.stake_restored} == True"
+            - stream: "{facts.restored_stake} == {facts.played_stake}"
+            # ...and it really was a losing round, or "no win was shown" proves nothing
+            - stream: "{facts.played_payout} == 0"
+            # nothing was owed, so nothing should have played on its own
+            - stream: "{facts.resumed_rounds} == 0"
+
+  # TC-083
+  # HOW:
+  #  - click spin (at most 60 times), each time waiting until the round has finished showing,
+  #    until a round pays something; a big-win celebration on the way is tapped away
+  #  - if a spin starts free spins, let the whole bonus play out (declining the extra-free-spins
+  #    offer at the end) and keep spinning — a bonus is never the round kept
+  #  - if no winning round comes in 60 spins, the run stops there as unreached
+  #  - hold the winning result on screen for 2 s
+  #  - reload the page and click Start — the player closing and reopening the game
+  #  - wait until the reopened game is ready to spin, then hold 3 s on it and take a screenshot
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (last-bet-restore):
+  #  - outcome: win (set here) — keep spinning until a round that pays something
+  #  - max_spins: 60 (default) — most spins tried before giving up
+  #  - dwell_s: 3 (set here) — seconds the reopened game is held on screen
+  #  - change_bet_after: false (default) — the bet is not touched between the round and the reload
+  #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before reload
+  - run:
+      scenario: last-bet-restore
+      params: { outcome: win, dwell_s: 3 }
+      teardown: return-to-base
+      video:
+        asset_groups: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player plays one round, then
+          closes the game and opens it again. The ACTION TIMELINE marks two moments: BEFORE (the
+          game just before it is closed) and AFTER (the reopened game, ready). Compare the screen
+          at BEFORE with the screen at AFTER.
+
+          (1) grid_same: is the symbol grid the same — every one of the 20 cells (5 reels x 4 rows)
+          showing the same symbol at BEFORE and at AFTER?
+          (2) bet_same: is the bet amount the same at BEFORE and at AFTER?
+          (3) balance_same: is the balance the same at BEFORE and at AFTER?
+          (4) win_same: is the win shown the same at BEFORE and at AFTER — the same win amount, or
+          no win at either?
+          (5) win_marking_same: are the same symbols marked as winning (highlighted, framed or
+          animated) at BEFORE and at AFTER — or none marked at either?
+          (6) ui_broken: at AFTER, is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: name every difference you found between BEFORE and AFTER, or "none".
+        output_schema:
+          grid_same: { type: boolean }
+          bet_same: { type: boolean }
+          balance_same: { type: boolean }
+          win_same: { type: boolean }
+          win_marking_same: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-083: { grid_same: true, bet_same: true, balance_same: true, win_same: true,
+                    win_marking_same: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-083
+          title: "Reopening after a winning round restores the view, the win and the stake"
+          assert:
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            # hunt-guaranteed: `outcome: win` keeps spinning until a round actually pays, so
+            # asserting a payout here is safe rather than hopeful
+            - stream: "{facts.played_payout} > 0"
+            - stream: "{facts.payout_restored} == True"
+            - stream: "{facts.restored_payout} == {facts.played_payout}"
+            - stream: "{facts.stake_restored} == True"
+            - stream: "{facts.restored_stake} == {facts.played_stake}"
+
+  # TC-085 — two halves, two runs. The rule (from the game team):
+  #   a) the player changes the BET but does not spin -> reopening shows the bet of the last round
+  #      PLAYED, not the one selected afterwards (TC-085a, this run);
+  #   b) the DENOMINATION LIST changes to one without the last round's bet -> reopening shows the
+  #      new list's DEFAULT bet (TC-085b, next run).
+  # TC-085a
+  # HOW:
+  #  - click spin once and wait until the round has finished showing; whatever it shows is kept
+  #    (if that spin starts free spins instead, the whole bonus plays out, the extra-free-spins
+  #    offer is declined, and spin is clicked again — at most 60 spins)
+  #  - hold the finished result on screen for 2 s
+  #  - click the bet arrow to open the bet list, scroll to the first bet in the list that is not
+  #    the current one, click it, and close the list (2 s pause after each step)
+  #    (if the list does not open, step the bet arrows one value at a time to that bet instead)
+  #  - wait until the game is ready to spin — no spin is made
+  #  - if the bet did not actually change, carry on to the reload anyway
+  #  - reload the page and click Start — the player closing and reopening the game
+  #  - wait until the reopened game is ready to spin, then hold 3 s on it and take a screenshot
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (last-bet-restore):
+  #  - outcome: any (set here) — keep the first round that is not a bonus, whatever it paid
+  #  - max_spins: 60 (default) — most spins tried before giving up
+  #  - dwell_s: 3 (set here) — seconds the reopened game is held on screen
+  #  - change_bet_after: true (set here) — pick a different bet after the round, before reloading
+  #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before reload
+  - run:
+      scenario: last-bet-restore
+      params: { outcome: any, change_bet_after: true, dwell_s: 3 }
+      teardown: return-to-base
+      video:
+        asset_groups: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player plays one round, changes
+          the bet without spinning, then closes the game and opens it again. The ACTION TIMELINE
+          marks four moments: BEFORE (the round has finished), BET CHANGED (the player changes the
+          bet), CLOSE AND REOPEN, and AFTER (the reopened game, ready).
+
+          (1) grid_same: is the symbol grid the same — every one of the 20 cells (5 reels x 4 rows)
+          showing the same symbol at BEFORE and at AFTER?
+          (2) bet_same_as_before: is the bet amount at AFTER the same as the bet amount at BEFORE?
+          (3) balance_same: is the balance the same at BEFORE and at AFTER?
+          (4) win_same: is the win shown the same at BEFORE and at AFTER — the same win amount, or
+          no win at either?
+          (5) ui_broken: at AFTER, is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: name every difference you found between BEFORE and AFTER, or "none".
+        output_schema:
+          grid_same: { type: boolean }
+          bet_same_as_before: { type: boolean }
+          balance_same: { type: boolean }
+          win_same: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-085a: { grid_same: true, bet_same_as_before: true, balance_same: true, win_same: true,
+                     ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-085a
+          title: "A bet changed without spinning is not kept: reopening shows the last played bet"
+          assert:
+            - stream: "{facts.info_captured} != False"
+            # the premise: the bet really moved to a different value after the round
+            - stream: "{facts.bet_moved_after_round} == True"
+            - stream: "{facts.changed_bet_to} != {facts.played_stake}"
+            # THE CASE: the game comes back on the bet of the round PLAYED...
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            # ...not on the one merely selected afterwards
+            - stream: "{facts.bet_opens_at_changed_value} == False"
+            - stream: "{facts.restored_stake} == {facts.played_stake}"
+
+  # TC-085b
+  # HOW:
+  #  - click spin once and wait until the round has finished showing; whatever it shows is kept
+  #    (if that spin starts free spins instead, the whole bonus plays out, the extra-free-spins
+  #    offer is declined, and spin is clicked again — at most 60 spins)
+  #  - hold the finished result on screen for 2 s
+  #  - close the game
+  #  - in the back office, switch the game's bet list to 11 / 22 / 33 (none of them is the bet
+  #    just played), then wait 5 s
+  #    (if the back office is not set up, the run stops here as not reached)
+  #  - open the game again (without Start) every 3 s until it offers the new bet list — at most
+  #    30 s; if it never does, the run stops as not reached (the change did not reach the game)
+  #  - click Start
+  #  - wait until the reopened game is ready to spin, then hold 3 s on it and take a screenshot
+  #  - afterwards: the bet list is put back in the back office, and the game is brought back to
+  #    the base game
+  # PARAMS (last-bet-restore):
+  #  - outcome: any (set here) — keep the first round that is not a bonus, whatever it paid
+  #  - max_spins: 60 (default) — most spins tried before giving up
+  #  - dwell_s: 3 (set here) — seconds the reopened game is held on screen
+  #  - change_bet_after: false (default) — the bet is not touched
+  #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before closing
+  #  - swap_denomination: true (set here) — change the bet list in the back office while closed
+  #  - settle_s: 5.0 (default) — seconds waited after the back-office change
+  #  - propagation_timeout_s: 30.0 (default) — how long to keep reopening for the new bet list
+  #  - poll_s: 3.0 (default) — seconds between those reopen attempts
+  #
+  # ⚠ `teardown: reset-denomination` is mandatory: the bet list is shared back-office state, and
+  #   leaving it on 11/22/33 would poison every later run's bet asserts.
+  - run:
+      scenario: last-bet-restore
+      params: { outcome: any, swap_denomination: true, dwell_s: 3 }
+      teardown: [reset-denomination, return-to-base]
+      video:
+        asset_groups: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player plays one round, the game
+          is closed, its bet levels are changed while it is closed, and the game is opened again.
+          The ACTION TIMELINE marks the moments: BEFORE (the round has finished), CLOSED, BET
+          LEVELS CHANGED, REOPENED, and AFTER (the reopened game, ready).
+
+          (1) bet_after: read the bet amount shown at AFTER, exactly as printed, as a string.
+          (2) bet_same_as_before: is the bet amount at AFTER the same as the bet amount at BEFORE?
+          (3) ui_broken: at AFTER, is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bet_after: { type: string }
+          bet_same_as_before: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # a gameInfo/BO case (like TC-086): the read is compared to the new list's default
+          TC-085b: { bet_after: "{facts.new_default_bet}", bet_same_as_before: false,
+                     ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-085b
+          title: "A new bet list without the last bet: reopening shows the new list's default bet"
+          assert:
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            # the premise: the round was played at a bet the new list does not offer
+            - stream: "{facts.played_bet_in_new_ladder} == False"
+            # THE CASE: the game opens on the new list's default bet
+            - stream: "{facts.bet_opens_at_new_default} == True"
+
+  # TC-086
+  # HOW:
+  #  - before the run: switch the game's paytable to gm-fs-easy (most spins start free spins),
+  #    with wins capped at 50x the bet
+  #  - if the back office is not set up, nothing is played and the run stops as unreached
+  #  - click spin (at most 20 times), each time waiting until the round has finished showing,
+  #    until a spin wins free spins; if none does, the run stops as unreached
+  #  - the moment that spin's result comes back — before it is shown — close the game
+  #    (blank page), leaving the free spins owed
+  #  - switch the game's bet list in the back office to 11 / 22 / 33 and wait 5 s
+  #  - open the game WITHOUT clicking Start; while it still offers the old bet list, wait 3 s and
+  #    open it again, for up to 30 s
+  #  - click Start
+  #  - if the new bet list never arrived: let the owed free spins play out (declining the
+  #    extra-free-spins offer at the end), wait until spin is ready, and stop as unreached
+  #  - otherwise the owed free spins play by themselves — watch each one until the bonus ends
+  #    (at most 60), declining the extra-free-spins offer at the end
+  #  - wait until the base game is ready to spin, hold 3 s on it and take a screenshot
+  #  - afterwards: the bet list is put back and the game is brought back to the base game
+  # PARAMS (bonus-resume-denomination-swap):
+  #  - max_spins: 20 (default) — most spins tried to win free spins before giving up
+  #  - dwell_s: 3 (default) — seconds the base game is held on screen after the bonus
+  #  - resume_cap: 60 (default) — most resumed free spins watched before calling the bonus stuck
+  #  - settle_s: 5.0 (default) — seconds waited after the back-office change before reopening
+  #  - propagation_timeout_s: 30.0 (default) — how long to keep reopening for the new bet list
+  #  - poll_s: 3.0 (default) — seconds between those reopen attempts
+  # ⚠ the game is closed THE MOMENT the trigger response arrives, so the trigger spin is never
+  #   shown on screen. The clip therefore starts at the first RESUMED free spin, and the prompt
+  #   says so — asking the AI about the trigger's bet would be asking about something not there.
+  #
+  # Requirement: "during Free Spin, Last Bet still shows the Stake per the frozen config; only
+  # after Free Spin ends does the new Denomination apply." So the AI READS the bet during the
+  # resumed free spins and after the bonus, and each is compared with the source of truth:
+  # the stake frozen in `gameInfo.pending`, and the default of the new denomination set on BO.
+  #
+  # ⚠ `teardown: reset-denomination` is mandatory: the swap is a BO write, and leaving the agent on
+  #   the automation ladder would change the bet every later run opens at.
+  - run:
+      scenario: bonus-resume-denomination-swap
+      teardown: [reset-denomination, return-to-base]
+      paytable: { ref: gm-fs-easy, max_win_x: 50 }
+      video:
+        assets: []
+        at: [resume_first, restored]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip starts right after the game was opened
+          again, at a moment when free spins were still owed from before it was closed. The spin
+          that won those free spins is NOT in this clip. The ACTION TIMELINE marks BONUS OVER.
+
+          (1) spins_resume: at the start of the clip, do free spins play without anyone clicking?
+          (2) bet_during_bonus: read the bet amount shown while the free spins play, exactly as
+          printed, as a string. If it changes during the free spins, answer "changes".
+          (3) bet_after_bonus: read the bet amount shown after BONUS OVER, exactly as printed, as a
+          string.
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          spins_resume: { type: boolean }
+          bet_during_bonus: { type: string }
+          bet_after_bonus: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # during: the stake frozen in gameInfo.pending; after: the new denomination's default
+          TC-086: { spins_resume: true, bet_during_bonus: "{facts.pending_stake}",
+                    bet_after_bonus: "{facts.new_default_bet}", ui_broken: false,
+                    confidence: medium }
+      cases:
+        - id: TC-086
+          title: "An owed bonus resumes on its frozen stake, and the new denomination applies after it"
+          assert:
+            - stream: "{facts.is_pending_freespin} == True"
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.resumed_rounds} >= 1"
+            # DURING: every resumed round showed the stake frozen in gameInfo.pending...
+            - stream: "{facts.bet_during_bonus_is_pending} == True"
+            # ...which is the stake the bonus was triggered at
+            - stream: "{facts.pending_stake_is_trigger} == True"
+            # AFTER: the bet is the new denomination's default
+            - stream: "{facts.bet_after_bonus_is_new_default} == True"
+            - stream: stake_zero_in_freespins
+            - stream: conservation

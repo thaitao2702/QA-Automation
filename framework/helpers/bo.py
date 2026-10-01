@@ -70,9 +70,12 @@ without BO steps runs fine without BO config).
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
+import time
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +84,11 @@ from framework.bo.agent_game_settings import (
     set_agent_paytable,
 )
 from framework.bo.bo_api_client import ApiError, AuthError, BoApiClient
+from framework.bo.denominations import (
+    assign_agent_denomination,
+    ensure_agent_automation_denomination,
+    reset_agent_denomination_to_default,
+)
 from framework.bo.update_game_paytable import ensure_game_paytable, update_game_paytable
 from framework.env_files import env_file_suffix, load_env_files, load_game_config
 
@@ -121,6 +129,17 @@ class BoHelper:
         self.agent_id: str | None = self._cfg("BO_AGENT_ID", "agent_id", game_cfg, str)
         self.currency_id: Any = self._cfg("BO_CURRENCY_ID", "currency_id", game_cfg, int)
         self.game_code: str | None = self._cfg("BO_GAME_CODE", "game_code", game_cfg, str)
+        # The bet a scenario is expected to play at, so a suite can express its max-win cap
+        # as a MULTIPLE of the bet (`paytable: { max_win_x: 10 }`). The cap is applied before
+        # the game loads, so the runner cannot read the real stake — this is the stand-in.
+        self.reference_bet = self._cfg("BO_REFERENCE_BET", "reference_bet", game_cfg, float)
+        # The automation paytable's `code` differs per game — Zeus's master game carries
+        # "AutomationTest", Chaos's carries "Automation_test". Writing to a code the game
+        # does not have does NOT fail loudly enough: the run reports a paytable was set while
+        # the game keeps playing its real weights. Declare it per game; None keeps the
+        # historical default so Zeus/Mystic are unaffected.
+        self.paytable_code: str | None = self._cfg(
+            "BO_PAYTABLE_CODE", "paytable_code", game_cfg, str)
         # Environment-scoped endpoint + secrets (from .env / .env.{suffix}).
         self._token: str = os.environ.get("BO_TOKEN", "").strip()
         self._refresh_token: str = os.environ.get("BO_REFRESH_TOKEN", "").strip()
@@ -190,8 +209,31 @@ class BoHelper:
                 return None
         return str(value)
 
+    @staticmethod
+    def _jwt_expiry(token: str) -> float | None:
+        """`exp` (epoch seconds) out of a JWT, or None when it cannot be read."""
+        parts = (token or "").split(".")
+        if len(parts) != 3:
+            return None
+        try:
+            pad = parts[1] + "=" * (-len(parts[1]) % 4)
+            return float(json.loads(base64.urlsafe_b64decode(pad))["exp"])
+        except Exception:  # noqa: BLE001 -- an unreadable token simply has no known expiry
+            return None
+
     def _load_token_cache(self) -> None:
-        """Override token/refresh_token with cached values if the cache exists."""
+        """Adopt the cached tokens, but NEVER a cached access token that is already dead.
+
+        The cache exists so a token rotated mid-run survives into the next process. It used to
+        override .env unconditionally, which quietly broke the opposite case: paste a fresh token
+        into .env.{suffix} while a stale cache is on disk, and the stale one still wins. The run
+        then authenticates with an expired token, tries to refresh it, and fails with
+        UNAUTHORIZED_USER -- because `auth/refresh-token` requires a token that is still VALID --
+        while the same fresh token works perfectly in Postman. Cost an hour on 2026-09-04.
+
+        So the cache is only preferred while it is actually usable: a cached access token that has
+        expired, or is older than the one in .env, is ignored and the .env value stands.
+        """
         if not self._token_cache_path.exists():
             return
         try:
@@ -199,13 +241,35 @@ class BoHelper:
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Ignoring unreadable BO token cache %s: %s", self._token_cache_path, exc)
             return
-        if cached.get("token"):
-            self._token = str(cached["token"]).strip()
-        if cached.get("refresh_token"):
-            self._refresh_token = str(cached["refresh_token"]).strip()
+        cached_token = str(cached.get("token") or "").strip()
+        if cached_token:
+            now = time.time()
+            cached_exp = self._jwt_expiry(cached_token)
+            env_exp = self._jwt_expiry(self._token)
+            if cached_exp is not None and cached_exp <= now:
+                logger.warning(
+                    "Ignoring BO token cache %s: its access token expired %.0f min ago. "
+                    "Using the token from the .env overlay instead.",
+                    self._token_cache_path.name, (now - cached_exp) / 60)
+            elif env_exp is not None and cached_exp is not None and env_exp > cached_exp:
+                logger.info("Ignoring BO token cache %s: the .env token is newer.",
+                            self._token_cache_path.name)
+            else:
+                self._token = cached_token
+                # Only adopt the cached refresh token alongside the access token it was saved
+                # with; pairing a cached refresh token with an .env access token mixes sessions.
+                if cached.get("refresh_token"):
+                    self._refresh_token = str(cached["refresh_token"]).strip()
 
-    def _persist_token(self, new_token: str) -> None:
-        """on_token_refresh callback — write the rotated access token to the cache."""
+    def _persist_token(self, new_token: str, new_refresh_token: str | None = None) -> None:
+        """on_token_refresh callback — write the rotated tokens to the cache.
+
+        The refresh token is written too. dev does not rotate it today, but if it ever
+        starts to, caching the ACCESS token beside a stale REFRESH token would hand the
+        next process a pair that cannot renew itself.
+        """
+        if new_refresh_token:
+            self._refresh_token = new_refresh_token
         try:
             self._token_cache_path.write_text(
                 json.dumps(
@@ -403,15 +467,21 @@ class BoHelper:
         agent_id: Any = None,
         currency_id: Any = None,
         game_code: str | None = None,
+        max_payout: Any = None,
     ) -> dict[str, Any]:
         """
         Point the agent's game at the named paytable (e.g. ``AutomationTest``) so
         spins use it. Setup step — preserves every other game-settings field.
+
+        ``max_payout`` (optional) also caps the agent's payout for this game. A forced paytable
+        can award a bonus that runs for hundreds of spins; the cap is what ends it — the server
+        truncates at the cap and sets ``hasReachedMaxWin``, which the framework treats as terminal.
+        The teardown clears the override, so a cap cannot leak into the next run.
         """
         aid, cid, code = self._agent_target(agent_id, currency_id, game_code)
         client = self._client()
         return await asyncio.to_thread(
-            set_agent_paytable, client, aid, cid, code, paytable_code
+            set_agent_paytable, client, aid, cid, code, paytable_code, None, max_payout
         )
 
     async def reset_agent_paytable(
@@ -429,6 +499,97 @@ class BoHelper:
         client = self._client()
         return await asyncio.to_thread(
             reset_agent_paytable_to_default, client, aid, cid, code
+        )
+
+    # ------------------------------------------------------------------
+    # Denominations — the BET LADDER the agent's game row offers.
+    #
+    # These are the paytable pair's twin: `ensure_automation_denomination` is SETUP and
+    # `reset_agent_denomination` is its TEARDOWN, and a run that calls the first MUST declare the
+    # second or the next run inherits a bet ladder of 11/22/33 and every bet assert in the suite
+    # goes red for a reason nothing in that suite mentions.
+    #
+    # ⚠ The automation ladder is (11, 22, 33) ON PURPOSE (`AUTOMATION_BET_LEVELS`). Those values do
+    # not occur in any real denomination, so a test can tell from ONE number whether a stake came
+    # from the automation ladder or the game's own — which is the whole point of a
+    # denomination-swap case. Do not "tidy" them into round numbers.
+    #
+    # ⚠ NEVER RUN LIVE as of 2026-09-16: `framework/bo/denominations.py` was written and tested
+    # offline against captured payloads only. The first live run should read the list first.
+    # ------------------------------------------------------------------
+    async def ensure_automation_denomination(
+        self,
+        *,
+        agent_id: Any = None,
+        currency_id: Any = None,
+        game_code: str | None = None,
+        game_id: Any = None,
+        sas_entity_id: Any = None,
+        bet_levels: Any = None,
+    ) -> dict[str, Any]:
+        """SETUP: put this agent's game row on the automation bet ladder, creating it if needed.
+
+        Returns ``{denomination_id, name, created, sub_category_id, previous_denomination_id}``.
+        ``previous_denomination_id`` is what the row used BEFORE — hand it to
+        ``reset_agent_denomination`` so the teardown restores exactly what was there.
+        """
+        aid, cid, code = self._agent_target(agent_id, currency_id, game_code)
+        gid = game_id if game_id is not None else self.game_id
+        seid = sas_entity_id if sas_entity_id is not None else self.sas_entity_id
+        if gid is None or seid is None:
+            raise BoConfigError(
+                "BO game_id/sas_entity_id missing — set game_id/sas_entity_id under the "
+                f"bo: block in games/{self.game}/env.config.{env_file_suffix(self.env)}.yml "
+                "(or BO_GAME_ID/BO_SAS_ENTITY_ID env vars)."
+            )
+        client = self._client()
+        kwargs: dict[str, Any] = {}
+        if bet_levels is not None:
+            kwargs["bet_levels"] = tuple(bet_levels)
+        return await asyncio.to_thread(
+            partial(ensure_agent_automation_denomination,
+                    client, gid, seid, aid, cid, code, **kwargs)
+        )
+
+    async def assign_agent_denomination(
+        self,
+        denomination_id: Any,
+        *,
+        agent_id: Any = None,
+        currency_id: Any = None,
+        game_code: str | None = None,
+    ) -> dict[str, Any]:
+        """Point the agent's game row at ``denomination_id`` WITH the override on.
+
+        The teardown half of a run whose row already overrode the denomination before the test:
+        restoring that state means keeping ``isDenomOverride: 1``, because BO only accepts
+        ``isDenomOverride: 0`` alongside the master game's id.
+        """
+        aid, cid, code = self._agent_target(agent_id, currency_id, game_code)
+        client = self._client()
+        return await asyncio.to_thread(
+            partial(assign_agent_denomination, client, aid, cid, code, denomination_id)
+        )
+
+    async def reset_agent_denomination(
+        self,
+        *,
+        denomination_id: Any = None,
+        agent_id: Any = None,
+        currency_id: Any = None,
+        game_code: str | None = None,
+    ) -> dict[str, Any]:
+        """TEARDOWN: clear the row's denomination override so it follows the master game again.
+
+        ⚠ ``denomination_id`` must be the MASTER game's denomination for this currency
+        (``master_denomination_id`` from the setup). BO rejects `isDenomOverride: 0` sent with any
+        other id — measured on dev 2026-09-18 — and leaves the row overridden.
+        """
+        aid, cid, code = self._agent_target(agent_id, currency_id, game_code)
+        client = self._client()
+        return await asyncio.to_thread(
+            partial(reset_agent_denomination_to_default,
+                    client, aid, cid, code, denomination_id=denomination_id)
         )
 
 

@@ -1,0 +1,156 @@
+# Mystic — Base Game + Free Spin cases (Mah_043..Mah_051, Mah_046) from test-case-mahjong.csv.
+# All run on EXISTING scenarios (base-spin / base-cluster-win / fs-complete) — no new bridge.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-basegame-freespin.yml
+#
+# Note on the multiplier cases (043/044/045/048/049/050): the running multiplier is a TRANSIENT
+# on-screen value with no bridge getter, so these are AI (video) reads — probabilistic (orange on a
+# miss), scoped to the phase that shows the value. Expect confidence: medium.
+# Runs that place bets carry `teardown: return-to-base` since a 7x7 base spin can itself trigger FS.
+
+runs:
+  # ── Mah_043 + Mah_046 : one base spin — multiplier init x1 AND buttons disabled while spinning ──
+  - run:
+      scenario: base-spin
+      teardown: return-to-base
+      cases:
+        - id: Mah_043_046
+          title: "Base spin: multiplier starts at x1, and controls are disabled while the reels spin"
+          assert:
+            - video:
+                at: spin
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot with a rising win multiplier. This clip is one base
+                  spin. Answer both: (1) at the START of the spin (a brand-new round, before any
+                  cascade), does the multiplier read x1 (multiplier_is_x1_at_start)? (2) WHILE the reels
+                  are spinning (before they stop and any win resolves), are the bet +/- controls and
+                  Auto Play, Trophy, Paytable, Sound, Info and Menu all disabled / not usable
+                  (controls_disabled_during_spin)?
+                output_schema:
+                  multiplier_is_x1_at_start: { type: boolean }
+                  multiplier_seen: { type: string }
+                  controls_disabled_during_spin: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  multiplier_is_x1_at_start: true
+                  controls_disabled_during_spin: true
+                  confidence: medium
+
+  # ── Mah_044 + Mah_045 : ONE cluster-win play, ONE video, graded across both cases ──
+  # A cluster win is expensive to hit, so base-cluster-win hunts the win AND plays one more fresh spin.
+  # A single shared video (clip spans `[win, reset]`) is analysed ONCE and graded across both cases via
+  # `expected_by_case` — the increase and the reset are meaningful together in one continuous clip.
+  - run:
+      scenario: base-cluster-win           # spin until a >=2-cascade win, then one more fresh spin
+      teardown: return-to-base
+      cases:
+        - id: Mah_044
+          title: "Base multiplier rises one level per cascade on a cluster win"
+          assert:
+            - stream: "{res.cascades} >= 2"          # response proof: the winning round did cascade
+        - id: Mah_045
+          title: "Base multiplier resets to Level 1 (x1) on the round after a cluster win"
+      video:                                 # ONE AI call over one clip, graded per case (expected_by_case)
+        at: [win, reset]                     # span: from the winning round's start to the reset round's end
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot with a rising win multiplier. This clip shows a winning base
+          spin that cascades {res.cascades} times, immediately followed by the very NEXT base spin (a
+          brand-new round). Answer for the moment each names: (1) during the winning spin, does the win
+          multiplier increase by one level after each cascade step (multiplier_rises_per_cascade)? (2) is
+          the win amount counted using the current multiplier (win_uses_multiplier)? (3) at the START of
+          the NEXT round, has the multiplier reset back to x1 (multiplier_reset_to_x1)?
+        output_schema:
+          multiplier_rises_per_cascade: { type: boolean }
+          win_uses_multiplier: { type: boolean }
+          multiplier_reset_to_x1: { type: boolean }
+          multiplier_seen: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_044:                           # the win moment
+            multiplier_rises_per_cascade: true
+            win_uses_multiplier: true
+            confidence: medium
+          Mah_045:                           # the reset moment
+            multiplier_reset_to_x1: true
+            confidence: medium
+
+  # ── Mah_047 : free spins trigger when the condition is met ────────────────────────
+  # ── Mah_047 + Mah_048 + Mah_051 : one bonus, ONE video (trigger + first free spin) ──
+  # fs-complete triggers FS and plays it out. One shared clip spans [trigger, first free spin], graded
+  # across the three cases: FS triggered (047), FS multiplier starts at x2 (048), controls disabled +
+  # FS-remaining shown during FS (051). Mah_047 keeps its exact response-engine proofs as streams.
+  - run:
+      scenario: fs-complete                # spins base until FS triggers, then plays the whole bonus
+      teardown: return-to-base
+      cases:
+        - id: Mah_047
+          title: "Free spins are triggered and awarded when the trigger condition is met"
+          assert:
+            - stream: "{trigger.total_free_spin} > 0"   # response proof: FS were awarded
+            - stream: terminal_reached                # ...and the bonus ran to its end
+        - id: Mah_048
+          title: "Free-spin multiplier initialises at Level 1 (x2) on entering free spins"
+        - id: Mah_051
+          title: "During free spins the controls are disabled and the Spin button shows FS remaining"
+      video:                                 # ONE AI call over trigger -> first free spin, graded per case
+        at: [trigger, "rounds[1]"]           # span: from the trigger's start to the first free spin's end
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot. This clip shows a base spin that meets the free-spin trigger
+          condition ({trigger.total_free_spin} free spins awarded), immediately followed by the FIRST free
+          spin. Answer for the moment each names: (1) does the game clearly award / enter free spins
+          (free_spins_triggered)? (2) at the START of the first free spin, does the multiplier read x2
+          (fs_multiplier_is_x2)? (3) WHILE the free spins play, are the bet +/- and Auto Play, Trophy,
+          Paytable, Info and Menu disabled (controls_disabled_in_fs) and is the number of free spins
+          remaining shown on the Spin button area (fs_remaining_shown)?
+        output_schema:
+          free_spins_triggered: { type: boolean }
+          fs_multiplier_is_x2: { type: boolean }
+          multiplier_seen: { type: string }
+          controls_disabled_in_fs: { type: boolean }
+          fs_remaining_shown: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_047:
+            free_spins_triggered: true
+            confidence: medium
+          Mah_048:
+            fs_multiplier_is_x2: true
+            confidence: medium
+          Mah_051:
+            controls_disabled_in_fs: true
+            fs_remaining_shown: true
+            confidence: medium
+
+  # ── Mah_049 + Mah_050 : a cascade WIN inside FS, then the next free spin (reset) ───
+  # fs-complete can't guarantee a cascade win inside the bonus, so this uses freespin-cascade, which
+  # finds a free spin with a >=2-cascade win that is FOLLOWED by another free spin. One shared clip
+  # spans [fs_cascade, fs_reset]: the climb (049) and the reset on the next free spin (050).
+  - run:
+      scenario: freespin-cascade           # trigger FS, find a cascade-win free spin with a following spin
+      teardown: return-to-base
+      cases:
+        - id: Mah_049
+          title: "Free-spin multiplier rises one level per cascade during a free-spin cascade win"
+        - id: Mah_050
+          title: "Free-spin multiplier resets to Level 1 (x2) on the free spin after the cascade win"
+      video:                                 # ONE AI call over the cascade free spin -> the next free spin
+        at: [fs_cascade, fs_reset]           # span: the cascade-win free spin, then the following free spin
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot in FREE SPINS. This clip shows a free spin that WINS and
+          cascades {res.cascades} times, immediately followed by the NEXT free spin. Answer for the
+          moment each names: (1) during the cascading free spin, does the win multiplier increase by one
+          level after each cascade, climbing toward the free-spin cap of x10 (fs_multiplier_rises_per_cascade)?
+          (2) at the START of the following free spin, has the multiplier reset back to x2
+          (fs_multiplier_reset_to_x2)?
+        output_schema:
+          fs_multiplier_rises_per_cascade: { type: boolean }
+          fs_multiplier_reset_to_x2: { type: boolean }
+          multiplier_seen: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_049:
+            fs_multiplier_rises_per_cascade: true
+            confidence: medium
+          Mah_050:
+            fs_multiplier_reset_to_x2: true
+            confidence: medium

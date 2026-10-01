@@ -1,6 +1,16 @@
 """
 Bridge liveness check — does window.__gameTestBridge still work on the dev build?
 
+⚠ SUPERSEDED by `scripts/probe_bridge.py`, which is what the bridge docs now name
+  (games/zeus/bridge-api.md §13) and what to reach for on a new build or a hang:
+
+      python scripts/probe_bridge.py --game zeus --env dev
+
+  This script predates the scenario engine: it drives the old BridgeHelper and its
+  `wait_for_state` model, and is kept only because it exercises URL resolution and
+  bridge registration end to end. Everything below step 2 is better answered by
+  `probe_bridge.py` or by the bridge`s own `diagnose()`.
+
 Reuses the framework's own URL resolver (playsite flow + ?bridge=1) and the real
 BridgeHelper, so this exercises the exact code path the suite uses. No spins, no
 back-office calls — fast and BO-free. Verifies, in order:
@@ -98,24 +108,35 @@ async def run(env: str, headed: bool) -> int:
 
         # --- 3. query path -------------------------------------------------
         print("\n=== 3. Query path ===")
+        # `getAppState()` was REMOVED in Zeus bridge v3 (bridge-api.md §12): it is implemented
+        # differently game to game, so nothing portable can be built on it. Its absence is
+        # therefore EXPECTED, not a failure -- reporting it as one made a healthy v3 build look
+        # broken. Worse, step 4 gated on `state == 'ready'`, so a build without it silently
+        # SKIPPED the startGame check, which is the one thing this script most needs to answer.
         try:
             state = await bridge.get_app_state()
             ok(f"getAppState() -> '{state}'")
         except Exception as e:  # noqa: BLE001
-            fail(f"getAppState() failed: {e}")
+            info(f"getAppState() unavailable ({type(e).__name__}) -- removed in v3, expected")
             state = None
 
         # --- 4. action path: startGame -------------------------------------
         print("\n=== 4. Action path ===")
-        if state == "ready":
+        if state not in (None, "ready"):
+            info(f"state is '{state}', not 'ready' -- starting anyway")
+        try:
+            await bridge.start_game()
+            # v3 `startGame()` resolves at the CLICK and does not drive to idle -- reaching a
+            # clean idle is the framework`s job -- so a build that never reports "idle" here is
+            # not necessarily broken. Report it; do not fail on it.
             try:
-                await bridge.start_game()
                 await bridge.wait_for_state("idle", timeout_ms=30000)
                 ok("startGame() -> idle")
             except Exception as e:  # noqa: BLE001
-                fail(f"startGame()/wait idle failed: {e}")
-        else:
-            info(f"state is '{state}', not 'ready' — skipping startGame()")
+                info(f"startGame() returned but idle was not reported ({type(e).__name__}) -- "
+                     f"expected on v3, where reaching idle is the caller`s job")
+        except Exception as e:  # noqa: BLE001
+            fail(f"startGame() failed: {e}")
 
         # read-only queries (after game started)
         for name, coro in [

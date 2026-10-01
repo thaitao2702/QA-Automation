@@ -1,0 +1,50 @@
+[
+  {
+    "id": "click-0",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 11709,
+    "end_ms": 14053,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "scroll-1",
+    "action": "scroll",
+    "description": "scroll bet row 8 into view",
+    "start_ms": 14056,
+    "end_ms": 16075,
+    "result": {
+      "row": 8
+    }
+  },
+  {
+    "id": "scroll-2",
+    "action": "scroll",
+    "description": "scroll bet row 0 into view",
+    "start_ms": 16075,
+    "end_ms": 18092,
+    "result": {
+      "row": 0
+    }
+  },
+  {
+    "id": "click-3",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 18096,
+    "end_ms": 20419,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "settle-4",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 20424,
+    "end_ms": 21436,
+    "result": null
+  }
+]

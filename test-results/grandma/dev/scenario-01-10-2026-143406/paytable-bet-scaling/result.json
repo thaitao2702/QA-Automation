@@ -1,0 +1,322 @@
+{
+  "kind": "run",
+  "scenario": "paytable-bet-scaling",
+  "description": "The paytable popup and its bet scaling: open the info/paytable surface and shoot it at bet level A, close, change the bet to level B, reopen and shoot it again. Two full-resolution stills of the SAME table at two bets is what an `image:` assert needs to check that the printed payouts moved with the bet (CR_015) \u2014 a video assert grades a downsampled montage, where paytable digits are not in the pixels.\nPlaces NO bet, so Rule 1 does not apply: no response is read and no trigger is possible. Exposes facts.bet_a / bet_b / line_bet_a / line_bet_b / divisor and the shots paytable-bet-a / paytable-bet-b.\nPer-line bet is `baseStake / betLines` (20). The design doc's `/5` worked examples are wrong \u2014 see game-knowledge.md \u00a75 item 4.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    338.4962270259857,
+    372.588134765625
+  ],
+  "shots": [
+    {
+      "label": "paytable-bet-a",
+      "file": "00-paytable-bet-a.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\paytable-bet-scaling\\_shots\\00-paytable-bet-a.png"
+    },
+    {
+      "label": "paytable-bet-b",
+      "file": "01-paytable-bet-b.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\paytable-bet-scaling\\_shots\\01-paytable-bet-b.png"
+    }
+  ],
+  "facts": {
+    "bet_a": 0.1,
+    "bet_b": 7,
+    "index_a": 0,
+    "index_b": 3,
+    "divisor": 1,
+    "line_bet_a": 0.1,
+    "line_bet_b": 7.0,
+    "denom_count": 9
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-013",
+      "title": "The paytable opens and lists the game's symbols",
+      "stream": [
+        {
+          "spec": "{facts.denom_count} > 1",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.bet_a} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": [
+            "symbols"
+          ],
+          "assets": null,
+          "window": [
+            338.4962270259857,
+            372.588134765625
+          ],
+          "status": "orange",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the paytable is opened, the bet is changed, and the paytable is opened again.\n(1) paytable_opens: does a paytable listing symbols and their payouts open? (2) values_change_with_bet: compare the payout figures between the two openings \u2014 are they larger the second time? (3) symbols_shown: are the game's symbols shown next to their payouts \u2014 the cats, the dogs, the card letters? (4) ways_stated: does it say anywhere that the game pays 1024 ways? (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "paytable_opens": {
+              "type": "boolean"
+            },
+            "values_change_with_bet": {
+              "type": "boolean"
+            },
+            "symbols_shown": {
+              "type": "boolean"
+            },
+            "ways_stated": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "paytable_opens": true,
+            "symbols_shown": true,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621888",
+          "data": {
+            "paytable_opens": true,
+            "values_change_with_bet": false,
+            "symbols_shown": true,
+            "ways_stated": false,
+            "ui_broken": true,
+            "notes": "No payout values are shown in the paytable itself; it instructs users to tap symbols on the reels to see rewards.",
+            "confidence": "high",
+            "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible."
+          },
+          "mismatches": [
+            "ui_broken: got True, expected False"
+          ],
+          "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "note": "ui_broken: got True, expected False - The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "tokens": [
+            8898,
+            2436
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "orange"
+    },
+    {
+      "id": "TC-014",
+      "title": "Paytable payouts scale with the total bet",
+      "stream": [
+        {
+          "spec": "{facts.bet_b} > {facts.bet_a}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.divisor} == 1",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.line_bet_a} == {facts.bet_a}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.line_bet_b} == {facts.bet_b}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": [
+            "symbols"
+          ],
+          "assets": null,
+          "window": [
+            338.4962270259857,
+            372.588134765625
+          ],
+          "status": "orange",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the paytable is opened, the bet is changed, and the paytable is opened again.\n(1) paytable_opens: does a paytable listing symbols and their payouts open? (2) values_change_with_bet: compare the payout figures between the two openings \u2014 are they larger the second time? (3) symbols_shown: are the game's symbols shown next to their payouts \u2014 the cats, the dogs, the card letters? (4) ways_stated: does it say anywhere that the game pays 1024 ways? (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "paytable_opens": {
+              "type": "boolean"
+            },
+            "values_change_with_bet": {
+              "type": "boolean"
+            },
+            "symbols_shown": {
+              "type": "boolean"
+            },
+            "ways_stated": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "values_change_with_bet": true,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621888",
+          "data": {
+            "paytable_opens": true,
+            "values_change_with_bet": false,
+            "symbols_shown": true,
+            "ways_stated": false,
+            "ui_broken": true,
+            "notes": "No payout values are shown in the paytable itself; it instructs users to tap symbols on the reels to see rewards.",
+            "confidence": "high",
+            "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible."
+          },
+          "mismatches": [
+            "values_change_with_bet: got False, expected True"
+          ],
+          "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "note": "values_change_with_bet: got False, expected True - The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "tokens": [
+            0,
+            0
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "orange"
+    },
+    {
+      "id": "TC-055",
+      "title": "The tutorial's base-symbol payouts follow the bet",
+      "stream": [
+        {
+          "spec": "{facts.bet_b} > {facts.bet_a}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.line_bet_b} > {facts.line_bet_a}",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": [
+            "symbols"
+          ],
+          "assets": null,
+          "window": [
+            338.4962270259857,
+            372.588134765625
+          ],
+          "status": "orange",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. In this clip the paytable is opened, the bet is changed, and the paytable is opened again.\n(1) paytable_opens: does a paytable listing symbols and their payouts open? (2) values_change_with_bet: compare the payout figures between the two openings \u2014 are they larger the second time? (3) symbols_shown: are the game's symbols shown next to their payouts \u2014 the cats, the dogs, the card letters? (4) ways_stated: does it say anywhere that the game pays 1024 ways? (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "paytable_opens": {
+              "type": "boolean"
+            },
+            "values_change_with_bet": {
+              "type": "boolean"
+            },
+            "symbols_shown": {
+              "type": "boolean"
+            },
+            "ways_stated": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "values_change_with_bet": true,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621888",
+          "data": {
+            "paytable_opens": true,
+            "values_change_with_bet": false,
+            "symbols_shown": true,
+            "ways_stated": false,
+            "ui_broken": true,
+            "notes": "No payout values are shown in the paytable itself; it instructs users to tap symbols on the reels to see rewards.",
+            "confidence": "high",
+            "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible."
+          },
+          "mismatches": [
+            "values_change_with_bet: got False, expected True"
+          ],
+          "reason": "The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "note": "values_change_with_bet: got False, expected True - The paytable (Information screen) opens at 00:22 and 00:32. It shows the game symbols (cats, dogs, and card letters A, K, Q, J). However, no numerical payout values are displayed for these symbols in the paytable list, so they do not change between the 0.10 and 7.00 bet levels. There is no mention of '1024 ways' on any visible screen. The UI is broken at 00:22, where bracketed placeholder strings such as [Game_name], [all_symbols_left_to_right], and [game_des] are visible.",
+          "tokens": [
+            0,
+            0
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "orange"
+    }
+  ]
+}

@@ -1,0 +1,471 @@
+# Treasures of the Dragon VIP — Hold & Spin + Buy Bonus (DV-30 … DV-43, DV-66).
+#
+# Run:  python scripts/run_scenario.py --game dragon-vip --env dev --suite games/dragon-vip/test-suites/dv-holdspin.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon-vip
+#
+# The VIP build's Hold & Spin is Dragon's, so DV-30 … DV-43 are DR-NN of
+# games/dragon/test-suites/dr-holdspin.yml (itself ZZ-NN of test-case-zeus.xlsx), on the same scenario
+# and the same invariants. What changed is underneath: the FIXTURES. DV-66 is new — the Buy Bonus half
+# of the Premium Reel contract. A Hold & Spin played WITH Ante Bet or a Premium Reel is in
+# dv-ante.yml / dv-premium-reel.yml.
+#
+# Every Hold & Spin rule is in the BET response — held coin positions, coin count, respins remaining
+# — so those are EXACT `stream:` checks, asserted by named invariant:
+#
+#   holdspin_award                 3+ coins award 3 respins                        DV-30
+#   holdspin_coins_held            a landed coin is never re-spun away             DV-32 / DV-33
+#   holdspin_reset_on_new_coin     a new coin resets the counter to 3              DV-34
+#   holdspin_countdown             no new coin -> counter decrements by one        DV-35
+#   holdspin_ends_correctly        ends at 0 respins OR a full grid, not before    DV-36 / DV-37
+#   holdspin_payout_matches_coins  the meter pays the coins actually collected     DV-36 / DV-43
+#
+# ...but exact is not complete (Rule 10): whether the coins VISIBLY stay put and the counter on
+# screen agrees with the server is only on the clip. Each run carries ONE run-level `video:` graded
+# per case (Rule 16), or one `video:` where a run has a single case.
+#
+# ── FORCED OUTCOMES (Rules 6 and 17) ────────────────────────────────────────────────────────
+# ⚠ NOT DRAGON'S FIXTURES. The VIP server paytable (docs/raw/paytable.json) is Dragon's plus the
+# Ante Bet and Premium Reel sections, with DIFFERENT base-game reel weights — so Dragon's fixtures
+# would push the wrong base game AND drop both features from BO. games/dragon-vip/paytables/ is
+# derived from the VIP paytable itself (its README has the commands), the same four paths Dragon
+# uses. `FreeSpinGame.CoinWeight` is a PER-EMPTY-CELL probability:
+#
+#   fixture                base reels        FS CoinWeight   what the feature does        cases
+#   ─────────────────────  ────────────────  ──────────────  ──────────────────────────  ─────────────
+#   fs-trigger3-countdown  COIN on reel 1    all 0           no new coin ever: 3->2->1->0 30/32/33/35/36/38
+#   fs-trigger3-reset      COIN on reel 1    all 300 (p=.30) a coin lands, grid does NOT  34
+#                                                            fill -> counter must reset
+#   fs-trigger3-addcoin    COIN on reel 1    all 1000        every empty cell fills at    37
+#                                                            once -> 9 DURING the feature
+#   fs-trigger9            COIN on all 3     all 0           9 coins on the TRIGGER, no   31
+#                                                            respin is fired at all
+#
+# Each touches only `BaseGame` and `FreeSpinGame`, so the Ante Bet and Premium Reel sections go to BO
+# exactly as the game ships them. The Buy Bonus run forces nothing: buying is itself the entry.
+# With BO unconfigured the forced runs are SKIPPED with an error, never run unforced.
+#
+# ── `max_win_x` IS LOOSE (500), ON EVERY FORCED RUN ─────────────────────────────────────────
+# A backstop, not the usual tight `10 * bet`. A tight cap truncates the feature mid-respin, and a
+# truncated Hold & Spin ends with respins owed and the grid not full — exactly the shape
+# `holdspin_ends_correctly` reports as a violation, so the cap would read as a game defect. The
+# feature is bounded anyway (9 coins at most; the drain fails loudly at 60 respins), so every case
+# that needs the whole feature asserts `{facts.capped} == False`, which names the cap if it bites.
+
+runs:
+  # ── DV-30/32/33/35/36/38 : trigger on 3 coins, no new coin, count down to 0 ──────────
+  # `at: [trigger, terminal]` spans the whole feature. A single-round `at:` on a respin would be
+  # nearly empty: respins arrive back to back, and a round's window runs only to the next response.
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: fs-trigger3-countdown, max_win_x: 500 }
+      teardown: return-to-base
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus. Coin symbols — the bonus
+          symbol, each showing a value — that land are LOCKED in place; only the cells without a
+          Coin respin. This clip covers one whole Hold & Spin: it triggers on
+          {facts.trigger_coins} Coin(s) and plays {facts.respins_played} respin(s), ending with
+          {facts.final_coins} of 9 cells filled and the respin counter at 0. No new Coin lands
+          during this feature — that is what the run is set up to produce, not a fault. The ACTION
+          TIMELINE marks the trigger and every respin. Answer each independently:
+
+          (1) feature_entered: does the game clearly enter a Hold & Spin / respin bonus, distinct
+          from an ordinary base spin?
+
+          (2) coins_visibly_held: across the respins, do the locked Coins stay in the SAME grid
+          positions rather than moving or disappearing? coin_cell_respun: does any cell that already
+          holds a Coin visibly spin again?
+
+          (3) only_empty_cells_spin: during each respin, do ONLY the cells without a Coin
+          spin/animate, while the Coin cells stay completely still?
+
+          (4) counter_counts_down: is a respin counter shown, and does it decrease as the respins
+          play, reaching 0 at the end? Judge the trend across the whole feature — do NOT try to read
+          the exact number at the moment the bonus starts, which changes within a few frames.
+
+          (5) total_payout_shown: when the feature ends, is a total-payout / total-win figure
+          presented? returns_to_base: does the game then return to the base game?
+
+          (6) bet_locked / auto_locked: WHILE the feature is running, are the bet controls and the
+          Autoplay control disabled, hidden or visibly locked?
+        output_schema:
+          feature_entered: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          coin_cell_respun: { type: boolean }
+          only_empty_cells_spin: { type: boolean }
+          counter_counts_down: { type: boolean }
+          total_payout_shown: { type: boolean }
+          returns_to_base: { type: boolean }
+          bet_locked: { type: boolean }
+          auto_locked: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-30: { feature_entered: true, confidence: medium }
+          DV-32: { coins_visibly_held: true, coin_cell_respun: false, confidence: medium }
+          DV-33: { only_empty_cells_spin: true, coin_cell_respun: false, confidence: medium }
+          DV-35: { counter_counts_down: true, confidence: medium }
+          DV-36: { total_payout_shown: true, returns_to_base: true, confidence: medium }
+          DV-38: { bet_locked: true, auto_locked: true, confidence: medium }
+      cases:
+        - id: DV-30
+          title: "3-8 Coins trigger Hold & Spin and award 3 respins"
+          assert:
+            - stream: holdspin_award
+            - stream: "{facts.trigger_coins} >= 3"
+            - stream: "{facts.trigger_coins} < 9"
+            - stream: "{facts.capped} == False"          # the award was not cut short by the cap
+
+        - id: DV-32
+          title: "Triggering Coins are held in place for the whole feature"
+          assert:
+            - stream: holdspin_coins_held
+            # Rule 17: the invariant compares CONSECUTIVE rounds, so it is vacuously true of a
+            # feature with no respins to compare. Assert the length the claim needs.
+            - stream: "{facts.respins_played} >= 2"
+            - stream: "{facts.capped} == False"
+
+        - id: DV-33
+          title: "Only the positions without a Coin are re-spun"
+          assert:
+            # the same evidence read the other way: a re-spun coin position would break the
+            # monotonic growth of the held set
+            - stream: holdspin_coins_held
+            - stream: "{facts.final_coins} >= {facts.trigger_coins}"
+            - stream: "{facts.respins_played} >= 2"
+
+        - id: DV-35
+          title: "A respin with no new Coin counts the respins down"
+          assert:
+            - stream: holdspin_countdown
+            - stream: "{facts.coins_added} == 0"         # this fixture forces the count-down path
+            - stream: "{facts.respins_played} >= 2"      # a countdown needs two rounds to be one
+            - stream: "{facts.capped} == False"
+
+        - id: DV-36
+          title: "Running out of respins ends the feature and pays the total"
+          assert:
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.respins_left} == 0"
+            - stream: "{facts.grid_filled} == False"     # this fixture ends on the COUNTER, not a full grid
+            - stream: holdspin_payout_matches_coins
+            - stream: "{facts.bonus_total} > 0"
+            # Rule 9: a max-win truncation also ends with the counter cleared, and would satisfy
+            # every assert above while proving nothing about running out of respins.
+            - stream: "{facts.capped} == False"
+
+        - id: DV-38
+          title: "Bet and Autoplay controls are locked during the feature"
+          assert:
+            - stream: "{facts.respins_played} >= 1"      # there was a feature to lock during
+            # The lock is a client-side control state with no response field behind it, so the
+            # run-level video carries the claim; this pins that the feature really ran. (A control
+            # that cannot do its job resolves `null` on this build — bridge §6 — so "hidden" counts
+            # as locked in the prompt.)
+
+  # ── DV-34 : a new Coin resets the respin counter back to 3 ────────────────────────────
+  # `fs-trigger3-reset` (p = 0.30), NOT `fs-trigger3-addcoin`. At p = 1 every empty cell fills on
+  # respin 1, and a round that fills the grid is the one round `holdspin_reset_on_new_coin` skips —
+  # no reset is due when the feature ends — so the invariant would pass without a reset ever
+  # happening. At p = 0.30 a respin adds a coin 88% of the time and fills the grid 0.07% of the time.
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: fs-trigger3-reset }
+      teardown: return-to-base
+      cases:
+        - id: DV-34
+          title: "A new Coin is held and resets the respin counter to 3"
+          assert:
+            - stream: holdspin_reset_on_new_coin
+            - stream: holdspin_coins_held
+            # ANTI-VACUITY: the invariant checks only rounds that ADDED a coin. With none, it is
+            # silently true. A coin was added, and the feature ran long enough to show it.
+            - stream: "{facts.coins_added} >= 1"
+            - stream: "{facts.respins_played} >= 2"
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.capped} == False"
+            - video:
+                at: [trigger, terminal]
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus: landed Coin
+                  symbols are LOCKED, only empty cells respin, and every NEW Coin resets the respin
+                  counter back to 3. This clip covers one whole feature. It triggered on
+                  {facts.trigger_coins} Coin(s), {facts.coins_added} further Coin(s) landed during
+                  the respins, and it ended with {facts.final_coins} of 9 cells filled after
+                  {facts.respins_played} respin(s). The ACTION TIMELINE marks the trigger and each
+                  respin, and each respin's caption says how many Coins were held at that point —
+                  use it to find the respins where the count WENT UP. Answer: (1) at a respin where
+                  a new Coin lands, does the respin counter jump back UP to 3
+                  (counter_resets_on_new_coin)? (2) does that newly landed Coin then stay locked in
+                  place for the rest of the feature, like the triggering ones (new_coin_held)? (3)
+                  on respins where NO new Coin lands, does the counter instead go down by one
+                  (counter_counts_down_otherwise)? Judge the counter's behaviour across the feature;
+                  do not try to read its value in the first few frames of the bonus, which change
+                  too fast.
+                output_schema:
+                  counter_resets_on_new_coin: { type: boolean }
+                  new_coin_held: { type: boolean }
+                  counter_counts_down_otherwise: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  counter_resets_on_new_coin: true
+                  new_coin_held: true
+                  confidence: medium
+
+  # ── DV-31 : 9 Coins in the BASE GAME — the respins are skipped entirely ──────────────
+  # `fs-trigger9` puts COIN on all three base reels, so the grid is full on the trigger itself.
+  # `filled_on_trigger` pins THIS path: DV-31 and DV-37 are different situations, and a case that
+  # accepted either would sometimes be graded on the other's footage.
+  - run:
+      scenario: hold-spin-full-grid
+      paytable: { ref: fs-trigger9, max_win_x: 500 }
+      teardown: return-to-base
+      cases:
+        - id: DV-31
+          title: "9 Coins in the base game pay out immediately without respinning"
+          assert:
+            - stream: "{facts.grid_filled} == True"
+            - stream: "{facts.final_coins} == 9"
+            - stream: "{facts.filled_on_trigger} == True"   # the base-game path, not the in-feature one
+            - stream: "{facts.respins_played} == 0"         # ...so NO respin was fired at all
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.capped} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus in which 3 or
+                  more Coin symbols normally award 3 respins. In this clip a base spin lands Coins in
+                  ALL NINE cells at once, so there is nothing left to respin. Answer: (1) does the
+                  grid visibly fill with nine Coins on that spin (grid_visibly_full)? (2) does the
+                  game pay out straight away WITHOUT playing any respins — no respin counter counting
+                  down, no further reel movement (no_respins_played)? (3) does a total-payout /
+                  total-win popup appear (total_payout_shown)? (4) does the game then return to the
+                  base game (returns_to_base)?
+                output_schema:
+                  grid_visibly_full: { type: boolean }
+                  no_respins_played: { type: boolean }
+                  total_payout_shown: { type: boolean }
+                  returns_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  grid_visibly_full: true
+                  no_respins_played: true
+                  total_payout_shown: true
+                  returns_to_base: true
+                  confidence: medium
+
+  # ── DV-37 : filling all 9 Coins DURING the feature stops it immediately ──────────────
+  # `fs-trigger3-addcoin`, p = 1 per empty cell: a 3-coin trigger, then every empty cell fills on
+  # respin 1. The one place a 100% force is the right tool (Rule 6's exception): the outcome does
+  # not scale with the weight — the grid either fills or it does not.
+  - run:
+      scenario: hold-spin-full-grid
+      paytable: { ref: fs-trigger3-addcoin, max_win_x: 500 }
+      teardown: return-to-base
+      cases:
+        - id: DV-37
+          title: "Filling all 9 Coins during the feature stops it immediately"
+          assert:
+            - stream: "{facts.grid_filled} == True"
+            - stream: "{facts.final_coins} == 9"
+            - stream: "{facts.filled_on_trigger} == False"  # the grid filled DURING the feature...
+            - stream: "{facts.respins_played} >= 1"         # ...so at least one respin really ran
+            # flags any round AFTER the grid filled: the rule is that it stops IMMEDIATELY
+            - stream: holdspin_ends_correctly
+            - stream: holdspin_coins_held
+            - stream: "{facts.capped} == False"
+            - video:
+                at: [trigger, terminal]
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus. This clip covers
+                  one whole feature: it triggered on 3 Coin symbols, and during the respins the
+                  remaining cells filled until all 9 held a Coin, after {facts.respins_played}
+                  respin(s). The ACTION TIMELINE marks the trigger and each respin. Answer: (1) does
+                  the grid visibly reach nine Coins during the RESPINS — not on the triggering spin
+                  (grid_filled_during_respins)? (2) once it is full, does the feature stop
+                  immediately — no further respin is played even though the counter had respins
+                  left (stops_when_full)? (3) is a total-payout / total-win figure then presented
+                  (total_payout_shown)? (4) does the game return to the base game afterwards
+                  (returns_to_base)?
+                output_schema:
+                  grid_filled_during_respins: { type: boolean }
+                  stops_when_full: { type: boolean }
+                  total_payout_shown: { type: boolean }
+                  returns_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  grid_filled_during_respins: true
+                  stops_when_full: true
+                  total_payout_shown: true
+                  returns_to_base: true
+                  confidence: medium
+
+  # ── DV-39..43 + DV-66 : Buy Bonus ──────────────────────────────────────────────────────
+  # A bought round enters Hold & Spin directly, so the SAME invariants apply unchanged — which is
+  # what DV-42/43 ask ("the bonus behaves like a natural one"). It is drained by the same
+  # `play_out_holdspin` a natural trigger uses.
+  #
+  # NO forced paytable: buying is the deterministic entry, and forcing the respin weights would only
+  # make the run less representative (all-0 CoinWeight would make the reset rule vacuous). On the
+  # real weights `facts.coins_added` says whether this run happened to exercise the reset.
+  #
+  # ⚠ WHERE THE VIP BUILD DIFFERS FROM DRAGON HERE (bridge §5, §6.3, §9):
+  #   * the panel is the FEATURE panel: it lists the Buy Bonus package beside the Ante Bet and
+  #     Premium Reel rows, and a row below the fold must be scrolled into view first (`buy-bonus`
+  #     does);
+  #   * buying is TWO clicks, not three: the package's BUY row raises the confirm sheet itself and
+  #     `buyBonus:confirm` accepts it. There is no `buyBonus:buy`, so `facts.buy_clicked` is False
+  #     by design and is not asserted — `facts.confirmed` is the purchase;
+  #   * `buyBonusSelectedPrice` is the confirm sheet's price once the row is picked (stake × package
+  #     price), so `facts.price` and the stake the server charged must be the same number (DV-40);
+  #   * the VIP paytable configures ONE package (`packagea`, Price 60).
+  #   * `buyBonus` does not resolve while Ante Bet or a Premium Reel is on (§6.1). The framework
+  #     starts each run from a plain base, so that never blocks this run; dv-ante.yml and
+  #     dv-premium-reel.yml assert the block itself.
+  - run:
+      scenario: buy-bonus
+      teardown: return-to-base
+      video:
+        # NO `at:` — the WHOLE scenario is the case: open the panel, pick, confirm, every respin, the
+        # payout, the return to base. The purchase response and the first respin arrive
+        # milliseconds apart, so `at: trigger` would be a clip of almost nothing, and the panel and
+        # both clicks happen BEFORE round 0 exists.
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with a Buy Bonus feature that enters the Hold &
+          Spin bonus directly. The clip BEGINS in the ordinary base game with the bet at {facts.bet},
+          before anything is clicked. Then the feature panel is opened — it lists the Buy Bonus
+          package alongside Ante Bet and Premium Reel rows — and the Buy Bonus package's BUY row is
+          pressed, which raises a confirmation sheet pricing the purchase at {facts.price}. The
+          sheet is accepted and the bought bonus plays out IN FULL: it started with
+          {facts.trigger_coins} Coin(s) on the grid, played {facts.respins_played} respin(s), ended
+          with {facts.final_coins} of 9 cells filled, paid {facts.bonus_total}, and handed back to
+          the base game. The ACTION TIMELINE marks the panel opening, the package pick, the
+          confirmation, each respin, the end of the feature and the return to base. Answer each
+          independently:
+
+          (1) popup_opened: does the feature panel open and render, showing a purchasable Buy Bonus
+          package with a price? popup_stayed_open: does it stay open long enough to be used, rather
+          than closing itself within a second?
+
+          (2) price_shown_matches: does the confirmation show a total price of {facts.price}?
+          price_scales_with_bet: is the price presented as a multiple of the current stake — an
+          "x N" multiplier, or a total that is plainly the stake times a fixed factor?
+
+          (3) starts_with_three_coins: when the bought bonus begins, does the grid show exactly
+          three Coin symbols and no more?
+
+          (4) coins_visibly_held: during the bought bonus, do the locked Coins stay in the same
+          positions while only the empty cells respin — the same behaviour as a naturally triggered
+          Hold & Spin?
+
+          (5) played_to_the_end: do the respins run until the feature is over — the counter
+          reaching zero or the grid filling — rather than stopping partway or freezing?
+
+          (6) total_payout_shown: when it ends, is a total-payout / total-win figure presented?
+          returns_to_base: does the game then return to the ordinary base game, with the reels and
+          the Spin button back to their normal idle look and ready to play again? The clip
+          deliberately continues for about {facts.base_watch_s} seconds after the bonus ends and
+          then HOLDS STILL for about {facts.base_hold_s} more — during that tail the reels must not
+          start again and no new round may begin. A clip that simply ends is not evidence; judge
+          the tail.
+
+          (7) premium_reel_marked: at any point during the bought bonus, is a reel shown as a
+          Premium / upgraded reel, or a Premium Reel package shown as active?
+        output_schema:
+          popup_opened: { type: boolean }
+          popup_stayed_open: { type: boolean }
+          price_shown_matches: { type: boolean }
+          price_scales_with_bet: { type: boolean }
+          starts_with_three_coins: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          played_to_the_end: { type: boolean }
+          total_payout_shown: { type: boolean }
+          returns_to_base: { type: boolean }
+          premium_reel_marked: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-39: { popup_opened: true, popup_stayed_open: true, price_scales_with_bet: true, confidence: medium }
+          DV-40: { price_shown_matches: true, confidence: medium }
+          DV-41: { starts_with_three_coins: true, confidence: medium }
+          DV-42: { coins_visibly_held: true, confidence: medium }
+          DV-43: { played_to_the_end: true, total_payout_shown: true, returns_to_base: true, confidence: medium }
+          DV-66: { premium_reel_marked: false, confidence: low }
+      cases:
+        - id: DV-39
+          title: "Buy Bonus total price follows the current bet"
+          assert:
+            - stream: "{facts.popup_loaded} == True"
+            - stream: "{facts.packages} > 0"
+            - stream: "{facts.bet} > 0"
+            # The package pick LANDED: `buyBonusSelectedPrice` read 0 would mean nothing is selected,
+            # and the confirm would click a control that resolves while inert — no bet ever comes.
+            - stream: "{facts.package_picked} == True"
+            - stream: "{facts.price} > 0"
+            # The purchase itself. NOT `buy_clicked`: this build has no separate Buy button.
+            - stream: "{facts.confirmed} == True"
+
+        - id: DV-40
+          title: "Total price = total bet x package price multiplier"
+          assert:
+            # The quoted total and the stake the server actually charged for the purchase are the
+            # same number (see the note above the run). A window, not `==`: an inline predicate is
+            # evaluated with no builtins, so there is no abs() and no float tolerance.
+            - stream: "{facts.paid_stake} > 0"
+            - stream: "{facts.paid_stake} >= {facts.price} * 0.999"
+            - stream: "{facts.paid_stake} <= {facts.price} * 1.001"
+            # NOT asserted: an exact multiplier. Pinning it needs `freeSpinPackages[i].price` from
+            # gameInfo, which the scenario does not expose yet — docs/dragon-vip-coverage.md.
+
+        - id: DV-41
+          title: "A bought bonus starts with exactly 3 Coins on screen"
+          assert:
+            - stream: "{facts.trigger_coins} == 3"
+
+        - id: DV-42
+          title: "A bought bonus spins by the same rules as a natural Hold & Spin"
+          assert:
+            # The three respin rules, applied to a BOUGHT bonus. On the real weights a run may land
+            # no new coin, and then `holdspin_reset_on_new_coin` is vacuously true — the reset rule
+            # itself is proven on a natural trigger by DV-34.
+            - stream: holdspin_coins_held
+            - stream: holdspin_reset_on_new_coin
+            - stream: holdspin_countdown
+            - stream: "{facts.bonus_rounds} >= 3"        # every round was collected, not just the entry
+            - stream: "{facts.respins_played} >= 2"      # Rule 17: the invariants compare consecutive rounds
+            - stream: "{facts.capped} == False"
+
+        - id: DV-43
+          title: "A bought bonus plays every round, pays out, and returns to the base game"
+          assert:
+            # it ENDED, on the game's own terms...
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.bonus_ended} == True"
+            - stream: "{facts.respins_left} == 0"
+            # ...it PAID what the coins it collected are worth...
+            - stream: holdspin_payout_matches_coins
+            - stream: "{facts.bonus_total} > 0"
+            # ...it was not cut short by the cap...
+            - stream: "{facts.capped} == False"
+            # ...and the game CAME BACK, proven by `settle_to_base` rather than a bare settle().
+            - stream: "{facts.returned_to_base} == True"
+            - stream: "{facts.popups_at_end} == 'none'"
+            # Rule 4: "it came back" is a NEGATIVE claim — nothing arriving in the watch is the
+            # evidence, and the hold puts an idle base game on the clip for the AI to judge.
+            - stream: "{facts.bet_after_return} == False"
+
+        # ── DV-66 : NEW — the Buy Bonus half of the Premium Reel contract ──────────────────
+        # client-integration.vi.md §6 rule 7: a bought bonus never inherits a Premium Reel — its
+        # `pending.premiumReel` is null and no round of it may carry a package. The invariant takes
+        # the package of the round that OPENED the bonus (the purchase, `premiumReelId: 0`) and
+        # requires every respin to echo exactly that.
+        - id: DV-66
+          title: "A bought bonus never carries a Premium Reel package"
+          assert:
+            - stream: premium_reel_frozen_in_freespins
+            - stream: "{facts.bought_premium_id} == 0"
+            - stream: "{facts.respin_premium_ids} == [0]"
+            - stream: "{facts.respins_played} >= 1"      # there were respins to carry one

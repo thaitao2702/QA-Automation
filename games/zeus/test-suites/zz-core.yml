@@ -1,0 +1,582 @@
+# Zeus — UI, bet, balance, History, paytable, language, tutorial (ZZ-01 … ZZ-12, ZZ-51, ZZ-52).
+#
+# Run:  python scripts/run_scenario.py --game zeus --env dev --suite games/zeus/test-suites/zz-core.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game zeus
+#
+# Everything here reuses a mechanism-free scenario — the same closed boxes Mystic and Chaos run.
+# Nothing is Zeus-specific except the dialect the `zeus` profile supplies (nextBet/previousBet
+# instead of stakeIncrease/stakeDecrease, `bet` instead of `denominations`, `notification` instead
+# of `message`). That is the point of the profile split: money, bets, History and language are the
+# same test regardless of how the bonus works.
+#
+# ── HOW THE ASSERTS ARE SPLIT (Rule 10) ────────────────────────────────────────────────────
+# Every case carries BOTH halves, and they answer different questions:
+#   stream:  the game's own account of itself — exact values, and "it did not happen"
+#   video:/image:  what the player actually SEES — nothing in the response describes pixels
+# A case with no AI assert has the reason written next to it, and the reason is always "there is
+# nothing to see". This suite previously asserted only the stream on ZZ-03/05/06 (mechanics proven,
+# UI never looked at); a correct response rendered into a blank panel or a stale label would have
+# passed all three.
+#
+# ── D1 IS FIXED (bridge v3) ────────────────────────────────────────────────────────────────
+# This suite used to carry a warning that every popup case was racing a closer: v2's `startGame()`
+# awaited `waitForDeterministicStart()`, whose predicate required `autoSpinsRemaining === 0` while a
+# fresh session reported `-1`, so its dismiss loop closed every popup a test opened ~0.4s later.
+# v3 removed both — `startGame()` now clicks Start and resolves at that click, and driving to a
+# clean idle is the framework's job (games/zeus/bridge-api.md §3, §11, §12).
+#
+# The `*_stayed_open` questions below are KEPT. They were written for D1, but "does this panel stay
+# open once opened?" is a real UI claim on any build, and it is the cheapest possible regression
+# guard against that class of defect coming back.
+
+runs:
+  # ── ZZ-01 : the loaded base game ───────────────────────────────────────────────────
+  # IMAGE, not video: "is every element drawn, and is anything overlapping or cut off" is exactly
+  # the question a downsampled video montage is worst at and a full-resolution still is best at.
+  # boot-base captures one (`base`) and returns it, so the assert has something to grade.
+  - run:
+      scenario: boot-base
+      cases:
+        - id: ZZ-01
+          title: "Game UI at load matches the design"
+          assert:
+            # Anti-vacuity: the bridge really answered. Without these, a boot that read nothing
+            # renders "bet null / balance null" into the prompt and the AI grades a screen the
+            # facts cannot describe.
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.bet_amount} > 0"
+            - stream: "{facts.balance} > 0"
+            - image:
+                at: base
+                prompt: >-
+                  This is a still of Zeus, a 3x3 slot with 5 paylines and a Hold & Spin bonus,
+                  sitting idle in the base game just after load — bet {facts.bet_amount}, balance
+                  {facts.balance} {facts.currency}. Answer: (1) is the main UI fully drawn — reels,
+                  balance readout, bet readout, Spin button, with no missing or placeholder art
+                  (ui_complete)? (2) is anything overlapping, cut off or visibly broken
+                  (ui_broken)? (3) is the game idle and ready to spin rather than mid-animation or
+                  showing an error (idle_ready)?
+                output_schema:
+                  ui_complete: { type: boolean }
+                  ui_broken: { type: boolean }
+                  idle_ready: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  ui_complete: true
+                  ui_broken: false
+                  idle_ready: true
+                  confidence: medium
+
+        # ── ZZ-04 : opens at the right bet ────────────────────────────────────────
+        # NEW. This was blocked on defect D3 ("no default bet level is exposed"); bridge v3 puts
+        # `settings.defaultBetLevel` in `getGameInfo()`, so it is gradeable — but NOT the obvious
+        # way. Both the contract (§5) and bridge-api.md (§3) are explicit: defaultBetLevel governs
+        # only a player's FIRST session, and every later session opens at `lastBet.baseStake`.
+        # Asserting `bet_index == default_bet_level` would therefore fail a correct game on every
+        # returning session, which is nearly all of them. `boot-base` applies the documented rule
+        #     expected_open_bet = lastBet ? lastBet.baseStake : denominations[defaultBetLevel]
+        # and publishes both the answer and the inputs, so a failure says WHICH branch it took.
+        # It rides ZZ-01's run: same boot, same still, no extra page load (Rule 16).
+        - id: ZZ-04
+          title: "The game opens at the configured default bet level"
+          assert:
+            # the gate: the backend really published a default. Without it, "opens at the default"
+            # would be graded against nothing and pass confidently on a missing value.
+            - stream: "{facts.default_bet_known} == True"
+            - stream: "{facts.default_bet_amount} > 0"
+            # the rule itself — `opens_at_expected_bet`, NOT `opens_at_default`
+            - stream: "{facts.opens_at_expected_bet} == True"
+            - stream: "{facts.bet_amount} == {facts.expected_open_bet}"
+            # No AI assert, and the reason is the one Rule 10 allows: there is nothing to SEE that
+            # ZZ-01 does not already grade. The opening bet is on screen in ZZ-01's still, and this
+            # case is pure arithmetic over the launch payload — which branch of the first-session
+            # rule applies, and whether the stake matches it. Nothing about it is a pixel.
+
+  # ── ZZ-02 : denominations match config ─────────────────────────────────────────────
+  - run:
+      scenario: browse-denominations
+      cases:
+        - id: ZZ-02
+          title: "Denomination list matches the server config"
+          assert:
+            - stream: "{facts.denom_count} > 0"
+            - stream: "{facts.min_bet} > 0"
+            - stream: "{facts.max_bet} >= {facts.min_bet}"
+            # Anti-vacuity, and the D1 tell: `list_shown` is False when the list never actually
+            # opened, and a video of a list that flashed shut cannot answer "do the ends match".
+            # (NOT `browsed` -- that meant "the bet index moved", which this scenario never does.)
+            - stream: "{facts.list_shown} == True"
+            - stream: "{facts.closed} == True"        # ...and the list really closed again
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. This clip opens the bet-amount list and scrolls to the highest
+                  option and then the lowest; the ACTION TIMELINE gives the time of each step. The
+                  server config says there are {facts.denom_count} denominations from
+                  {facts.min_bet} to {facts.max_bet} {facts.currency}. Answer: (1) does the list
+                  open and render as a list of selectable bet amounts (list_opened)? (2) does it
+                  STAY open while it is scrolled, rather than closing itself within a second
+                  (list_stayed_open)? (3) do the smallest and largest values shown match
+                  {facts.min_bet} and {facts.max_bet} (ends_match_config)?
+                output_schema:
+                  list_opened: { type: boolean }
+                  list_stayed_open: { type: boolean }
+                  ends_match_config: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  list_opened: true
+                  list_stayed_open: true
+                  ends_match_config: true
+                  confidence: medium
+
+  # ── ZZ-03 : bet up / down ──────────────────────────────────────────────────────────
+  # The profile maps stake_up/stake_down to Zeus's nextBet/previousBet, so change-bet needs no edit.
+  # D2 (`canDo('nextBet')` reporting popup_not_open:bet for the very control that OPENS that popup)
+  # is FIXED in v3 — it now reports main-screen preconditions. The scenario clicks rather than gating
+  # on canDo either way, so neither version bites here.
+  - run:
+      scenario: change-bet
+      cases:
+        - id: ZZ-03
+          title: "Bet amount increases and decreases with the bet controls"
+          assert:
+            - stream: "{facts.bet_changed} == True"                 # the bet really moved
+            - stream: "{facts.landed_bet} == {facts.picked_bet}"    # ...and landed where asked
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot. In this clip the player uses the bet control, a bet-amount
+                  list opens, they pick {facts.picked_bet}, and the list closes. The ACTION TIMELINE
+                  gives the time of each step. Answer: (1) does a bet-amount list open when the bet
+                  control is used (bet_list_opened)? (2) once it closes, does the main bet / stake
+                  readout on the game screen read {facts.picked_bet} (bet_readout_matches)? Judge
+                  the bet readout only — ignore the balance, which changes for other reasons.
+                output_schema:
+                  bet_list_opened: { type: boolean }
+                  bet_readout_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_list_opened: true
+                  bet_readout_matches: true
+                  confidence: medium
+
+  # ── ZZ-05 + ZZ-06 : the money, both directions, ONE run ────────────────────────────
+  # These were two runs: `base-spin` for the debit and `base-win` for the credit. One WINNING round
+  # shows both — the stake comes off as the reels start, the payout goes on as the win counts up —
+  # so the second run was paying for a real spin to film half of what the first clip already
+  # contained. Rule 16: one clip, one AI call, graded per case with `expected_by_case`. This is the
+  # shape Chaos already uses for the same pair (CR_007 + CR_008 on one `base-win`).
+  #
+  # `base-win`, NOT `base-spin`. `base-spin` is "one spin of ANY outcome", which is fine for the
+  # debit half and leaves the credit half with nothing on screen: on a loss the AI would be asked to
+  # read a win amount that is not there, and `{res.payout} > 0` could not be asserted at all.
+  # `base-win` spins until a round actually pays and exposes THAT round as `res` — and the losing
+  # spins along the way stay in the stream, so `conservation` is checked over them too.
+  #
+  # The trade this makes: `base-win` can report unreached if nothing pays inside its 60-spin budget,
+  # which would make ZZ-05 inconclusive where `base-spin` was near-certain to reach. On a 5-payline
+  # game that is a remote risk (Chaos's first live run found a win in 7 spins) and it is the risk
+  # ZZ-06 already carried alone.
+  #
+  # ⚠ `at: win` is not optional. The clip spans every hunting spin, so an untrimmed prompt would be
+  # reading a balance off whichever round happened to be on screen.
+  - run:
+      scenario: base-win
+      teardown: return-to-base
+      video:
+        at: win
+        timestamp: true
+        prompt: >-
+          Zeus is a 3x3 slot with 5 paylines. This clip is ONE WINNING base spin, at a stake of
+          {facts.win_stake}, that paid {facts.win_payout}.
+
+          THE BALANCE READOUT MOVES TWICE, and each question below is about one of those moves.
+          Before the spin it reads {facts.balance_before_spin}. The stake is taken at the START of
+          the spin, so it drops to {facts.balance_while_spinning} the moment the reels begin to turn
+          and sits there for the whole spin. Then the win is credited as the win counter finishes,
+          taking it to {facts.balance_after_win}. Nothing else happens in this clip — no further spin is
+          played — so it should still read {facts.balance_after_win} at the end.
+
+          Answer each independently:
+
+          (1) balance_dropped_on_spin: as the spin STARTS, does the balance readout visibly drop
+          from {facts.balance_before_spin} to {facts.balance_while_spinning}?
+          drop_matches_stake: is that drop the stake, {facts.win_stake}, rather than some other
+          figure?
+
+          (2) win_shown: is a win presented for this spin — a win amount shown and the winning
+          payline(s) marked?
+
+          (3) balance_credited: once the win counter FINISHES, does the readout go UP by
+          {facts.win_payout}, from {facts.balance_while_spinning} to {facts.balance_after_win}?
+          credit_matches_win: is the amount credited the same as the win amount that was shown?
+        output_schema:
+          balance_dropped_on_spin: { type: boolean }
+          drop_matches_stake: { type: boolean }
+          win_shown: { type: boolean }
+          balance_credited: { type: boolean }
+          credit_matches_win: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-05: { balance_dropped_on_spin: true, drop_matches_stake: true, confidence: medium }
+          ZZ-06: { win_shown: true, balance_credited: true, credit_matches_win: true, confidence: medium }
+      cases:
+        - id: ZZ-05
+          title: "Balance is reduced by the bet amount when a spin is placed"
+          assert:
+            # `conservation` is exactly `balance == previous - stake + payout`, so ONE identity
+            # covers the debit and the credit — and it runs over every round base-win played,
+            # losses included, not only the winner.
+            - stream: conservation
+            - stream: "{res.stake} > 0"                  # a real base bet was charged
+            - stream: "{facts.win_stake} > 0"
+
+        - id: ZZ-06
+          title: "Balance is credited with the payout after a winning spin"
+          assert:
+            - stream: conservation
+            # The precondition, proven from the numbers rather than assumed: this really was a win,
+            # so the credit half is not being graded on a losing round.
+            - stream: "{res.payout} > 0"
+            - stream: "{facts.win_payout} > 0"
+            # NOT asserted here: `balance_after_win == balance_while_spinning + win_payout`. It is the
+            # right identity and it is the WRONG place for it — an inline `stream:` predicate is
+            # interpolated and `eval`ed with no builtins, so there is no `abs()` and no tolerance,
+            # and `9972.60 + 0.24` is `9972.840000000001`. `conservation` above already checks
+            # exactly this, in Python, to 1e-6, over every round the run played.
+
+  # ── ZZ-07 : out of balance ─────────────────────────────────────────────────────────
+  # Needs PLAYSITE_* wallet credentials; without them the scenario reports unreached.
+  # Rule 7: this run MOVES THE MONEY, so it declares restore-balance — never deposit-10000, which
+  # walks the account further from its starting point on every run.
+  - run:
+      scenario: insufficient-balance
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: ZZ-07
+          title: "Spinning with insufficient balance shows the out-of-funds popup"
+          assert:
+            - stream: "{facts.spin_balance} < {facts.chosen_bet}"   # really below the stake
+            - video:
+                prompt: >-
+                  Zeus is a 3x3 slot. In this clip the player's balance is {facts.spin_balance},
+                  the selected bet is {facts.chosen_bet} — larger than the balance — and a spin is
+                  attempted. Answer: (1) does a popup or message appear telling the player they
+                  have insufficient funds (insufficient_popup)? (2) is the spin refused — the reels
+                  do not turn and no bet is taken (spin_refused)?
+                output_schema:
+                  insufficient_popup: { type: boolean }
+                  spin_refused: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  insufficient_popup: true
+                  spin_refused: true
+                  confidence: medium
+
+  # ── ZZ-09 : in-game History ────────────────────────────────────────────────────────
+  # `params: {outcomes: [normal_win]}` narrows the hunt to one shape — a base round that paid — so
+  # the run is short and the prompt can describe what is on screen.
+  #
+  # `detail_scroll_steps: 0` because Zeus is a SINGLE-GRID game: one round is one grid, so a bet
+  # ticket has nothing below the fold. The scenario's default is one scroll page per paying step,
+  # which is right for a cascade game and would scroll a Zeus ticket off into blank space. Chaos
+  # passes the same 0 for the same reason. With 0 the scenario dwells on the ticket instead, which
+  # is what the clip needs.
+  #
+  # ⚠ THIS RUN USED TO APPEAR TO HANG FOR ~70 SECONDS with the detail ticket on screen and nothing
+  # changing. It was not the game and not History. `_inspect` decided whether the ticket had opened
+  # by asking `visiblePopups` for the label `GAME.popup("history_detail")` — and Zeus's profile
+  # carries None for that, so the check could only ever be False. The scenario therefore concluded
+  # the detail had NOT opened while it was plainly on screen, skipped the paging entirely (hence
+  # "nothing changed"), then spent 10s finishing that poll and 60s in a `wait_spin_clickable`
+  # budgeted at the SPIN timeout inside a bare `except: pass`. Fixed in the engine: the open test is
+  # `wait_for_history_detail`, which asks `getHistoryDetailState().open` FIRST — the field the
+  # contract defines for it — and falls back to the label and then to "any popup that was not up
+  # before the click"; and closing goes through `close_history`, which proves the screen cleared and
+  # bounds the wait at 8s.
+  #
+  # NOT asserted: `normal_win_round_id_match`. It needs the row `data` to carry an id under a name
+  # the scenario recognises (betId / roundId / id / gameRoundId); that is unverified on this build,
+  # and a red there would be about a field name, not about History.
+  - run:
+      scenario: spin-then-history
+      teardown: return-to-base
+      params: { outcomes: [normal_win], detail_scroll_steps: 0 }
+      cases:
+        - id: ZZ-09
+          title: "In-game History shows the round just played"
+          assert:
+            # exact: a paying base round really was played and inspected — without this the video
+            # would be grading a History panel opened after nothing in particular.
+            - stream: "{facts.normal_win_found} == True"
+            - stream: "{facts.normal_win_payout} > 0"
+            - stream: "{facts.normal_win_stake} > 0"
+            - stream: "{facts.is_base_round} == True"     # not a bonus ticket, which pages differently
+            # The panel listed rows the framework could actually address. This is the anti-vacuity
+            # guard for everything below: with no rows there is no ticket to open and no top row to
+            # compare, and the AI would be grading an empty panel.
+            - stream: "{facts.normal_win_history_rows} >= 1"
+            # ...and the detail ticket really opened. A red here is NOT a History rendering bug — it
+            # means none of the three signals saw it (`getHistoryDetailState().open`, the popup
+            # label, or a new popup appearing), which is a bridge-contract gap worth naming.
+            - stream: "{facts.normal_win_detail_opened} == True"
+            # The History panel closed again afterwards. Also not about History: it is the tell for
+            # a panel the bridge cannot dismiss, which is a visible-popup blocking reason for every
+            # later spin. The mark "HISTORY: still open after dismissPopups()" names what stayed.
+            - stream: "{facts.normal_win_panel_closed} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Zeus is a 3x3 slot with 5 paylines. This clip plays a base round — stake
+                  {facts.normal_win_stake}, win {facts.normal_win_payout} — waits for it to settle,
+                  opens the in-game History panel, and then opens the newest row's bet detail
+                  ticket. The ACTION TIMELINE gives the time of each of those steps; use it rather
+                  than guessing which surface is on screen when. Answer each independently:
+
+                  (1) history_opened: does the History panel open and render as a list of past
+                  rounds? history_stayed_open: does it stay open, rather than closing itself within
+                  a second of being opened?
+
+                  (2) top_row_matches: is the newest / topmost entry in the list consistent with the
+                  round just played — stake {facts.normal_win_stake}, win
+                  {facts.normal_win_payout}?
+
+                  (3) detail_opened: after the top row is tapped, does a bet DETAIL ticket open for
+                  it — a single-round view showing that round's grid and its figures, rather than
+                  the list? detail_matches: does the ticket show the same stake and win as the row
+                  it was opened from?
+
+                  (4) display_broken: on either surface, is anything visibly broken — blank rows,
+                  overlapping or clipped text, placeholder values, a half-drawn ticket?
+                output_schema:
+                  history_opened: { type: boolean }
+                  history_stayed_open: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_matches: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  history_stayed_open: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_matches: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── ZZ-11 + ZZ-52 : the Info / Paytable / Tutorial surface, ONE run ─────────────────
+  # These were TWO separate `open-tutorial` runs. Zeus's Info popup IS its paytable and IS its
+  # tutorial — one control, one surface — so the second run opened the same screen, filmed the same
+  # thing and paid for a second AI pass on identical footage. Rule 16: one clip, one analysis,
+  # graded per case with `expected_by_case`.
+  #
+  # IMAGE with `combine: true`, not video (Rule 18). The guide spans several screenfuls of ONE
+  # scrolling surface, and both cases ask whether something is present ANYWHERE in it. Graded per
+  # still, "does this page explain the Hold & Spin bonus?" is honestly "no" on every page that does
+  # not — so a document that satisfies the case fails on four screens out of five, and surviving
+  # that forces a conditional prompt which can never catch a section that is missing altogether.
+  # Combined, the stills go to the AI as one document and the answer is about the whole of it.
+  #
+  # ⚠ CORRECTED against bridge-api.md v3: Zeus's Info IS a cross-origin WebView (§10 lists `info` as
+  # "help / paytable (WebView)"; §6 documents `getTutorialRect()` for it). The profile said
+  # HAS_TUTORIAL_WEBVIEW=False, which sent `open-tutorial` down its `scroll_popup` fallback — and
+  # that cannot move a cross-origin frame, so the guide would not have scrolled at all and every
+  # screenful after the first would have been the same shot. Both are fixed, so `tutorial_open`
+  # (the WebView rect was found) is now a real assert rather than a known-False fact.
+  - run:
+      scenario: open-tutorial
+      teardown: return-to-base
+      cases:
+        - id: ZZ-11
+          title: "Paytable / Info popup UI matches the design"
+          assert:
+            - stream: "{facts.shot_count} >= 2"       # opened, and paged at least once
+            - stream: "{facts.tutorial_open} == True"  # the WebView was really located, not an empty frame
+        - id: ZZ-52
+          title: "Tutorial opens and follows the designed flow"
+          assert:
+            - stream: "{facts.shot_count} >= 2"
+            - stream: "{facts.tutorial_open} == True"
+            # the guide really was paged, not shot once. `reached_bottom` means the full planned
+            # scroll was ISSUED — that the pixels moved is a video claim, since a cross-origin
+            # frame's scroll position cannot be read back.
+            - stream: "{facts.reached_bottom} == True"
+      image:
+        combine: true                    # every screenful of this one surface -> ONE AI call
+        prompt: >-
+          These screenshots are Zeus's in-game Info / Paytable / Tutorial popup, captured as it was
+          scrolled from top to bottom. Zeus is a 3x3 slot with 5 paylines and a Hold & Spin bonus in
+          which Coin symbols are held and respun. Read them as ONE document and answer about the
+          whole of it — a section counts as present if it appears on any screenful. Answer: (1) does
+          the Info / Paytable surface open and display real content rather than an empty frame
+          (surface_opened)? (2) does the document list the SYMBOLS with their payout values
+          (paytable_present)? (3) does it explain the PAYLINES (paylines_present)? (4) does it
+          explain the Coin / Hold & Spin bonus — how it is triggered and how it is played
+          (bonus_rules_present)? (5) across every screenful, does the content render cleanly —
+          readable text, symbol art present, nothing placeholder or missing (content_renders)?
+          (6) across every screenful, is anything overlapping, cut off or clipped
+          (content_broken)?
+        output_schema:
+          surface_opened: { type: boolean }
+          paytable_present: { type: boolean }
+          paylines_present: { type: boolean }
+          bonus_rules_present: { type: boolean }
+          content_renders: { type: boolean }
+          content_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-11:                          # the paytable half: it opens and the tables are there
+            surface_opened: true
+            paytable_present: true
+            content_renders: true
+            content_broken: false
+            confidence: medium
+          ZZ-52:                          # the tutorial half: it explains the game's rules
+            surface_opened: true
+            paylines_present: true
+            bonus_rules_present: true
+            content_renders: true
+            confidence: medium
+
+  # ── ZZ-12 : paytable payouts scale with the bet ────────────────────────────────────
+  # NEW. This was listed as blocked ("needs a Tutorial symbol-select affordance") — it does not:
+  # `paytable-bet-scaling` shoots the SAME table at two bet levels, which is what the case actually
+  # asks for. It was unavailable to Zeus only because `line_bet()` lived on the LineGame profile;
+  # it is on SlotGame now, and Zeus's divisor resolves from PAYLINES = 5, which is exactly the
+  # formula the design doc states (total bet / 5 x symbol multiplier).
+  #
+  # IMAGE per still, NOT combined (Rule 18): the two shots are the same surface in two DIFFERENT
+  # STATES, and the whole case is that they differ. Combining them would average the very
+  # difference under test into one answer.
+  #
+  # The AI READS the printed figures; nothing about them is `expected`, because a wrong number
+  # could be a display bug or a misread and the response holds no copy of what the paytable prints.
+  # The exact half below is what makes the comparison meaningful at all.
+  - run:
+      scenario: paytable-bet-scaling
+      teardown: return-to-base
+      params: { index_a: 0, index_b: 3 }
+      cases:
+        - id: ZZ-12
+          title: "Paytable payouts follow the bet: payout = total bet / 5 x symbol multiplier"
+          assert:
+            # Hard companion: two DIFFERENT bet levels were really captured. Without it, two shots
+            # at the same bet would grade as "the values matched" and pass vacuously.
+            - stream: "{facts.bet_a} != {facts.bet_b}"
+            - stream: "{facts.divisor} == 5"          # the payline count IS the divisor for Zeus
+            - stream: "{facts.line_bet_b} > {facts.line_bet_a}"
+            - image:
+                at: paytable-bet-
+                prompt: >-
+                  A Zeus paytable screen. Zeus is a 3x3 slot with 5 paylines whose per-line payout
+                  is (total bet / 5) x the symbol's multiplier. Two captures exist: one at bet
+                  {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet {facts.bet_b}
+                  (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the bet or total
+                  bet value shown on it (bet_text). (2) read the payout printed for the
+                  highest-paying symbol's 3-of-a-kind row (top_payout_text). (3) are the payout
+                  values shown as currency amounts rather than bare multipliers (shows_currency)?
+                  (4) is the table fully rendered — every symbol row present, no blank or
+                  placeholder values (table_renders)?
+                output_schema:
+                  bet_text: { type: string }
+                  top_payout_text: { type: string }
+                  shows_currency: { type: boolean }
+                  table_renders: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  table_renders: true
+                  confidence: low
+
+  # ── ZZ-51 : multi-language ─────────────────────────────────────────────────────────
+  # The language lives in the Playsite launch token, so each language is a fresh URL + re-entry.
+  # Scope it with params (a pinned set, `all`, or `random:N`).
+  #
+  # NOT combined, deliberately (Rule 18): these stills are different SURFACES in different
+  # LANGUAGES. Combining them would throw away the per-screen verdict that makes "the Burmese base
+  # screen has an English label" traceable to a screen — which is exactly the defect this style of
+  # run found on Chaos.
+  - run:
+      scenario: language-tour
+      params:
+        languages: [en, my, zh, ru]
+        # languages: all
+      cases:
+        - id: ZZ-51
+          title: "All in-game text follows the player's chosen language"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"   # every language really loaded
+            - stream: "{facts.surface_count} >= 3"
+            - stream: "{facts.shot_count} >= 3"
+      # ⚠ REWRITTEN 2026-09-09 after a live run graded 24 screens and produced 12 false alarms.
+      # The old schema asked four questions with ALTERNATING polarity —
+      #     (1) text_in_language  positive   (2) untranslated_text  negative
+      #     (3) text_fits         positive   (4) text_clipped       negative
+      # — and (3)/(4) were NEAR-INVERSES OF THE SAME PHYSICAL PROPERTY. A model that has decided
+      # "the layout is fine" then has to emit `true` for one and `false` for the other, back to
+      # back, and it does not flip: `text_fits` came back true on 24 of 24 shots (so that assert
+      # could never fail — vacuous), while `text_clipped` came back true on 12 — and ALL TWELVE
+      # carried prose explicitly denying it ("All text fits within its designated areas without
+      # overflowing or clipping, and no characters or marks appear to be missing"). The model read
+      # every screen correctly and mis-assigned one boolean.
+      #
+      # The (1)/(2) pair did NOT fail that way, and the contrast is the lesson: those are
+      # semantically DISTINCT questions ("is it the named language" vs "is some OTHER language
+      # present"), so the model reasons about each. It even got the subtle case right — a Burmese
+      # screen with 'COIN' left in English came back in_language:false + untranslated:true.
+      #
+      # So the rule is not "never mix polarity" — it is **never ask the same property twice in
+      # opposite directions**. This block follows the shape Chaos's CR_064/066/067 use, which ran
+      # live across 18 screens without this failure: questions GROUPED by topic, every field name
+      # stating the direction its question asks, no two fields covering one property, and the
+      # compound "clipped OR marks missing" split into the separate defects it was hiding.
+      image:
+        prompt: >-
+          A Zeus UI surface, captured as: {shot.label}. Zeus is a 3x3 slot with 5 paylines. That
+          label gives the language code and name, the surface shown, and — after a mid-session
+          change — the language it switched FROM. Judge the screen against the language the label
+          names, at full resolution, and answer three groups of questions. Expected scripts:
+          Burmese = Myanmar, Simplified Chinese = Han, Russian = Cyrillic, English = Latin.
+
+          LANGUAGE. (1) is all visible text rendered in the language the label names, rather than
+          English fallback or the language it switched from (correct_language)? (2) is any string
+          left untranslated — a word in a different language from the one the label names
+          (untranslated_strings)? (3) is any raw translation key visible, text like
+          "ui.button.spin" or "MISSING_KEY" (raw_keys_visible)? Ignore numbers, currency amounts,
+          currency codes such as (TRY), and the game's brand name.
+
+          LAYOUT. (4) does any text overflow outside its button, panel or label boundary
+          (text_overflows)? (5) does any text run underneath or on top of another element
+          (text_collides)?
+
+          GLYPHS — examine the characters closely, and answer only about the characters themselves.
+          (6) is any character cut off at the top or bottom of its line (glyphs_clipped)? (7) for
+          scripts with marks above or below the base letter (Burmese especially), are those marks
+          fully rendered (diacritics_intact)? (8) is any descender — the tail of a g, y or p —
+          sliced off (descenders_intact)?
+        output_schema:
+          correct_language: { type: boolean }
+          untranslated_strings: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          text_overflows: { type: boolean }
+          text_collides: { type: boolean }
+          glyphs_clipped: { type: boolean }
+          diacritics_intact: { type: boolean }
+          descenders_intact: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          ZZ-51:
+            correct_language: true
+            untranslated_strings: false
+            raw_keys_visible: false
+            text_overflows: false
+            text_collides: false
+            glyphs_clipped: false
+            diacritics_intact: true
+            descenders_intact: true
+            confidence: medium
+
+# ── NOT IN THIS SUITE ──────────────────────────────────────────────────────────────────
+#   ZZ-10  History on BO -> MANUAL. The BO bet-history endpoint is not known to this repo and BO
+#          auth is currently rejected. ZZ-09 publishes the round's identity
+#          (facts.normal_win_round_id / _stake / _payout) so the manual comparison is a copy-paste.

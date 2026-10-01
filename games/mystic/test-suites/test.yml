@@ -1,0 +1,98 @@
+# test.yml — exercises the AI-assert prose `reason` on a mismatch.
+#
+# Uses browse-denominations (opens the bet list, scrolls to the biggest then smallest option).
+# The real answer for a scrollable-list read comes back at MEDIUM confidence, but we EXPECT
+# `confidence: high` — so the assert mismatches -> orange -> the model must explain WHY in a
+# prose `reason`. (You never declare `reason`; it's auto-added and the prompt auto-augmented.)
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/test.yml
+# Then open the run's report.html — the case shows orange with an italic "why: ..." line.
+
+runs: 
+  # ── Mah_012 : in-game History shows the round just played ───────────────────────────
+  # Graded by AI only. The scenario still reports facts.round_id_match / top_row / history_rows in
+  # result.json as diagnostics — flip either into a `stream:` assert if you want the row identity
+  # checked exactly rather than read off the screen.
+  #
+  # The scenario keeps spinning until a base spin does NOT trigger the bonus, draining any bonus it
+  # hits on the way, so the newest History row is always a NORMAL bet — free-spin tickets are the
+  # Mah_012-fs run below. facts.bonuses_drained records how many it had to play out.
+  #
+  # The walk the scenario performs, and why: it WAITS ~2s after the round before opening History (the
+  # row is written server-side and can lag the settled animation; the list is built on open, so a late
+  # row cannot be recovered by dwelling afterwards), opens the panel, clicks the NEWEST row to open its
+  # bet detail, then wheels that detail to the bottom — the cascade list runs past one screen and has
+  # no bridge scroller. All of it lands in one clip.
+  
+  # ── Mah_001, Mah_006 : the loaded base game ───────────────────────────────────────
+  - run:
+      scenario: last-bet-restore
+      teardown: return-to-base
+      params: { outcome: lose, max_spins: 40 }
+      cases:
+        - id: Mah_081
+          title: "Reopening the game after a losing round restores that round: its stake, and no win"
+          assert:
+            # THE GATES — see the file header for why this one is `!= False` and not `== True`.
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            - stream: "{facts.resumed_rounds} == 0"      # it RESTORED; it did not resume a bonus
+            # The round really was a loss, so "no win is shown" is an expectation and not a
+            # description of a round that happened to pay nothing anyway.
+            - stream: "{facts.played_payout} == 0"
+            - stream: "{facts.played_base_stake} > 0"
+            # The case itself.
+            - stream: "{facts.stake_restored} == True"
+            - stream: "{facts.restored_payout} == 0"
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            - video:
+                at: [played, restored]
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot: wins are CLUSTERS of touching symbols, which
+                  clear and let new symbols fall in, so a round settles several times before it ends.
+                  This clip has TWO PHASES separated by a game RELOAD, and the question is whether the
+                  second matches the first. The ACTION TIMELINE gives the moment of the reload and the
+                  moment the game came back ready — use it rather than guessing where the break is.
+
+                  PHASE 1, before the reload: the player's last round, which LOST. Stake
+                  {facts.played_base_stake}, win {facts.played_payout}. It is held on screen for a
+                  few seconds once it has fully settled.
+
+                  PHASE 2, after the reload: the game is closed and reopened, then sits ready for a
+                  few seconds. It is expected to come back showing the SAME round.
+
+                  Judge phase 2 against phase 1 and answer each independently:
+
+                  (1) reload_visible: does the clip actually contain a reload — the game goes to a
+                  loading or blank state and then re-enters? Answer false if no such break occurs.
+
+                  (2) bet_amount_same: does the bet / stake readout after the reload show the same
+                  value it showed before it? Judge the bet readout only — ignore the balance, which
+                  moves for other reasons.
+
+                  (3) no_win_after_reload: after the reload, is the screen free of any win
+                  presentation — no win amount displayed, no cluster highlighted, no celebration —
+                  matching the losing round in phase 1?
+
+                  (4) symbols_same: look at the SYMBOLS ON THE BOARD, 7 by 7. After the reload, is
+                  every position showing the SAME SYMBOL as the SETTLED board at the end of phase 1's
+                  round — not an earlier cascade step? Compare cell by cell, not as an overall
+                  impression.
+
+                  (5) ui_broken: after the reload, is anything overlapping, cut off, placeholder or
+                  visibly broken?
+                output_schema:
+                  reload_visible: { type: boolean }
+                  bet_amount_same: { type: boolean }
+                  no_win_after_reload: { type: boolean }
+                  symbols_same: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reload_visible: true
+                  bet_amount_same: true
+                  no_win_after_reload: true
+                  symbols_same: true
+                  ui_broken: false
+                  confidence: medium

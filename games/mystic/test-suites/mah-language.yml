@@ -1,0 +1,180 @@
+# Mystic — Multi-language (Mah_052-056) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev   --suite games/mystic/test-suites/mah-language.yml
+#       python scripts/run_scenario.py --env local --suite games/mystic/test-suites/mah-language.yml
+#
+# ONE RUN, FIVE CASES. Every language case asks a different question about the SAME thing: a screen of
+# text. So the suite tours the languages once, screenshots each surface, and grades every screenshot
+# ONCE — then re-reads that single answer for each case (`expected_by_case`). Five cases for the price
+# of one pass:
+#
+#   Mah_052 is the text in the player's language          -> text_in_language / untranslated_text
+#   Mah_053 does switching language leave nothing stale    -> stale_previous_language
+#   Mah_054 do long strings auto-scale, not overflow       -> text_fits / text_overflow
+#   Mah_055 is nothing clipped, no glyphs missing          -> text_clipped / missing_glyphs
+#   Mah_056 does EVERY language under test translate       -> text_in_language, across the whole set
+#
+# It replaces four separate runs (24 + 6 + 16 = 46 AI calls with overlapping coverage) with one pass
+# that covers strictly more. Cost is languages x surfaces calls — see `params` below.
+#
+# Every case is SCOPE-INDEPENDENT: each asks "did all the languages in this run pass", and an image
+# assert passes only if EVERY screen passes, so one bad language fails the case whether the run
+# covered 3 languages or 16. Size the run to the time you have; read a green verdict together with
+# facts.selection, which records what it actually covered.
+#
+# HOW THE LANGUAGE IS SET. There is no in-game switch: the language is baked into the Playsite LAUNCH
+# TOKEN. `ctx.set_language()` mints a fresh URL via the config's `url_script` (PLAYSITE_LANGUAGE) and
+# re-enters the game, so the tour genuinely CHANGES LANGUAGE MID-SESSION between languages — which is
+# what makes Mah_053 real here rather than assumed. Each shot after a switch is labelled
+# "<code> <name> (switched from <prev>) - <surface>", so the stale-string question can name the
+# language it is hunting for instead of asking the weaker "is any other language present".
+# Works on `--env local` too: the token is minted per language and grafted onto `base_url`.
+#
+# ⚠ Needs `url_script` + PLAYSITE_USER / PLAYSITE_PASS / PLAYSITE_API_URL. A static `url:` is IGNORED
+#   for language runs — its `data=` blob carries the language it was minted with.
+#
+# WHY `image:` AND NOT `video:`. These cases are about TEXT, and a video assert grades a downsampled
+# montage — a missing Burmese diacritic or a two-pixel clip is not in those pixels. Each surface is
+# captured full-resolution and graded ON ITS OWN, so the report names the screen that failed instead
+# of losing it in a summary. Shots land in `test-results/.../language-tour/_shots/`.
+#
+# Every verdict here is an AI (orange-only) one — "the text is in Thai" has no server or bridge
+# equivalent. The `stream:` asserts pin down that the run actually reached what each case claims to
+# judge, so a tour that toured one language cannot pass as "all languages translate".
+
+runs:
+  - run:
+      scenario: language-tour
+      params:
+        # ── SCOPE: set it freely. Every case here is scope-independent — each asks "did all the
+        # languages in THIS run pass", so 3 languages and 16 are both valid runs; only the breadth of
+        # the evidence changes, never whether the cases apply. facts.selection records what ran.
+        # Cost is languages x surfaces AI calls, plus ~15-20s re-launch per language:
+        #   all              every supported language (16 x 6 = 96 calls) — sign-off / release
+        #   [en, my, zh, ru] a pinned set (4 x 6 = 24) — same every run, so a regression is
+        #                    attributable. Script-diverse: Latin baseline, Burmese stress, Han, Cyrillic
+        #   random:3         rotate coverage on routine runs (3 x 6 = 18); add `seed:` to pin the draw
+        #                    (an unseeded draw REPORTS its seed in facts.selection so it can be
+        #                    replayed) and `include: [en, my]` to keep baseline + stress in every draw
+        # Note 054/055 additionally require the stress language (my) to be in the set — they are about
+        # layout under the longest strings, so a set without it would not exercise them.
+        languages: [en, my, zh, ru]
+        # languages: [en, my, zh, ru]
+        # languages: random:3
+        # seed: 20260817
+        # include: [en, my]
+
+        # The other lever: tour fewer SCREENS per language instead of fewer languages.
+        # `surfaces: [base screen, settings]` turns a full sweep into 16 x 2 = 32 calls. Good when the
+        # question is "does every language load and translate"; keep all six for the layout cases,
+        # which is where Burmese actually breaks things.
+        # surfaces: [base screen, bet list, settings, tutorial, auto play panel, history]
+
+      cases:
+        - id: Mah_052
+          title: "All in-game text follows the player's chosen language"
+          assert:
+            # every requested language really launched — a token that failed to mint would otherwise
+            # shrink the test silently instead of failing it (facts.failed names them)
+            - stream: "{facts.language_count} == {facts.requested}"
+            - stream: "{facts.surface_count} >= 4"      # enough surfaces opened, in EVERY language
+
+        - id: Mah_053
+          title: "Changing language and reloading updates every string, with none left in the old one"
+          assert:
+            # the switch must actually have happened: one language toured is not a switch test
+            - stream: "{facts.switches} >= 1"
+            - stream: "{facts.language_count} >= 2"
+
+        - id: Mah_054
+          title: "Long strings auto-scale without overflowing or overlapping the UI"
+          assert:
+            # the stress language must be in the set — Burmese has the longest strings and stacked
+            # diacritics, so it is where scaling breaks first; without it this case proves little
+            - stream: "'{facts.stress_language}' in '{facts.languages}'"
+            - stream: "{facts.surface_count} >= 4"
+
+        - id: Mah_055
+          title: "Text is never clipped and no characters or marks are missing"
+          assert:
+            - stream: "'{facts.stress_language}' in '{facts.languages}'"
+            - stream: "{facts.surface_count} >= 4"
+
+        - id: Mah_056
+          title: "Every language under test loads and shows its own translation"
+          assert:
+            # Scope-independent: this case is "did EVERY language in this run translate", so it holds
+            # for 3 languages or 16 and the run can be sized freely. One language failing is enough to
+            # fail it — the image assert below passes only if EVERY screen of EVERY language passes,
+            # and this stream assert covers the other way to fail: a language that never launched.
+            # facts.selection / facts.languages record what was actually covered, so a green Mah_056
+            # is always read together with the scope it ran at.
+            - stream: "{facts.language_count} == {facts.requested}"
+
+      # ── ONE AI call per screenshot, re-graded for all five cases ──────────────────────
+      image:
+        prompt: >-
+          This is one screen of Mystic, a 7x7 cluster-pays slot. The label of this screen is
+          "{shot.label}". It reads "<code> <language>[ (switched from <code> <language>)] - <which
+          screen>": the game was launched in THAT language, and where the label says "switched from",
+          the game was previously running in that other language and was re-entered in this one.
+          Expected scripts: Thai=Thai, Burmese=Myanmar, Simplified Chinese=Han, Japanese=kana or
+          kanji, Korean=Hangul, Hindi=Devanagari, Russian=Cyrillic; English, Vietnamese, Bahasa
+          Melayu, Indonesian, Tagalog, Portuguese, Portuguese (Brazil), Spanish and Turkish are Latin
+          — for those judge the WORDS, not the script. Look closely at every piece of text and answer:
+          (1) is the text in the language named in the label (text_in_language)?
+          (2) is any text left in a DIFFERENT language — an untranslated label, button or heading
+          (untranslated_text)? On an English screen answer false unless text from some other language
+          is showing.
+          (3) if the label says "switched from <X>", is any text still in X — a string that failed to
+          update when the language changed (stale_previous_language)? If the label has no "switched
+          from", answer false.
+          (4) does the text fit inside its buttons, labels and frames, shrinking where needed, rather
+          than spilling outside them (text_fits)?
+          (5) does any text OVERFLOW its frame or OVERLAP another UI element (text_overflow)?
+          (6) is any text visibly CUT OFF at an edge, truncated mid-word, or hidden behind another
+          element (text_clipped)? An intentional "..." ellipsis on a very long line is normal — not
+          clipping.
+          (7) do any characters render as boxes, blanks or question marks, or are any marks /
+          diacritics missing or detached from their base letter (missing_glyphs)?
+          (8) is any string a raw translation KEY or placeholder instead of real words, e.g.
+          "btn_spin", "MISSING_KEY", "???" (placeholder_text)?
+          Ignore numbers, currency amounts and the game's own brand name — those are not translated.
+        output_schema:
+          text_in_language: { type: boolean }
+          untranslated_text: { type: boolean }
+          stale_previous_language: { type: boolean }
+          text_fits: { type: boolean }
+          text_overflow: { type: boolean }
+          text_clipped: { type: boolean }
+          missing_glyphs: { type: boolean }
+          placeholder_text: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_052:                           # translation follows the player's language
+            text_in_language: true
+            untranslated_text: false
+            placeholder_text: false
+            confidence: medium
+          Mah_053:                           # nothing left over from the previous language
+            stale_previous_language: false
+            text_in_language: true
+            confidence: medium
+          Mah_054:                           # auto text scaling
+            text_fits: true
+            text_overflow: false
+            confidence: medium
+          Mah_055:                           # clipped text / missing characters
+            text_clipped: false
+            missing_glyphs: false
+            confidence: medium
+          Mah_056:                           # every language translated
+            text_in_language: true
+            placeholder_text: false
+            confidence: medium
+
+# ── Still registered, no longer used here ──────────────────────────────────────────────
+# `language-switch` (a named FROM/TO pair, before+after tours, `at: AFTER`) and `language-sweep`
+# (all languages, base screen only) are folded into the tour above. They remain in the REGISTRY for
+# ad-hoc use when you want to interrogate ONE pair or do a fast translation-only sweep:
+#   python scripts/run_scenario.py --env dev --scenario language-switch

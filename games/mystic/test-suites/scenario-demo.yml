@@ -1,0 +1,128 @@
+# Scenario-model demo suite (run with scripts/run_scenario.py).
+# One scenario is played ONCE per run; each case under it gets its own verdict.
+#   stream: -> response-engine invariant (Hard/red).
+#   video:  -> AI over the clip (Probabilistic/orange). Written in raw.yml's AI-assert style:
+#             a game-context prompt with numbered questions, output_schema, expected, confidence.
+#             `at:` scopes the clip (a scenario mark like win/big_cascade, or trigger/terminal/
+#             res/rounds[i]) — replacing raw.yml's video_trim. {res.*}/{trigger.*}/{terminal.*}
+#             bind server-response values into the prompt and expected block.
+
+runs:
+  - run:
+      scenario: base-cluster-win        # closed box: spin until a >=2-cascade win
+      cases:
+        - id: MY-06
+          title: "Win amount and balance shown match the server result"
+          assert:
+            - stream: conservation                     # balance == prev - stake + payout
+            - video:
+                at: win
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip is a single winning base spin:
+                  symbols form winning clusters, pay, then clear and tumble as new symbols fall
+                  in, and the win amount is presented. The server settled this spin at a payout
+                  of {res.payout} on a stake of {res.stake}, leaving a balance of {res.balance}.
+                  (1) Does the win amount shown on screen equal {res.payout}? (2) Once the win
+                  has finished counting up, does the balance readout show {res.balance}?
+                output_schema:
+                  win_amount_matches: { type: boolean }
+                  balance_matches: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  win_amount_matches: true
+                  balance_matches: true
+                  confidence: high
+
+        - id: MY-mult-base
+          title: "Base cascade multiplier climbs per cascade"
+          assert:
+            - stream: "{res.cascades} >= 2"           # inline predicate: the win did cascade
+            - video:
+                at: win
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot whose cascade multiplier rises one level
+                  with every consecutive cascade within a spin. This clip is one winning base
+                  spin that cascaded {res.cascades} times. Watch the multiplier indicator.
+                  (1) Does the multiplier indicator increase by one level on each successive
+                  cascade? (2) Does the multiplier start the spin at its base level (x1)?
+                output_schema:
+                  multiplier_climbs_per_cascade: { type: boolean }
+                  starts_at_base_level: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  multiplier_climbs_per_cascade: true
+                  starts_at_base_level: true
+                  confidence: high
+
+  - run:
+      scenario: fs-complete             # closed box: trigger FS, observe to terminal
+      cases:
+        - id: MY-30
+          title: "Free spins triggered and the award is announced"
+          assert:
+            - stream: "{trigger.totalFreeSpin} > 0"
+            - video:
+                at: trigger
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Free spins are triggered by landing
+                  FreeSpin! scatter symbols on 3 or more reels. This clip is the triggering
+                  spin and the free-spin intro that follows; the server awarded
+                  {trigger.totalFreeSpin} free spins. (1) Do at least 3 FreeSpin! scatter
+                  symbols land on the grid? (2) Does the free-spin intro / award screen
+                  announce {trigger.totalFreeSpin} free spins?
+                output_schema:
+                  scatters_landed: { type: boolean }
+                  intro_shows_award: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  scatters_landed: true
+                  intro_shows_award: true
+                  confidence: high
+
+        - id: MY-fs-econ
+          title: "Free spins bet nothing and the bonus conserves balance"
+          assert:
+            - stream: stake_zero_in_freespins
+            - stream: conservation
+            - stream: freespins_monotonic
+
+        - id: MY-fs-cascade
+          title: "The biggest-cascade free spin animates its cascades"
+          assert:
+            - video:
+                at: big_cascade
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip is a single free spin that
+                  cascaded several times. (1) Do winning symbols visibly clear and do new
+                  symbols fall in from above for each cascade step? (2) Does the free-spin
+                  cascade multiplier increase with each cascade?
+                output_schema:
+                  cascades_visible: { type: boolean }
+                  fs_multiplier_climbs: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  cascades_visible: true
+                  fs_multiplier_climbs: true
+                  confidence: high
+
+        - id: MY-36
+          title: "Free spins end with a total-win summary and return to base"
+          assert:
+            - stream: terminal_reached
+            - stream: "{terminal.freeSpins} == 0"
+            - video:
+                at: terminal
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip is the end of a free-spin
+                  bonus, which paid a total of {terminal.totalFreeSpinPayout}. (1) Does a
+                  total-win / bonus-complete summary appear? (2) After it, does the game
+                  return to the base game, with the normal spin button and stake controls
+                  visible?
+                output_schema:
+                  total_win_shown: { type: boolean }
+                  returned_to_base: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  total_win_shown: true
+                  returned_to_base: true
+                  confidence: high

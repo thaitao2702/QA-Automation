@@ -1,0 +1,696 @@
+# Joker: Where's My Banana — Last Bet (JK-53 … JK-59).
+#
+# Run:  python scripts/run_scenario.py --game joker --env dev --suite games/joker/test-suites/jk-lastbet.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game joker
+#
+# These are CR_092 … CR_097 of test-case-chaos.csv, the same cases Dragon runs as DR-53 … DR-59 and
+# Dragon VIP as DV-67 … DV-73, on the same scenarios. `games/dragon/test-suites/dr-lastbet.yml`
+# carries the reasoning; the notes here are what a reader needs to trust the case plus every place
+# JOKER differs — and it differs in three ways that matter, all flagged ⚠ below.
+#
+# ── WHAT "LAST BET" MEANS ──────────────────────────────────────────────────────────────────
+# **It is a RESUME behaviour, not a panel.** The player closes the game and opens it again; the
+# session must come back showing the round they last played — its stake, its win, its reels — and
+# the bet control must be sitting at that round's stake rather than at the configured default. The
+# CSV's "Mở Last Bet" is *reopen the game*, which is why CR_096 spells out "Reload game" as a step.
+# There is no `lastBet` control in this bridge's button registry (§7) and none is needed.
+#
+# ⚠ JOKER MAKES THE VISIBLE HALF EASY, AND DOCUMENTS IT. Bridge §12.7: on a normal reload the game
+# **REPLAYS the last round's win** — its paylines, and its WILD EXPANSION if it had one. `roundState`
+# stays `SHOW_WIN_LINE` and `busyOps` may show `wildExpanding` until the replay is done, and NO BET
+# is sent for it; `waitForSpinClickable` covers the whole thing. So on this game the restore is not
+# a static redraw the AI has to catch mid-fade — it is an animation that plays again, which is what
+# the `video:` halves below are actually watching.
+#
+# ⚠ TRAP 1, THE ONE THAT WOULD MAKE THESE PASS ON NOTHING. `applyLastBet()` nulls
+# `gameInfo.lastBet` at Start, so a LIVE read reports "no last bet" on a session that restored
+# perfectly. `getGameInfo()` returns the PRE-START CAPTURE for exactly that reason — bridge §3 says
+# it is "captured once before Start and returned unchanged (deep copy) for the whole session".
+#
+# ⚠ TRAP 2, AND IT IS A JOKER BRIDGE GAP. `isGameInfoCaptured()` — the function that says whether
+# that capture exists — is NOT in this bridge's §9 list. `facts.info_captured` therefore reads
+# `None`, meaning "the bridge cannot say", NOT "there is no capture". So every case below gates on
+#     {facts.info_captured} != False
+# which fails when the bridge SAYS the capture is missing and passes when it cannot answer — the
+# same compromise Chaos and Mystic make. Zeus, Dragon and Dragon VIP keep `== True` because their
+# docs promise the function. **This is a bridge gap to file**, not a game defect; when it lands,
+# tighten these five lines to `== True`.
+#
+# ⚠ TRAP 3, AND THIS ONE IS IN JOKER'S OWN DOC. Bridge §3: *"`pending` is the only resume signal.
+# Never use `lastBet` to decide a resume: a max-win truncated `lastBet` still shows spins left that
+# are forfeited."* That is the same warning as docs/game-bridge-contract.md §5, stated by the game.
+# It is why JK-55's forced run keeps a LOOSE cap — see the note on that run.
+#
+# ── RESTORE vs RESUME — the distinction these cases turn on ────────────────────────────────
+# A reload with a bonus still OWED makes the client RESUME (`pending` drives it, always — never
+# `lastBet`). A reload with nothing owed makes it RESTORE. Different behaviours, one scenario each:
+#   `last-bet-restore`               (JK-53 … JK-56) plays every bonus out before it reloads and
+#                                    publishes `{facts.resumed_rounds}` — a case that resumed when
+#                                    it meant to restore was grading the wrong screen, and says so.
+#   `bonus-resume-denomination-swap` (JK-57, JK-58) closes the game straight after a trigger, so
+#                                    the reopen RESUMES; `{facts.is_pending_freespin}` is its gate.
+#
+# ⚠ JOKER HAS A THIRD RESUME SHAPE THAT NEITHER SCENARIO COVERS: `pending.gameState == 3` with
+# `pending.freeSpins > 0` means the player left AT THE LUCKY SPIN WHEEL (§12.5, "Resume case") —
+# the bonus is bought and owed, and the game reopens with the wheel up, waiting for a choice no
+# other game has to make. It is in the footer, not here.
+#
+# ── WHY EVERY AI ASSERT HERE IS A VIDEO, AND A COMPARISON ──────────────────────────────────
+# Each clip runs `at: [played, restored]` — from the last round's response, through the reload, to
+# the restored game sitting ready. A still cannot hold an animation (and on this game the restore
+# IS an animation, §12.7), and the question is "is it the SAME", not "what is it" — reading an
+# absolute figure off pixels is the flaky half of AI assertion and the half the bridge already owns
+# exactly, on every `stream:` line above each prompt. Every prompt therefore opens with
+# `reload_visible`: without a reload in the clip there are no two phases to compare and every other
+# answer is meaningless.
+
+runs:
+  # ── JK-53 : reopening after a LOSING round ─────────────────────────────────────────────
+  # `outcome: lose` leaves a round that paid nothing on record. The case is that the game comes back
+  # on THAT round: its stake, and no win. The win half is the one that catches a client which
+  # restores a stale round or draws a phantom win amount on re-entry — and on this game it also
+  # catches a §12.7 replay firing when there was no win to replay.
+  - run:
+      scenario: last-bet-restore
+      teardown: return-to-base
+      params: { outcome: lose, max_spins: 40 }
+      cases:
+        - id: JK-53
+          title: "Reopening the game after a losing round restores that round: its stake, and no win"
+          assert:
+            # THE GATES. Read trap 1 and trap 2 in the header: without these three the comparisons
+            # below are None == None, which is a green on a build that restored nothing at all.
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            - stream: "{facts.resumed_rounds} == 0"      # it RESTORED; it did not resume a bonus
+            # The round really was a loss, so "no win is shown" is a real expectation and not a
+            # description of a round that happened to pay nothing anyway.
+            - stream: "{facts.played_payout} == 0"
+            - stream: "{facts.played_base_stake} > 0"
+            # The case itself.
+            - stream: "{facts.stake_restored} == True"
+            - stream: "{facts.restored_payout} == 0"
+            # ...and the visible half of the same rule: the bet control comes back on that stake.
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            - video:
+                at: [played, restored]
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip has TWO
+                  PHASES separated by a game RELOAD, and the question is whether the second matches
+                  the first. The ACTION TIMELINE gives the moment of the reload and the moment the
+                  game came back ready — use it rather than guessing where the break is.
+
+                  PHASE 1, before the reload: the player's last round, which LOST. Stake
+                  {facts.played_base_stake}, win {facts.played_payout}. Watch it resolve.
+
+                  PHASE 2, after the reload: the game is closed and reopened, then sits ready for a
+                  few seconds. It is expected to come back showing the SAME round.
+
+                  Judge phase 2 against phase 1 and answer each independently:
+
+                  (1) reload_visible: does the clip actually contain a reload — the game goes to a
+                  loading or blank state and then re-enters? Answer false if no such break occurs.
+
+                  (2) bet_amount_same: does the bet / stake readout after the reload show the same
+                  value it showed before it? Judge the bet readout only — ignore the balance, which
+                  moves for other reasons.
+
+                  (3) no_win_after_reload: after the reload, is the screen free of any win
+                  presentation — no win amount displayed, no payline highlighted, no celebration,
+                  and no reel filling with wild symbols — matching the losing round in phase 1?
+                  This game replays the last round's win when it reopens, so on a LOSING round
+                  there should be nothing to replay.
+
+                  (4) symbols_same: look at the SYMBOLS ON THE REELS. The grid is 5 reels of 3
+                  symbols, so fifteen positions. After the reload, is every position showing the
+                  SAME SYMBOL it showed in the final grid of phase 1's round? Compare cell by cell,
+                  not as an overall impression. Answer false if any position holds a different
+                  symbol, or if the grid came back as a fresh unrelated arrangement.
+
+                  (5) ui_broken: after the reload, is anything overlapping, cut off, placeholder or
+                  visibly broken?
+                output_schema:
+                  reload_visible: { type: boolean }
+                  bet_amount_same: { type: boolean }
+                  no_win_after_reload: { type: boolean }
+                  symbols_same: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reload_visible: true
+                  bet_amount_same: true
+                  no_win_after_reload: true
+                  symbols_same: true
+                  ui_broken: false
+                  confidence: medium
+
+  # ── JK-54 : reopening after a WINNING round ────────────────────────────────────────────
+  # The mirror of JK-53, and the stronger of the two: a win gives the restore something to get
+  # WRONG. `payout_restored` is the exact half; the replayed win line is the pixel half, and on this
+  # game §12.7 says that replay is a documented behaviour rather than a hope.
+  - run:
+      scenario: last-bet-restore
+      teardown: return-to-base
+      params: { outcome: win, max_spins: 60 }
+      cases:
+        - id: JK-54
+          title: "Reopening the game after a winning round restores its stake, its win and its winning line"
+          assert:
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            - stream: "{facts.resumed_rounds} == 0"
+            # This really was a win — otherwise every assert below is satisfied by a zero.
+            - stream: "{facts.played_payout} > 0"
+            - stream: "{facts.played_base_stake} > 0"
+            # The case: the same stake AND the same money came back.
+            - stream: "{facts.stake_restored} == True"
+            - stream: "{facts.payout_restored} == True"
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            - stream: conservation
+            # ...and the round being restored was itself arithmetically sound, so a mismatch above
+            # cannot be blamed on the round rather than on the restore.
+            - stream: joker_payout_matches_paylines
+            - video:
+                at: [played, restored]
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip has TWO
+                  PHASES separated by a game RELOAD, and the question is whether the second matches
+                  the first. The ACTION TIMELINE gives the moment of the reload and the moment the
+                  game came back ready — use it rather than guessing where the break is.
+
+                  PHASE 1, before the reload: the player's last round, which WON. Stake
+                  {facts.played_base_stake}, win {facts.played_payout}. Watch it resolve, and note
+                  the win amount it displays and which symbols or payline are marked as paying.
+
+                  PHASE 2, after the reload: the game is closed and reopened, then sits ready for a
+                  few seconds. This game REPLAYS the last round's win when it comes back, so expect
+                  the win presentation to run again rather than the screen simply being redrawn.
+
+                  Judge phase 2 against phase 1 and answer each independently:
+
+                  (1) reload_visible: does the clip actually contain a reload — the game goes to a
+                  loading or blank state and then re-enters? Answer false if no such break occurs.
+
+                  (2) bet_amount_same: does the bet / stake readout after the reload show the same
+                  value it showed before it? Judge the bet readout only — ignore the balance, which
+                  moves for other reasons.
+
+                  (3) win_amount_same: is the round's win displayed after the reload, and is it the
+                  same figure that was shown in phase 1?
+
+                  (4) win_line_same: after the reload, is the same winning combination marked as in
+                  phase 1 — the same symbols highlighted, or the same payline drawn or numbered?
+
+                  (5) symbols_same: look at the SYMBOLS ON THE REELS. The grid is 5 reels of 3
+                  symbols, so fifteen positions. After the reload, is every position showing the
+                  SAME SYMBOL it showed in the final grid of phase 1's round? Compare cell by cell,
+                  not as an overall impression. Judge the symbols themselves here — whether the
+                  winning line is marked on them is question (4), not this one.
+
+                  (6) ui_broken: after the reload, is anything overlapping, cut off, placeholder or
+                  visibly broken?
+                output_schema:
+                  reload_visible: { type: boolean }
+                  bet_amount_same: { type: boolean }
+                  win_amount_same: { type: boolean }
+                  win_line_same: { type: boolean }
+                  symbols_same: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reload_visible: true
+                  bet_amount_same: true
+                  win_amount_same: true
+                  win_line_same: true
+                  symbols_same: true
+                  ui_broken: false
+                  confidence: medium
+
+  # ── JK-55 : reopening after a bonus TRIGGERED FROM THE BASE GAME ───────────────────────
+  # ⚠ TRIGGERED, NOT BOUGHT — and the distinction is the whole reason the outcome is spelled
+  # `freespin_trigger` rather than "bonus". This game has two ways into free spins and they DO NOT
+  # COST THE SAME: a trigger charges the base stake, a Buy Bonus purchase charges 100x it
+  # (Packages[0].BuyMultiplier, asserted as JK-63). A restore case that said "bonus" would be
+  # asserting one figure while the reader assumed the other. CR_094 is the BOUGHT route — footer.
+  #
+  # ⚠ WHERE THE STAKE COMES FROM, and why it is not the obvious place. A free spin costs nothing, so
+  # its `stake` is 0 while `baseStake` stays at the bet level — bet-response.md §5, confirmed on the
+  # captured free spin (stake 0, baseStake 0.6). `base_stake()` falls back to `stake` when
+  # `baseStake` is absent, so reading it off the TERMINAL round could publish 0 on a game behaving
+  # perfectly and fail every stake assert below for the wrong reason. `last-bet-restore` therefore
+  # reads `played_base_stake` off the TRIGGER — the round the player actually paid for — whenever
+  # `outcome: freespin_trigger`. `{facts.terminal_base_stake}` publishes the terminal round's own
+  # figure, deliberately UNASSERTED: this game's captured terminal free spin DOES carry a real
+  # `baseStake`, but that is one capture of a bonus that paid 0, so the two are left to agree (or
+  # not) on the record rather than being pinned.
+  #
+  # DETERMINISTIC, not hunted (Rule 17). `joker-fs-easy` is the same fixture jk-features.yml uses:
+  # `FreeSpin!` at 30% on base reels 1/2/3 and ZERO on 4/5, so a bonus arrives in a median of 3
+  # spins and always on exactly three reels. Hunting at natural odds is 1 in 236 spins AND would
+  # leave the payout different on every run — exactly the variance a value-for-value comparison
+  # should not be carrying.
+  #
+  # ⚠ `max_win_x: 500` IS DELIBERATELY LOOSE HERE, and this is the one place in the Joker suites
+  # that departs from the Rule 17 default of 20. Rule 17's own words: raise it when a tight ceiling
+  # would change the answer. It would, and the game's doc says exactly how — bridge §3:
+  # *"a max-win truncated `lastBet` still shows spins left that are forfeited"*. A cap that
+  # truncated the bonus would set `hasReachedMaxWin`, and the truncated `lastBet` then reads like a
+  # LIVE bonus through the same parser, so `resumed_rounds == 0` would fail on a healthy client and
+  # the case would be measuring the cap. This case is about a CLEANLY FINISHED bonus; the cap must
+  # stay out of the way, while still bounding a runaway. 500 does both.
+  - run:
+      scenario: last-bet-restore
+      paytable: { ref: joker-fs-easy, max_win_x: 100 }
+      teardown: return-to-base
+      params: { outcome: freespin_trigger, max_spins: 20 }
+      cases:
+        - id: JK-55
+          title: "Reopening after a bonus triggered from the base game restores that round, not a plain spin"
+          assert:
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            # The point of the case: the bonus had FINISHED, so the client restores it rather than
+            # resuming it. A non-zero here means the reload resumed an owed bonus — a different
+            # behaviour, and this case's asserts would be describing the wrong screen. It is also
+            # the line that goes red if the cap bit (see the run note above).
+            - stream: "{facts.resumed_rounds} == 0"
+            # A bonus really was reached. NOTE WHAT IS *NOT* ASSERTED: that it PAID.
+            #
+            # ⚠ TWO SEPARATE MISTAKES WERE MADE HERE, both caught on live runs, both worth
+            # keeping written down because the second is the subtler one.
+            #
+            # 1. `{facts.played_payout} > 0` — THE WRONG FIGURE. `played_payout` is the TERMINAL
+            #    round's own payout, and a bonus ends on whatever spin empties the counter,
+            #    winning or not. Joker's captured terminal free spin reads `payout: 0` while the
+            #    bonus paid 39.6 (`totalFreeSpinPayout`). So it went red on a healthy game.
+            #    `played_bonus_payout` — the free spins' own total — is the right figure, and is
+            #    the same trigger-vs-terminal split the STAKE already had, applied to the money.
+            #
+            # 2. `{facts.played_bonus_payout} > 0` — STILL WRONG, AND A FLAKE. A bonus that loses
+            #    every free spin pays 0, and that is an ordinary outcome, not a defect. Unlike
+            #    `outcome: win` — where `_matches()` hunts until `payout > 0`, so JK-54 may
+            #    assert it — `outcome: freespin_trigger` breaks out on the TRIGGER and takes
+            #    whatever the bonus then does. Nothing guarantees a win, so nothing may require
+            #    one. THE CASE IS THE RESTORE, not the size of the bonus.
+            - stream: "{facts.played_base_stake} > 0"
+            - stream: "{facts.trigger_stake} > 0"          # the trigger was a PAID base round
+            # The case: the round's figures came back.
+            - stream: "{facts.stake_restored} == True"
+            # The win came back too — WHATEVER it was, including zero. Two unknowns are folded
+            # into one line on purpose:
+            #   • which win a restored `lastBet` echoes (the terminal round's own, or the whole
+            #     bonus's) is unverified, so either matching is a pass and the run records which;
+            #   • a zero-paying bonus makes this comparison VACUOUS (0 == 0). It is left that way
+            #     rather than gated, because the alternative is a red on a correct game. How
+            #     often it happens is visible in `{facts.played_bonus_payout}`, which is
+            #     published on every run — if it reads 0 often enough to matter, the fix is a
+            #     paytable fixture that forces a paying free spin, not an assert.
+            # ONE live green run with a PAYING bonus settles the first bullet; tighten then to
+            # the single fact that held and delete the other half of this line.
+            - stream: "{facts.bonus_payout_restored} == True or {facts.payout_restored} == True"
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            # The bonus itself was well-formed and actually ended — without this the run could have
+            # been truncated and still satisfied everything above.
+            - stream: terminal_reached
+            - stream: stake_zero_in_freespins
+            - stream: conservation
+            - video:
+                at: [played, restored]
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. During FREE SPINS a
+                  WILD that lands on certain reels EXPANDS to cover that whole reel. This clip has
+                  TWO PHASES separated by a game RELOAD, and the question is whether the second
+                  matches the first. The ACTION TIMELINE gives the moment of the reload and the
+                  moment the game came back ready — use it rather than guessing where the break is.
+
+                  PHASE 1, before the reload: the FINAL round of a free-spin bonus that has just
+                  finished, with the bonus paying {facts.played_payout} at a base stake of
+                  {facts.played_base_stake}. Watch it resolve, including any total-win presentation
+                  and the return to the base game.
+
+                  PHASE 2, after the reload: the game is closed and reopened, then sits ready for a
+                  few seconds. This game replays the last round's win when it comes back, INCLUDING
+                  a wild expansion if that round had one.
+
+                  Judge phase 2 against phase 1 and answer each independently:
+
+                  (1) reload_visible: does the clip actually contain a reload — the game goes to a
+                  loading or blank state and then re-enters? Answer false if no such break occurs.
+
+                  (2) bet_amount_same: does the bet / stake readout after the reload show the same
+                  value it showed before it? Judge the bet readout only — ignore the balance.
+
+                  (3) win_amount_same: is the bonus's win displayed after the reload, and is it the
+                  same figure phase 1 showed? Answer false if no win figure is carried over at all.
+
+                  (4) base_game_after_reload: after the reload, is the game sitting in the ORDINARY
+                  BASE GAME, ready to spin — rather than back inside free spins, mid-bonus, or
+                  playing further free spins? The bonus FINISHED before the reload, so re-entry must
+                  not put the player back into it. A single replay of the last round's win
+                  animation is expected and is NOT the bonus running again.
+
+                  (5) symbols_same: look at the SYMBOLS ON THE REELS. The grid is 5 reels of 3
+                  symbols, so fifteen positions. After the reload, is every position showing the
+                  SAME SYMBOL it showed in the final grid of the bonus in phase 1 — including any
+                  reel that had been filled by an expanding wild? Compare cell by cell.
+                output_schema:
+                  reload_visible: { type: boolean }
+                  bet_amount_same: { type: boolean }
+                  win_amount_same: { type: boolean }
+                  base_game_after_reload: { type: boolean }
+                  symbols_same: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  # TWO DISCOVERY FIELDS HERE, asked on every run and graded on none —
+                  # `win_amount_same` and `symbols_same`. Both turn on the same unverified question:
+                  # what a FINISHED BONUS restores, as opposed to a base round. There is a real
+                  # tension between them and `base_game_after_reload` — a client that correctly
+                  # returns to the base game may legitimately come back on a FRESH base grid rather
+                  # than the bonus's final one, which would make `symbols_same` false on a perfectly
+                  # healthy build. On this game §12.7 says the reload replays the last round's WIN,
+                  # which suggests the bonus grid does come back — but §12.7 describes a base round,
+                  # and no capture shows what it does after a bonus. Grading either would assert a
+                  # behaviour nobody has confirmed is intended.
+                  # The answers are recorded every run and together they SETTLE it: read these two
+                  # after the first green run, then promote them. Discovery fields, not oversights.
+                  # JK-53/54 grade `symbols_same` because a BASE round's restore is unambiguous.
+                  reload_visible: true
+                  bet_amount_same: true
+                  base_game_after_reload: true
+                  confidence: medium
+
+  # ── JK-56 : changing the bet amount after a round does not change what the game reopens on ──
+  # CR_095: play one round at bet amount X, change the bet amount to Y in the bet list (no spin),
+  # then reopen the game. It must come back on X, the bet of the round actually played.
+  #
+  # Why X and not Y: changing the bet in the list sends nothing to the server. The only record the
+  # reopened session has is `lastBet`, the round played at X — so a client that comes back on Y has
+  # kept client-side state across a reload that it should have discarded.
+  #
+  # `change_bet_after: true` does the change. `bet_moved_after_round` is the gate: it is False when
+  # the bet list would not open, or the pick landed back on X — either way X and Y are the same
+  # number and the case would pass without testing anything.
+  #
+  # ⚠ JOKER: `betPlus` AND `betMinus` both open the `denomination` list (bridge §7.1) and both are
+  # DISABLED at the ends of the ladder. A session left at the top bet reports `changed_bet_to: None`
+  # and the gate goes red — reset the bet, rather than reading it as a Last Bet defect.
+  - run:
+      scenario: last-bet-restore
+      teardown: return-to-base
+      params: { outcome: any, change_bet_after: true, max_spins: 20 }
+      cases:
+        - id: JK-56
+          title: "After changing the bet amount and reopening, the game shows the bet of the round played"
+          assert:
+            # THE GATES (see the file header).
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.last_bet_present} == True"
+            - stream: "{facts.resumed_rounds} == 0"
+            - stream: "{facts.played_base_stake} > 0"
+            # THE GATE FOR THIS CASE: the bet really moved to a different value (Y != X).
+            - stream: "{facts.bet_moved_after_round} == True"
+            - stream: "{facts.changed_bet_to} != {facts.played_base_stake}"
+            # The case: the record is still the round played at X...
+            - stream: "{facts.stake_restored} == True"
+            # ...and the reopened game shows X, not Y. Two lines, because a readout showing some
+            # third value fails the first and passes the second, and that is worth telling apart.
+            - stream: "{facts.bet_opens_at_last_stake} == True"
+            - stream: "{facts.bet_opens_at_changed_value} == False"
+            - video:
+                at: [played, restored]
+                timestamp: true
+                prompt: >-
+                  Joker: Where's My Banana is a 5x3 slot. This clip has THREE PHASES. The ACTION
+                  TIMELINE marks the bet change, the reload, and the moment the game came back
+                  ready — use it rather than guessing where each phase begins.
+
+                  PHASE 1: the player plays one round at a bet amount of
+                  {facts.played_base_stake}. Note what the bet readout shows during that round.
+
+                  PHASE 2: WITHOUT spinning again, the player opens the bet list and changes the bet
+                  amount to {facts.changed_bet_to}. The readout now shows this second value.
+
+                  PHASE 3: the game is closed and reopened, then sits ready for a few seconds.
+
+                  The game is expected to come back on the bet amount of the round that was PLAYED —
+                  phase 1's value, {facts.played_base_stake} — not on {facts.changed_bet_to}, which
+                  was only selected. Answer each independently:
+
+                  (1) reload_visible: does the clip actually contain a reload — the game goes to a
+                  loading or blank state and then re-enters? Answer false if no such break occurs.
+
+                  (2) bet_change_visible: between the round and the reload, does the bet readout
+                  visibly change to a different value? Answer false if it never moves.
+
+                  (3) bet_matches_played_round: after the reload, does the bet readout show the value
+                  it showed in PHASE 1, while the round was being played?
+
+                  (4) bet_matches_changed_value: after the reload, does it instead show the value it
+                  showed in PHASE 2, after the change? Judge this against phase 2's screen
+                  independently of your answer to (3) — if it shows some third figure, both are
+                  false, and that is a meaningful answer.
+
+                  (5) symbols_same: look at the SYMBOLS ON THE REELS. The grid is 5 reels of 3
+                  symbols, so fifteen positions. After the reload, is every position showing the
+                  SAME SYMBOL it showed in the final grid of phase 1's round? Opening the bet list
+                  and picking a row does not spin the reels, so the grid should not have moved at
+                  all between phase 1 and phase 3.
+
+                  (6) ui_broken: after the reload, is anything overlapping, cut off, placeholder or
+                  visibly broken?
+                output_schema:
+                  reload_visible: { type: boolean }
+                  bet_change_visible: { type: boolean }
+                  bet_matches_played_round: { type: boolean }
+                  bet_matches_changed_value: { type: boolean }
+                  symbols_same: { type: boolean }
+                  ui_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reload_visible: true
+                  bet_change_visible: true
+                  bet_matches_played_round: true
+                  bet_matches_changed_value: false
+                  symbols_same: true
+                  ui_broken: false
+                  confidence: medium
+
+  # ── JK-57 + JK-58 : the denomination changes on BO while a bonus is still owed ──────────
+  # CR_096, as two cases on ONE run (Rule 16):
+  #   1. trigger free spins at bet amount X
+  #   2. CLOSE the game at once, while the bonus is still owed
+  #   3. change the agent's denomination on BO to a ladder that does NOT contain X
+  #   4. reopen the game
+  #   JK-57  the bonus RESUMES and plays out at X, the stake frozen when it was triggered
+  #   JK-58  once it ends, the base game switches to the NEW ladder's DEFAULT bet
+  #
+  # ⚠ THIS IS A RESUME, NOT A RESTORE, and that is why it has its own scenario. The reopen happens
+  # with a bonus still OWED, so `gameInfo.pending` drives it — bridge §3 states it outright:
+  # "`pending` is the only resume signal." `bonus-resume-denomination-swap` therefore does NOT
+  # settle or drain after the trigger; it tears the client down straight away. `is_pending_freespin`
+  # is the gate: False means the bonus had already ended before the close, and both cases would be
+  # describing something else.
+  #
+  # ⚠ JOKER'S RESUME IS PASSIVE AND STARTS IMMEDIATELY. Bridge §12.6: with `pending.gameState == 2`
+  # the free-spin rounds "start the moment Start is clicked" and are BUFFERED before Start (§8), so
+  # none is lost — the scenario loops `awaitFreespinRound()` to terminal. **Never click during free
+  # spins** (§3). Nothing here does.
+  #
+  # ⚠ THE NEW LADDER MUST NOT CONTAIN X, or "the bonus kept X" and "the new ladder applied" look the
+  # same. The swap goes to the automation ladder (11, 22, 33), which shares no value with any real
+  # ladder, and `old_bet_on_new_ladder == False` proves it on every run.
+  #
+  # ⚠ JK-58's expected bet is the new ladder's DEFAULT, read back from BO, not assumed to be 11. An
+  # existing automation ladder is left as it is, so its default may differ from the one this repo
+  # would create. ⚠ And on THIS game `defaultBetLevel` is 1-BASED (§3, §15) — the same off-by-one
+  # JK-04 is about. If JK-58 goes red with `bet_after_bonus` exactly one denomination away from
+  # `new_default_bet`, that is the JK-04 defect surfacing here, not a Last Bet defect.
+  #
+  # ⚠ TWO BO CHANGES ON ONE AGENT ROW. The run forces a `paytable:` before the game opens, then
+  # swaps the denomination mid-run. They should compose — `assign_agent_denomination` builds its
+  # submit row from `find_current_paytable(row)` and carries the forced paytable through — but CHECK
+  # ON THE FIRST LIVE RUN: if the resumed bonus behaves like the real weights, the denomination
+  # write dropped the paytable override.
+  #
+  # ⚠ JOKER PROBABLY HAS ITS OWN BO PAIR. A denomination belongs to a (sub-category, currency) pair.
+  # Which pair this game runs on is one of the values still missing from env.config.dev.yml, so the
+  # automation ladder for it likely does not exist yet and the first run creates it. Creating one
+  # RESUBMITS THAT PAIR'S WHOLE LIST (docs/bo-denominations.md, trap 1), which came back
+  # VALIDATION_FAILED on the TKN pair because an existing ladder in that list was itself invalid.
+  # If it fails here too, read the error detail for the offending entry — it is not this case.
+  #
+  # ⚠ RULE 20 — the swap is not live when BO answers. BO publishes it on a Kafka event and the game
+  # server applies it when that lands, so the scenario waits before reopening. The wait is never the
+  # evidence: `client_on_new_ladder` is, and both cases gate on it. A stale ladder would show the
+  # OLD bet, which is exactly what JK-57 wants to see — it would green on nothing.
+  #
+  # ⚠ TEARDOWN IS NOT OPTIONAL (Rule 7): `reset-denomination` puts the agent row back. It re-raises
+  # on failure and stops the suite, because a ladder left on 11/22/33 makes every later bet assert
+  # measure against the wrong ladder — and a FAILED reset compounds, since the next run then reads
+  # "previous" as that ladder (docs/bo-denominations.md, trap 5).
+  #
+  # DETERMINISTIC: `joker-fs-easy` reaches a bonus in a median of 3 spins, always the 3-reel award.
+  # The cap is loose for the same reason as JK-55: a truncated bonus is not the resume under test.
+  - run:
+      scenario: bonus-resume-denomination-swap
+      paytable: { ref: joker-fs-easy, max_win_x: 100 }
+      teardown: [reset-denomination, return-to-base]
+      params: { max_spins: 20 }
+      # ONE clip for both cases: the trigger, the close, the reopen, the resumed bonus, and the base
+      # game after it. Each case grades the phase that is its claim (expected_by_case).
+      video:
+        at: [trigger, restored]
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines and a FREE SPINS bonus in
+          which a WILD landing on certain reels expands to cover the whole reel. This clip has FOUR
+          PHASES. The ACTION TIMELINE marks the trigger, the close, the bet-ladder change, the
+          reopen, and the return to the base game — use it rather than guessing where each phase
+          begins.
+
+          PHASE 1: a base spin at a bet amount of {facts.trigger_base_stake} triggers FREE SPINS.
+          Note the bet readout and the reels.
+
+          PHASE 2: the game is CLOSED (a blank or loading screen) while the bonus is still owed.
+          While it is closed, the available bet amounts are changed in the back office to a
+          completely different set, {facts.new_ladder}.
+
+          PHASE 3: the game is reopened. The free spins are expected to CONTINUE on their own —
+          the game plays them itself, with no input — and run to the end of the bonus.
+
+          PHASE 4: the bonus has ended and the game is back in the ordinary base game, sitting
+          ready for a few seconds.
+
+          Answer each question about the phase it names, independently:
+
+          (1) reload_visible: does the clip actually contain the game closing and reopening — a
+          blank or loading state, then the game again? Answer false if no such break occurs.
+
+          (2) bonus_resumed: in PHASE 3, does the free-spin bonus continue — further spins playing
+          by themselves, a free-spin counter, possibly a wild expanding — rather than the game
+          reopening straight into an ordinary base game?
+
+          (3) bet_during_bonus_is_old: during PHASE 3, does the bet readout show
+          {facts.trigger_base_stake}, the bet amount from PHASE 1? Answer false if it shows
+          anything else, or if no bet readout is visible during the bonus.
+
+          (4) bet_during_bonus_is_new_value: during PHASE 3, does the bet readout instead show one
+          of the new values, {facts.new_ladder}? Answer independently of (3).
+
+          (5) back_to_base: in PHASE 4, is the game in the ordinary base game, ready to spin, with
+          the bonus over?
+
+          (6) bet_after_bonus_is_new_default: in PHASE 4, does the bet readout show
+          {facts.new_default_bet}?
+
+          (7) ui_broken: in PHASE 3 or PHASE 4, is anything overlapping, cut off, placeholder or
+          visibly broken?
+        output_schema:
+          reload_visible: { type: boolean }
+          bonus_resumed: { type: boolean }
+          bet_during_bonus_is_old: { type: boolean }
+          bet_during_bonus_is_new_value: { type: boolean }
+          back_to_base: { type: boolean }
+          bet_after_bonus_is_new_default: { type: boolean }
+          ui_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # ⚠ `bet_during_bonus_is_old` assumes this build SHOWS a bet readout during free spins.
+          # If the first live run finds it hidden, this goes false on a healthy build: drop it from
+          # here and let the stream half (`pending_stake_is_trigger`, `bet_during_bonus_is_old`)
+          # carry the claim, which reads the client's state whether or not it is drawn.
+          JK-57:
+            reload_visible: true
+            bonus_resumed: true
+            bet_during_bonus_is_old: true
+            bet_during_bonus_is_new_value: false
+            ui_broken: false
+            confidence: medium
+          JK-58:
+            reload_visible: true
+            back_to_base: true
+            bet_after_bonus_is_new_default: true
+            ui_broken: false
+            confidence: medium
+      cases:
+        - id: JK-57
+          title: "A bonus resumed after a BO denomination change plays out at the bet it was triggered at"
+          assert:
+            # THE PREMISE: the ladder really changed, reached the client, and does not contain X.
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            - stream: "{facts.trigger_base_stake} > 0"
+            # THE GATE: the reopen really resumed an owed bonus.
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.is_pending_freespin} == True"
+            # Rule 17: "the bet stayed X in every resumed round" needs more than one round. The
+            # smallest award this fixture can produce is 12, and the close comes before the client
+            # fires the first, so all of them are resumed rounds.
+            - stream: "{facts.resumed_rounds} >= 2"
+            # THE CASE. The server froze X for the bonus...
+            - stream: "{facts.pending_stake_is_trigger} == True"
+            # ...and the client kept showing X in every resumed round, never a new-ladder value.
+            - stream: "{facts.bet_during_bonus_is_old} == True"
+            - stream: "{facts.bet_during_bonus_on_new_ladder} == False"
+            # the resumed rounds were free and the bonus finished cleanly
+            - stream: stake_zero_in_freespins
+            - stream: terminal_reached
+            - stream: conservation
+
+        - id: JK-58
+          title: "After the resumed bonus ends, the bet switches to the new denomination's default"
+          assert:
+            - stream: "{facts.swap_applied} == True"
+            - stream: "{facts.client_on_new_ladder} == True"
+            - stream: "{facts.old_bet_on_new_ladder} == False"
+            # "after the bonus ends" presupposes one ran and ended
+            - stream: "{facts.info_captured} != False"
+            - stream: "{facts.is_pending_freespin} == True"
+            - stream: "{facts.resumed_rounds} >= 1"
+            - stream: terminal_reached
+            # THE CASE: the base game opens on the new ladder's default...
+            - stream: "{facts.new_default_bet} != None"
+            - stream: "{facts.bet_after_bonus_is_new_default} == True"
+            # ...which is, necessarily, a value of the new ladder, not the old X.
+            - stream: "{facts.bet_after_bonus_on_new_ladder} == True"
+
+# ── NOT AUTOMATED in this suite ────────────────────────────────────────────────────────────
+# JK-59 (CR_097)  Reopening after a PROMO round: the promo stake while the promo runs, and a return
+#                 to the current bet level once it ends. Needs a SEEDED PROMO ACCOUNT — `HAS_PROMO`
+#                 is true "only when the session has a promo" (bridge §11), so no local setup
+#                 reaches it. Chaos parked CR_081-083 and CR_097 on exactly this.
+#                 ⚠ When it is written: `promoMessage` / `promoReceive` / `promoList` are separate
+#                 popups (§6) and `promoReceive` closes through its confirm or cancel BUTTON —
+#                 hiding one without firing its button is the shape that hangs a promise-driven
+#                 popup, so click through and never dismiss. Also ⚠ `waitForSpinClickable` REFUSES
+#                 in `mode:PROMO` (§15) — drive promo spins with `waitForButtonClickable('spin')`
+#                 and `awaitBetResponse()` instead, or the run hangs before it starts.
+#
+# THE LUCKY SPIN RESUME — Joker's own third shape, and the most interesting one here.
+#                 `pending.gameState == 3` with `pending.freeSpins > 0` means the player CLOSED THE
+#                 GAME AT THE WHEEL: the bonus is bought and owed, and on reopen the `luckySpin`
+#                 popup comes up waiting for a choice (§12.5, "Resume case"). No other game in this
+#                 repo has a resume that blocks on a player decision, and ⚠ `dismissPopups()` never
+#                 closes `luckySpin` — a run that reopens into it and walks away leaves the game
+#                 waiting forever AND poisons the next run.
+#                 Neither scenario here covers it: `bonus-resume-denomination-swap` closes after a
+#                 TRIGGER (gameState 2), and `last-bet-restore` plays everything out first. The
+#                 right shape is a new scenario — buy the bonus, tear the client down BEFORE
+#                 answering the wheel, reopen, then do §12.5 steps 7 and 8 — reusing
+#                 `buy-bonus-lucky-spin`'s wheel helper so the choice is always clicked.
+#                 Worth writing once JK-63…JK-67 have run green, since it depends on the same flow.
+#
+# CR_094 proper — reopening after a BOUGHT bonus. JK-55 covers the bonus TRIGGERED from the base
+#                 game (`outcome: freespin_trigger`); CR_094 is the bought route, and the two are
+#                 not interchangeable: a trigger charges the base stake, a purchase charges 100x it,
+#                 so the record should carry the PRICE. That is what makes this the more interesting
+#                 half, and why the outcome is named for which route it took rather than for the
+#                 feature both reach. It needs the purchase flow followed by a reload — on this game
+#                 `buyBonus` -> `buyBonus:buy` -> `buyBonus:confirm` -> **the wheel** -> the spins.
+#                 `last-bet-restore` deliberately does not reimplement it; the right shape is a
+#                 THIRD outcome, `buy_bonus`, delegating to the same helper `buy-bonus-lucky-spin`
+#                 uses so the wheel is answered rather than abandoned.

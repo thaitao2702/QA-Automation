@@ -1,0 +1,166 @@
+{
+  "kind": "run",
+  "scenario": "spin-then-history",
+  "description": "Inspect a PLAIN BASE round in History for each outcome shape the MECHANISM can produce: a LOSING spin, a NORMAL win (one paying step) and \u2014 on a cascade game only \u2014 a CASCADE win (two or more). A single-grid game (line, hold-and-spin) reports one paying step for any win, so `cascade_win` is dropped automatically and the hunt is just lose/win; narrow it further with `params: {outcomes: [...]}`. It keeps spinning and, the moment a spin matches an outcome still outstanding, stops and inspects THAT round: open History, open the newest row's bet detail, scroll it by ONE PAGE PER PAYING STEP (0 for a loss, 1 for a normal win, N for a cascade) \u2014 `detail_scroll_steps` overrides that for a build whose detail does not page, then close up and carry on hunting the rest. One spin sequence therefore covers them all, instead of a run each hunting separately. Each inspection is MARKED as `no_win` / `normal_win` / `cascade_win`, so a `video:` assert targets one with `at:`; each round's clip spans its own spin through its own History walk. A spin that TRIGGERS the bonus is drained and skipped \u2014 a bonus ticket is a different shape (one sub-ticket per free spin) and belongs to `freespin-then-history`. Exposes facts.<outcome>_found / _cluster_wins / _scrolls / _detail_opened / _round_id / _stake / _payout, plus outcomes_found / all_outcomes / spins / bonuses_drained. Unreached only if NO outcome was inspected at all.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    289.31710934638977,
+    338.47864866256714
+  ],
+  "shots": [],
+  "facts": {
+    "no_win_found": false,
+    "normal_win_found": true,
+    "cascade_win_found": false,
+    "normal_win_cluster_wins": 1,
+    "normal_win_win_clusters": 0,
+    "normal_win_cascades": 1,
+    "normal_win_scrolls": 0,
+    "normal_win_history_rows": 8,
+    "normal_win_detail_opened": true,
+    "normal_win_round_id": "949687500115279873",
+    "normal_win_round_id_match": true,
+    "normal_win_stake": 0.1,
+    "normal_win_payout": 0.03,
+    "normal_win_payout_display": "0.03",
+    "normal_win_panel_closed": true,
+    "normal_win_popups_after": "none",
+    "normal_win_close_button_worked": true,
+    "normal_win_needed_dismiss": false,
+    "normal_win_close_seconds": 4.64,
+    "normal_win_spin_ready_seconds": 0.51,
+    "outcomes_found": "normal_win",
+    "outcome_count": 1,
+    "all_outcomes": true,
+    "missing": "none",
+    "spins": 6,
+    "bonuses_drained": 0,
+    "is_base_round": true
+  },
+  "marks": {
+    "normal_win": 5
+  },
+  "cases": [
+    {
+      "id": "TC-011",
+      "title": "History shows the round that was just played, with its own result",
+      "stream": [
+        {
+          "spec": "{facts.normal_win_found} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.normal_win_history_rows} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.normal_win_detail_opened} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.normal_win_round_id_match} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.normal_win_payout} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.normal_win_panel_closed} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            289.31710934638977,
+            338.47864866256714
+          ],
+          "status": "orange",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. The player spins, then opens the History panel and looks at that round.\n(1) history_opens: does a History panel open, listing past rounds? (2) top_row_is_latest: is the round that was just played the FIRST row in the list? (3) detail_opens: does tapping that row open a detail view of the round? (4) detail_win_text: in that detail view, read the win amount exactly as printed, as a string. If you cannot read it clearly, answer \"unreadable\". (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "history_opens": {
+              "type": "boolean"
+            },
+            "top_row_is_latest": {
+              "type": "boolean"
+            },
+            "detail_opens": {
+              "type": "boolean"
+            },
+            "detail_win_text": {
+              "type": "string"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "history_opens": true,
+            "top_row_is_latest": true,
+            "detail_opens": true,
+            "detail_win_text": "0.03",
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621760",
+          "data": {
+            "history_opens": true,
+            "top_row_is_latest": true,
+            "detail_opens": true,
+            "detail_win_text": "0.03",
+            "ui_broken": true,
+            "notes": "Overlapping text is visible during the loading/splash screens at 00:01. Developer debug tools are also visible at the bottom of menus.",
+            "confidence": "high",
+            "reason": "The player wins 0.03 in a round, then opens the history menu which lists that round at the top. Tapping it opens a detail view confirming the 0.03 payout. The UI is considered broken due to overlapping text on splash screens and the presence of 'Dev Tools' buttons which are typically placeholders or debug elements."
+          },
+          "mismatches": [
+            "ui_broken: got True, expected False"
+          ],
+          "reason": "The player wins 0.03 in a round, then opens the history menu which lists that round at the top. Tapping it opens a detail view confirming the 0.03 payout. The UI is considered broken due to overlapping text on splash screens and the presence of 'Dev Tools' buttons which are typically placeholders or debug elements.",
+          "note": "ui_broken: got True, expected False - The player wins 0.03 in a round, then opens the history menu which lists that round at the top. Tapping it opens a detail view confirming the 0.03 payout. The UI is considered broken due to overlapping text on splash screens and the presence of 'Dev Tools' buttons which are typically placeholders or debug elements.",
+          "tokens": [
+            3737,
+            2184
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "orange"
+    }
+  ]
+}

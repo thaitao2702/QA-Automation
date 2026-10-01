@@ -1,0 +1,407 @@
+# Chaos Runner — Ante Bet (CR_049 … CR_056, CR_109) from test-case-chaos.csv.
+#
+# Run:  python scripts/run_scenario.py --game chaos --env dev --suite games/chaos/test-suites/cr-ante.yml
+#
+# RUN LIFECYCLE (docs/run-lifecycle.md). A clean base is the FRAMEWORK's invariant now, not this
+# file's: PREPARE runs `return-to-base` + `waitForSpinClickable` before every run and CLEANUP does
+# the same after, falling back to a reload. So no run below declares `teardown: return-to-base` —
+# declared teardowns are for EXTRAS only, like topping the wallet back up after a drain.
+#
+# Scenarios here follow docs/scenario-authoring-rules.md: every spin goes through
+# `spin_and_finish()` so a free-spin trigger is played out inside the loop body (Rule 1); bonus
+# drains end on `is_terminal()` (Rule 2); every "…and then it stops" claim goes through
+# `confirm_stopped()` — watched, then held (Rule 4); controls are addressed by ROLE.
+#
+# IMAGE vs VIDEO (follow the Mystic convention — it is ~97% video). Default to `video:`. Reach for
+# `image:` ONLY when ONE still answers the question AND the detail is too fine for a montage —
+# text, glyphs, diacritics, clipping, small payout digits, image sharpness. A video assert grades a
+# DOWNSAMPLED composite, so a missing Burmese mark or a two-pixel clip is simply not in those
+# pixels; conversely anything that CHANGES over time (a popup opening and closing, an animation, a
+# counter ticking, "and then it stopped") cannot be shown by a still at all.
+#
+# An `image:` assert also needs its scenario to CAPTURE stills and RETURN them
+# (`ScenarioResult(..., shots=ctx.shots)`). Miss either and the assert sits at `pending` forever —
+# it reads as "the AI never ran" rather than "there was nothing to grade".
+# tests/chaos/validate_suites.py now fails the suite for both mistakes.
+#
+# THE POINT OF THIS SUITE — the base bet / bet amount divergence.
+# Ante Bet multiplies what the player PAYS and what the UI SHOWS. It does NOT move the base every
+# payout derives from. In response terms: `stake` is multiplied, `baseStake` is not. That single
+# sentence is the feature, and it is the thing most likely to be implemented wrong, so it is
+# asserted exactly (`ante_stake_multiplier`) rather than read off the screen.
+#
+#   ante_stake_multiplier      stake == baseStake x ante multiplier, AND the base is unchanged
+#                              versus a non-ante round at the same bet level            CR_051
+#   ante_frozen_in_freespins   the multiplier at trigger holds for the whole bonus      CR_055 / CR_056
+#   conservation               balance == prev - stake + payout, at the inflated stake  CR_051
+#
+# NOW VERIFIED against a real ante payload (games/chaos/bet-response.md §7):
+#     anteMultiplier: 3 | baseStake: 0.6 | stake: 1.8 | payout 4.5 = 150 x 0.6/20
+# The payout followed the UNCHANGED baseStake. From the inflated 1.8 it would have paid 13.5.
+# The BO export agrees: `AnteBet: {Multiplier: 3, DistributionListId: 3}`.
+#
+# WHY THE MULTIPLIER IS STILL NEVER HARDCODED. It is BO-CONFIGURABLE — CR_055 exists precisely
+# because it can change (that case runs at x2 and changes it to x3 mid-bonus). So every assert
+# compares the observed ratio against the multiplier the SERVER reported for that round —
+# `{facts.ante_multiplier}` — never against the literal 3. A suite that hardcoded 3 would go red
+# the day someone reconfigures the game, which is not a defect.
+#
+# WHAT ANTE ACTUALLY BUYS, from the export: ante forces distribution List 3, which raises the WILD
+# weight on reels 2-5 from ~2-5 to ~20-26. That is the documented "more Wild symbols are present on
+# the reels", quantified — and it is why CR_053's bonus is easier to reach with ante on.
+#
+# THE DOC IS WRONG HERE, TWICE (game-knowledge.md §5 items 3-4), so do not "fix" these asserts back:
+#   * Game Rules say ante "increases the bet by 1.5x" — the worked example says x3. QA: x3.
+#   * The worked examples compute bet per line as base/5 — Game Rules say base/20. QA: /20.
+#
+# WHAT THIS SUITE CANNOT DO. CR_052, CR_055 and CR_056 all turn on changing BO config mid-session
+# and reloading. Nothing here drives the BO. The runs below prove the CLIENT side — the value it
+# holds stays frozen for the bonus, the control locks — and each case says explicitly which half
+# is automated and which still needs a manual BO change. Read the `title:` before trusting a green.
+
+runs:
+  # ── CR_049 / 050 / 051 / 054 / 109 : the control, its info panel, and the stake it applies ──
+  # One play covers all five: a baseline spin with ante OFF, the hover panel, then the same bet
+  # level spun with ante ON. Both rounds are in `rounds`, so the invariant sees the pair it needs.
+  - run:
+      scenario: ante-toggle
+      params: { hover_ms: 1500 }
+      # ONE AI CALL FOR THE WHOLE PLAY (Rule 16).
+      #
+      # Every video claim in this run is about the same two spins, so they all share one clip and
+      # one analysis, graded per case through `expected_by_case`. CR_054 is included: its question
+      # is about a specific moment, not a different recording, and `timestamp: true` puts the ACTION
+      # TIMELINE in front of the model so "while the SECOND spin's reels are turning" is a moment it
+      # can actually find. `high_fps` is set for it -- the lock is a state change to catch mid-spin.
+      #
+      # CR_049 moved here from an `image:` on the ante-off screenshot: a still can only show ONE
+      # state, so it could never answer "does the control read differently on and off". The clip has
+      # both states in it, so the question is now asked properly rather than half-asked.
+      #
+      # CR_050 stays an `image:` on the info-panel shot ON PURPOSE. It reads exact stake TEXT, and a
+      # still frame is sharper than a sampled video frame for reading small numbers.
+      video:
+        at: ["off", "on"]      # QUOTED: bare off/on are YAML booleans, and False/True match no mark
+        timestamp: true
+        high_fps: true         # CR_054 needs the mid-spin control state, which is a brief window
+        prompt: >-
+          Chaos Runner, a 5x3 slot with an Ante Bet feature. This clip shows two base-game spins at
+          the same bet level: the FIRST with Ante Bet OFF (stake {facts.stake_off}), the SECOND with
+          Ante Bet ON (stake {facts.stake_on}). The ACTION TIMELINE marks "ANTE OFF", "ANTE ON",
+          "ANTE OFF again" and each spin -- use it to locate each moment.
+          The game is configured with an ante multiplier of x{facts.ante_multiplier_setting}, so with
+          Ante Bet ON the bet shown on screen should read {facts.expected_ante_stake} -- that is
+          {facts.stake_off} multiplied by {facts.ante_multiplier_setting}.
+          Answer each of the following independently:
+          (1) control_visible: is the Ante Bet control clearly visible on screen?
+          (2) states_distinguishable: does the control read UNAMBIGUOUSLY differently in its OFF
+          state (before the first spin) and its ON state (before the second)?
+          (3) overlaps_other_ui: does the control overlap or clip any other UI element?
+          (4) bet_amount_increased: does the displayed bet amount go up when Ante Bet is switched on?
+          (5) bet_matches_multiplier: with Ante Bet ON, does the bet shown on screen equal
+          {facts.expected_ante_stake}, i.e. exactly {facts.ante_multiplier_setting} times the
+          {facts.stake_off} shown with ante OFF? Answer false if it changed by any other amount.
+          (6) ante_bet_amount_text: read the bet amount shown during the SECOND spin, exactly as
+          printed.
+          (7) popup_on_enable: does a notification / toast appear when Ante Bet is switched ON?
+          (8) popup_on_disable: does one appear when it is switched OFF again?
+          (9) notification_text: transcribe whichever notification text you can read most clearly.
+          (10) locked_while_spinning: during the SECOND spin only, from the moment those reels start
+          turning until they stop, does the Ante Bet control appear disabled, greyed out or
+          otherwise non-interactive? Judge only that spinning window -- the control is expected to
+          be interactive before and after it.
+          (11) unlocked_after_spin: once those reels stop, does it return to a normal interactive
+          appearance?
+        output_schema:
+          control_visible: { type: boolean }
+          states_distinguishable: { type: boolean }
+          overlaps_other_ui: { type: boolean }
+          bet_amount_increased: { type: boolean }
+          bet_matches_multiplier: { type: boolean }
+          ante_bet_amount_text: { type: string }
+          popup_on_enable: { type: boolean }
+          popup_on_disable: { type: boolean }
+          notification_text: { type: string }
+          locked_while_spinning: { type: boolean }
+          unlocked_after_spin: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        # Each case is graded ONLY against its own fields, and `confidence` is a minimum
+        # ("at least"), so the clearly-visible cases keep asking for a firmer read than CR_109.
+        expected_by_case:
+          CR_049:
+            control_visible: true
+            states_distinguishable: true
+            overlaps_other_ui: false
+            confidence: medium
+          CR_051:
+            bet_amount_increased: true
+            bet_matches_multiplier: true
+            confidence: medium
+          CR_109:
+            popup_on_enable: true
+            popup_on_disable: true
+            confidence: low
+          CR_054:
+            locked_while_spinning: true
+            unlocked_after_spin: true
+            confidence: medium
+      cases:
+        - id: CR_049
+          title: "Ante Bet control is present and renders per design (client half; BO=ON assumed)"
+          assert:
+            # Hard companion first: the scenario only reaches `reached` when the control exists,
+            # so this proves there was something to grade before the AI grades it.
+            - stream: "{facts.hovered} == True"
+            # Screen half: control_visible / states_distinguishable / overlaps_other_ui, in the
+            # run-level `video:` above. It was an `image:` on the ante-off shot, which could
+            # only ever show the OFF state -- the clip carries both, so ON vs OFF is now real.
+
+        - id: CR_050
+          title: "Hovering Ante Bet shows the info panel with normal stake and ante stake"
+          assert:
+            - stream: "{facts.hovered} == True"
+            - image:
+                at: ante-info-panel
+                prompt: >-
+                  Chaos Runner, hovering the Ante Bet control so its information panel is open.
+                  For this session the plain stake is {facts.stake_off} and the ante stake is
+                  {facts.stake_on} (ante multiplier x{facts.ante_multiplier}). Answer: (1) is an
+                  information panel visible (panel_visible)? (2) does it show BOTH a normal stake
+                  and an ante stake as two separate values (shows_both_stakes)? (3) read the ante
+                  stake value exactly as printed (ante_stake_text). (4) read the normal stake value
+                  exactly as printed (normal_stake_text).
+                output_schema:
+                  panel_visible: { type: boolean }
+                  shows_both_stakes: { type: boolean }
+                  ante_stake_text: { type: string }
+                  normal_stake_text: { type: string }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  panel_visible: true
+                  shows_both_stakes: true
+                  confidence: medium
+
+        - id: CR_051
+          title: "Ante ON applies the ante multiplier to the stake; OFF restores the plain stake"
+          assert:
+            # The rule, exactly. Covers both directions of the defect: a wrong ratio, and a base
+            # that moved when it should not have.
+            - stream: ante_stake_multiplier
+            - stream: conservation
+            # The observed ratio equals the multiplier the SERVER reported — not a hardcoded 3.
+            - stream: "{facts.stake_ratio} == {facts.ante_multiplier}"
+            # The payout base did NOT move. This is the half the design doc gets wrong.
+            - stream: "{facts.base_unchanged} == True"
+            - stream: "{facts.base_on} == {facts.base_off}"
+            # The ante spin really WAS an ante round — otherwise the whole comparison is between
+            # two identical plain spins and would pass trivially.
+            - stream: "{facts.ante_engaged} == True"
+            # Screen half: bet_amount_increased / toggle_state_changed / ante_bet_amount_text, in
+            # the run-level `video:` above (shared with CR_109).
+
+        - id: CR_109
+          title: "Toggling Ante Bet raises the Ante Bet Enabled / Disabled notification"
+          assert:
+            - stream: "{facts.hovered} == True"          # the run really reached the control
+            # Screen half: popup_on_enable / popup_on_disable / notification_text, in the run-level
+            # `video:` above (shared with CR_051).
+
+        - id: CR_054
+          title: "Ante Bet cannot be changed while the reels are spinning, and works again after"
+          assert:
+            # Both ante spins completed and settled, so there WAS a spinning window to be locked
+            # out of, and the control was usable again afterwards (the run toggled it back off).
+            - stream: "{facts.stake_on} > 0"
+            - stream: "{facts.bet_amount_restored} == {facts.bet_amount_off}"
+            # Screen half: locked_while_spinning / unlocked_after_spin, in the run-level
+            # `video:` above. Question (10) scopes it to the SECOND spin's turning reels.
+
+  # ── CR_053 / 055 / 056 : ante during a free-spin round ─────────────────────────────
+  # Ante ON, spin to a trigger, play the whole bonus. A natural trigger is rare — if this run comes
+  # back inconclusive with "no free-spin trigger in N ante spins", add a BO paytable fixture that
+  # forces 3 Bonus symbols and re-run with `paytable: { ref: cr-fs-trigger3 }`. Do NOT just raise
+  # the budget; see games/chaos/paytables/README.md once fixtures exist.
+  - run:
+      scenario: ante-freespins
+      params: { max_base: 60 }
+      # FORCE THE TRIGGER, and bound the bonus the SAFE way.
+      #
+      # Without a paytable this needed a natural trigger -- a ~1-in-thousands event -- so the run
+      # ground through its whole spin budget and came back inconclusive. chaos-fs-easy raises
+      # FreeSpin! to 30% of base reels 0/1/2, which triggers on roughly 1 spin in 3, so max_base
+      # drops from 300 to 60.
+      #
+      # max_win_x IS A MULTIPLE OF THE LIVE BET. The runner opens the game, reads the stake it is
+      # actually sitting at, and resolves the cap against that -- so "10 * bet" is 10x whatever the
+      # game opens at, not 10x a number typed into env.config months ago. `bet` is always the BASE
+      # stake: this run switches Ante Bet ON, and pricing the cap off the inflated ante stake would
+      # quietly give the ante run a 3x higher ceiling than the non-ante runs it is compared with.
+      # A plain number is still accepted and means the same thing (`max_win_x: 10` == "10 * bet").
+      #
+      # ⚠ 10x IS A DELIBERATELY TIGHT CAP and it is low enough to END the bonus rather than merely
+      # backstop it. That is now clean: a capped round ends the free-spin round and clears the
+      # counter, leaving nothing owed (backend fix 2026-09-05, Rule 9). What it still costs is
+      # LENGTH -- CR_055 needs free_spins_played >= 2, which a cap hit on free spin 1 will not
+      # deliver. That assert is the tripwire; if it starts failing, raise the multiple, because
+      # keeping a bonus short is the AWARD's job, not the cap's (chaos-fs-easy awards the 12-spin
+      # minimum whenever one FreeSpin! lands per reel, the common case at 30%).
+      paytable: { ref: chaos-fs-easy, max_win_x: "10 * bet" }
+      # ONE AI CALL FOR EVERY VIDEO CLAIM IN THIS RUN (Rule 16).
+      #
+      # CR_053 graded `[trigger, terminal]` -- the whole bonus -- and CR_056 graded `terminal`, the
+      # last round through the return to base. The last round's window runs to the END of the
+      # scenario, so CR_056's clip was entirely INSIDE CR_053's: two uploads of overlapping footage
+      # for questions about two moments of the same bonus. One block covers both, and the prompt
+      # says which moment each question is about.
+      #
+      # CR_046b gains its screen half here at no extra cost. It had NO AI claim at all, which Rule 10
+      # allows only with a written reason -- and "the award is shown on screen" is plainly something
+      # to see. The stream still owns the number; this just checks the player is told the same one.
+      #
+      # CR_055 stays an `image:` ON PURPOSE. It reads exact stake TEXT off the ante info panel, and a
+      # still frame is sharper than a sampled video frame for small numbers (same call as CR_050).
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 slot. This clip covers a whole free-spin round entered with Ante Bet
+          ON: it triggered on {facts.trigger_scatters} Bonus symbols and played
+          {facts.free_spins_played} free spin(s), then returned to the base game. The ACTION TIMELINE
+          marks the trigger and each round. Answer each of the following about the moment it names,
+          and answer independently:
+          WHILE THE FREE SPINS ARE RUNNING:
+          (1) ante_locked: is the Ante Bet control disabled or visibly locked?
+          (2) bet_locked: are the bet +/- controls disabled or locked?
+          (3) auto_locked: is the Auto Play control disabled or locked?
+          WHEN THE FEATURE IS AWARDED:
+          (4) award_shown: does the game display how many free spins were awarded?
+          (5) award_text: read that number exactly as printed. The game should have awarded
+          {facts.expected_award}.
+          AFTER THE BONUS ENDS, once the game is back on the base screen:
+          (6) ante_visible_after: is the Ante Bet control visible again?
+          (7) ante_enabled_after: is it interactive rather than greyed out?
+          (8) layout_error: does any layout or text error appear during the return to base?
+        output_schema:
+          ante_locked: { type: boolean }
+          bet_locked: { type: boolean }
+          auto_locked: { type: boolean }
+          award_shown: { type: boolean }
+          award_text: { type: string }
+          ante_visible_after: { type: boolean }
+          ante_enabled_after: { type: boolean }
+          layout_error: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        # Each case is graded ONLY against its own fields; `confidence` is a minimum ("at least").
+        expected_by_case:
+          CR_053:
+            ante_locked: true
+            bet_locked: true
+            auto_locked: true
+            confidence: medium
+          CR_056:
+            ante_visible_after: true
+            ante_enabled_after: true
+            layout_error: false
+            confidence: medium
+          CR_046b:
+            award_shown: true
+            confidence: low
+      cases:
+        - id: CR_053
+          title: "Ante Bet cannot be toggled during a free-spin round (Buy Bonus half N/A — no Buy Bonus)"
+          assert:
+            # NO `ante_clickable_in_fs` assert. `getButtonRect` reports the control's GEOMETRY,
+            # not whether the client will act on a tap, so it answered True during a bonus where the
+            # control was plainly greyed out — the video says "the Ante Bet toggle, Bet -/+ and Auto
+            # Play controls were all visibly locked". Asserting it failed a game that behaved
+            # correctly, which is Rule 15: only assert an internal reading the player could act on.
+            # The fact is still exposed, so a probe that ever proves the control is genuinely live
+            # mid-bonus has the number to hand.
+            - stream: "{facts.free_spins_played} >= 1"    # there was a bonus to be locked during
+            - stream: "{facts.terminal_ok} == True"      # the bonus ended on is_terminal (Rule 2)
+            - stream: stake_zero_in_freespins
+            # Screen half: ante_locked / bet_locked / auto_locked, in the run-level `video:`
+            # above (shared with CR_056 and CR_046b).
+
+        - id: CR_055
+          title: "Ante multiplier stays frozen for the whole free-spin round (response half; the BO change + reload is manual)"
+          assert:
+            # PRECONDITION, not a defect. The scenario switches ante ON and now VERIFIES it took;
+            # this proves the TRIGGER round was actually bet with ante (stake > baseStake, so it
+            # answers even where `anteMultiplier` is absent). A blind toggle once turned ante OFF on
+            # a game that loaded with it ON and the whole bonus was graded as an ante case nobody
+            # paid ante for — every fact below was then answering about a plain bet.
+            - stream: "{facts.ante_engaged_at_trigger} == True"
+            - stream: "{facts.free_spins_played} >= 2"    # a single spin cannot show "stayed" frozen
+            # GATE FIRST. A free spin costs nothing, so the server may report `anteMultiplier: 0`
+            # on every one — in which case the response cannot answer this at all and
+            # `ante_frozen` is null, not True. Without this gate, "no data" would read as "frozen".
+            # A failure HERE is not a game defect: it means the rule has to be read off the ante
+            # info panel instead (the image assert below), which is what CR_055 literally describes.
+            - stream: "{facts.ante_verifiable_in_fs} == True"
+            - stream: "{facts.ante_frozen} == True"
+            - stream: ante_frozen_in_freespins
+            - image:
+                at: ante-info-in-fs
+                prompt: >-
+                  The Chaos Runner Ante Bet information panel, opened DURING a free-spin round that
+                  was entered with an ante multiplier of x{facts.ante_at_trigger}. Answer: (1) is
+                  the panel visible (panel_visible)? (2) read the ante stake exactly as printed
+                  (ante_stake_text). (3) read the normal stake exactly as printed
+                  (normal_stake_text).
+                output_schema:
+                  panel_visible: { type: boolean }
+                  ante_stake_text: { type: string }
+                  normal_stake_text: { type: string }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  panel_visible: true
+                  confidence: medium
+            # NOT proven here: that a BO change made DURING the bonus fails to take effect, and that
+            # the new value appears after returning to base. Both need a BO edit + reload mid-run.
+            # Run this case, then change the ante multiplier on BO while the bonus is still open,
+            # reload, and confirm the panel still shows {facts.ante_at_trigger}.
+
+        - id: CR_056
+          title: "Ante Feature ON/OFF stays frozen for the running bonus (CLIENT half only — the BO change + reload is manual)"
+          assert:
+            # PRECONDITION, not a defect. The scenario switches ante ON and now VERIFIES it took;
+            # this proves the TRIGGER round was actually bet with ante (stake > baseStake, so it
+            # answers even where `anteMultiplier` is absent). A blind toggle once turned ante OFF on
+            # a game that loaded with it ON and the whole bonus was graded as an ante case nobody
+            # paid ante for — every fact below was then answering about a plain bet.
+            - stream: "{facts.ante_engaged_at_trigger} == True"
+            # `ante_at_trigger` is deliberately NOT asserted here: it is null on a build that
+            # omits `anteMultiplier`, and `null > 0` raises rather than failing cleanly. The gate
+            # above answers the same question from the stake and never throws.
+            - stream: terminal_reached
+            # Same gate as CR_055 — see the note there before reading a failure as a defect.
+            - stream: "{facts.ante_verifiable_in_fs} == True"
+            - stream: ante_frozen_in_freespins
+            # Screen half: ante_visible_after / ante_enabled_after / layout_error, in the
+            # run-level `video:` above. Its questions are scoped to the return to base.
+
+        - id: CR_046b
+          title: "Free spins triggered on an ante spin award the configured count (12/15/20)"
+          assert:
+            # PRECONDITION, not a defect. The scenario switches ante ON and now VERIFIES it took;
+            # this proves the TRIGGER round was actually bet with ante (stake > baseStake, so it
+            # answers even where `anteMultiplier` is absent). A blind toggle once turned ante OFF on
+            # a game that loaded with it ON and the whole bonus was graded as an ante case nobody
+            # paid ante for — every fact below was then answering about a plain bet.
+            - stream: "{facts.ante_engaged_at_trigger} == True"
+            # Ante is documented to raise the Raining Wild / bonus chance — it must NOT change the
+            # award table. Same invariant as the plain trigger in cr-freespin.yml.
+            - stream: freespin_award
+            - stream: "{facts.awarded} == {facts.expected_award}"
+            # Screen half: award_shown / award_text in the run-level `video:` above. The STREAM owns
+            # the number; this only checks the player is shown the same one. It rides on the shared
+            # call, so the case stops being the one exception to Rule 10 for free.
+
+# ── CR_052 : Ante Bet feature disabled by BO config ────────────────────────────────────
+# NOT AUTOMATED. It requires launching with BO `Ante Bet = OFF`, which is a config change this
+# suite cannot make. When the profile is switched to that build, `HAS_ANTE_BET=False` makes every
+# run above report "precondition not met" (inconclusive) rather than failing — a feature the game
+# does not have is not a defect. To verify CR_052 itself, launch with the flag off and confirm:
+# the ante control is absent (bridge getButtonRect('anteBet') returns null), and the Ante Bet
+# section of the tutorial is hidden.

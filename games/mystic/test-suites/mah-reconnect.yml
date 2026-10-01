@@ -1,0 +1,130 @@
+# Mystic — Auto Reconnect (Mah_027-034) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-reconnect.yml
+#
+# Playwright drops/restores the network via context.set_offline (CDP). AI (video) grades the
+# reconnect UX. ⚠ LIVE-UNVERIFIED — timing/threshold behaviour depends on the game's design.
+#
+# NOT covered here (need extra harness — see docs/mahjong-coverage.md):
+#   Mah_032  hide/switch tab 30-45 min -> real-time wait is impractical to automate.
+#   Mah_034  slow / unstable network -> needs CDP Network.emulateNetworkConditions throttling
+#            (set_offline is all-or-nothing); a `reconnect-slow` scenario can add this later.
+
+runs:
+  # ── Mah_027 + Mah_029 + Mah_033 : brief outage -> auto-resume ──────────────────────
+  - run:
+      scenario: reconnect-brief            # offline ~6s (below threshold), then online
+      teardown: return-to-base
+      cases:
+        - id: Mah_027
+          title: "Short network loss (<20s) auto-reconnects and resumes"
+        - id: Mah_029
+          title: "A network switch is handled and the session continues"
+        - id: Mah_033
+          title: "Returning after a brief interruption resumes normally, state in sync"
+          assert:
+            # response proof the game is actually playable after reconnect (a real round was spun)
+            - stream: "{facts.played_after_reconnect}"
+      video:
+        timestamp: true                      # burn a clock on each frame; the ACTION TIMELINE below gives
+                                             # the exact "network offline" (disconnect) / "network online"
+                                             # (reconnect) times so the AI can judge WHEN things happen.
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot. In this clip the game is playing, then the network is
+          DISCONNECTED and later RECONNECTED. The exact times are in the ACTION TIMELINE below
+          ("network offline" = when the connection was dropped, "network online" = when it was
+          restored) — line them up with the burned-in timestamps on the frames. Answer each:
+          (1) does the game show a reconnecting / connecting state (reconnecting_shown)? (2) AFTER the online time, does the game AUTO-RECONNECT and
+          resume normal play at the same state, rather than erroring or resetting (auto_resumed)?
+          (3) once resumed, are the balance, game state and UI back in sync with no error
+          (state_in_sync)? (4) at the END of the clip a spin is played after reconnect — do the reels
+          spin and resolve normally, confirming the game is stable/playable (plays_after_reconnect)?
+        output_schema:
+          reconnecting_shown: { type: boolean }
+          auto_resumed: { type: boolean }
+          state_in_sync: { type: boolean }
+          plays_after_reconnect: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_027: { reconnecting_shown: true, auto_resumed: true, confidence: medium }
+          Mah_029: { auto_resumed: true, state_in_sync: true, confidence: medium }
+          Mah_033: { auto_resumed: true, state_in_sync: true, plays_after_reconnect: true, confidence: medium }
+
+  # ── Mah_028 : long outage (>20s) -> popup + back to Landing/Home ───────────────────
+  - run:
+      scenario: reconnect-long             # offline ~25s (above threshold), then online
+      cases:
+        - id: Mah_028
+          title: "Long network loss (>20s) does not silently resume: shows a popup / returns home"
+          assert:
+            - video:
+                timestamp: true  
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. The network was dropped for a LONG time then restored,. The exact times are in the ACTION TIMELINE below
+                  ("network offline" = when the connection was dropped, "network online" = when it was
+                  restored) — line them up with the burned-in timestamps on the frames. Does the game refuse to silently
+                  resume — showing a disconnect / session popup and/or returning to the Landing / Home
+                  page — rather than just carrying on as if nothing happened?
+                output_schema:
+                  disconnect_popup_or_home: { type: boolean }
+                  did_not_silently_resume: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  disconnect_popup_or_home: true
+                  did_not_silently_resume: true
+                  confidence: medium
+
+  # ── Mah_030 : same account opened on a second tab invalidates the first ────────────
+  - run:
+      scenario: multi-tab-session          # opens a 2nd browser session (same account) -> 1st invalidated
+      teardown: return-to-base
+      cases:
+        - id: Mah_030
+          title: "Opening the same account in a second session invalidates the first"
+          assert:
+            - video:
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. This clip is the FIRST tab. The ACTION TIMELINE
+                  below gives the exact time the SAME account was opened in a second session
+                  ("open second session ...") — line it up with the burned-in timestamps on the frames.
+                  AFTER that time, does this first session get invalidated per design — showing a
+                  session / "logged in elsewhere" popup and/or returning to the Landing / Home page —
+                  rather than continuing to play as normal?
+                output_schema:
+                  session_invalidated: { type: boolean }
+                  popup_or_home: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  session_invalidated: true
+                  popup_or_home: true
+                  confidence: medium
+
+  # ── Mah_031 : reconnect while auto-play is running ─────────────────────────────────
+  - run:
+      scenario: reconnect-during-auto      # start auto, drop the network mid-auto, restore
+      teardown: return-to-base
+      cases:
+        - id: Mah_031
+          title: "Reconnect during auto-play: game recovers and auto is handled with no desync"
+          assert:
+            - video:
+                timestamp: true
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Auto-play was running when the network was dropped
+                  and later restored. The ACTION TIMELINE below gives the exact "network offline"
+                  (disconnect) and "network online" (reconnect) times — line them up with the burned-in
+                  timestamps on the frames. Between offline and online, does the game show a
+                  reconnecting state, and AFTER the online time does it reconnect successfully and
+                  handle auto-play per design (resume auto or stop it cleanly), with the balance and
+                  game state in sync and no duplicated or lost spins?
+                output_schema:
+                  reconnected: { type: boolean }
+                  auto_handled_cleanly: { type: boolean }
+                  no_desync: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reconnected: true
+                  auto_handled_cleanly: true
+                  no_desync: true
+                  confidence: low

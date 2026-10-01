@@ -1,0 +1,538 @@
+# Chaos Runner — sound, reconnect, language, tutorial, game help, last bet
+# (CR_030 … CR_040, CR_064 … CR_071, CR_098 … CR_107) from test-case-chaos.csv.
+# The Last Bet rows (CR_092 … CR_097) moved to cr-lastbet.yml: they are a RESUME behaviour, not
+# a panel, so they reopen the game rather than looking for a control this build does not have.
+#
+# Run:  python scripts/run_scenario.py --game chaos --env dev --suite games/chaos/test-suites/cr-ui-resilience.yml
+#
+# RUN LIFECYCLE (docs/run-lifecycle.md). A clean base is the FRAMEWORK's invariant now, not this
+# file's: PREPARE runs `return-to-base` + `waitForSpinClickable` before every run and CLEANUP does
+# the same after, falling back to a reload. So no run below declares `teardown: return-to-base` —
+# declared teardowns are for EXTRAS only, like topping the wallet back up after a drain.
+#
+# Scenarios here follow docs/scenario-authoring-rules.md: every spin goes through
+# `spin_and_finish()` so a free-spin trigger is played out inside the loop body (Rule 1); bonus
+# drains end on `is_terminal()` (Rule 2); every "…and then it stops" claim goes through
+# `confirm_stopped()` — watched, then held (Rule 4); controls are addressed by ROLE.
+#
+# IMAGE vs VIDEO (follow the Mystic convention — it is ~97% video). Default to `video:`. Reach for
+# `image:` ONLY when ONE still answers the question AND the detail is too fine for a montage —
+# text, glyphs, diacritics, clipping, small payout digits, image sharpness. A video assert grades a
+# DOWNSAMPLED composite, so a missing Burmese mark or a two-pixel clip is simply not in those
+# pixels; conversely anything that CHANGES over time (a popup opening and closing, an animation, a
+# counter ticking, "and then it stopped") cannot be shown by a still at all.
+#
+# An `image:` assert also needs its scenario to CAPTURE stills and RETURN them
+# (`ScenarioResult(..., shots=ctx.shots)`). Miss either and the assert sits at `pending` forever —
+# it reads as "the AI never ran" rather than "there was nothing to grade".
+# tests/chaos/validate_suites.py now fails the suite for both mistakes.
+#
+# ...and if the stills are SCREENFULS OF ONE SCROLLING SURFACE (a help document, the tutorial
+# guide), set `combine: true` on the assert so they are graded in ONE call — Rule 18. Per-still is
+# the default and is right for a tour of DIFFERENT surfaces; on one scrolled surface it cannot
+# answer "is this section anywhere in the document?", because the honest answer for every screenful
+# but one is "no".
+#
+# Everything here is mechanism-free and reuses shared scenarios. Two things are worth knowing before
+# reading a verdict from this file:
+#
+# 1. SOUND HAS NO GETTERS ON THIS BUILD. The Chaos bridge exposes no `isSoundEnabled()` /
+#    `isMusicEnabled()` (profile HAS_SOUND_GETTERS=False), so "the sound really muted" cannot be
+#    checked exactly and audio is not in the recorded video either. CR_030-032 are therefore
+#    CONTROL-STATE cases only: they prove the toggle exists and changes state. Actual audibility
+#    stays a manual check. Adding those two getters to the bridge is what would upgrade them.
+#
+# 2. TEXT CASES USE `image:`, NOT `video:`. A video assert grades a downsampled montage; a missing
+#    Burmese diacritic or a clipped descender is simply not in those pixels. Every language and
+#    help case below shoots full-resolution stills and grades one AI call per shot.
+
+runs:
+# ── CR_030 / 031 / 032 : the sound controls — NOT AUTOMATED, blocked on the bridge ────────
+# Zeus automates the equivalent cases EXACTLY (zz-input-sound-reconnect.yml, ZZ-24/ZZ-25) because
+# its bridge exposes isSoundEnabled() / isMusicEnabled(): "volume = 0" is read from the model, and
+# no AI is asked to judge silence. Chaos has neither getter (`HAS_SOUND_GETTERS = False`), and the
+# `sound-toggles` scenario refuses to run without them for that reason — so this suite USED to
+# declare the run anyway and CR_031/CR_032 came back `inconclusive` on every single execution while
+# looking like coverage in the report.
+#
+# CR_032's expected result is literally "Volume = 0", which only a getter can answer. The honest
+# state is a bridge ask, not an AI guess at a control's appearance:
+#
+#   BRIDGE ASK: add isSoundEnabled() / isMusicEnabled() to the Chaos test bridge. The scenario,
+#   the invariants and the Zeus cases to copy already exist — the moment the getters land, this
+#   becomes `- run: { scenario: sound-toggles, cases: [CR_031, CR_032] }` with ZZ-24/ZZ-25's
+#   asserts verbatim.
+#
+# CR_030 (mute on tab blur) needs the same getters PLUS a backgrounded-tab read — see Zeus's own
+# "NOT IN THIS SUITE" note on ZZ-23, which is blocked identically.
+
+  # ── CR_033 / 039 : a brief disconnect heals itself ─────────────────────────────────
+  # Follows Zeus ZZ-26: `recovered` AND `played_after_reconnect` are both asserted. "Recovered" only
+  # says the spin button came back; PLAYING a round afterwards is what proves the session is really
+  # usable, and it is the difference between a client that reconnected and one that merely stopped
+  # showing its spinner.
+  - run:
+      scenario: reconnect-brief
+      cases:
+        - id: CR_033
+          title: "A disconnect under 20 seconds reconnects automatically and resumes where it left off"
+          assert:
+            - stream: "{facts.recovered} == True"
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: conservation                  # no round was lost or double-charged
+
+        - id: CR_039
+          title: "Returning to the game tab resyncs balance and state without a reload"
+          assert:
+            - stream: "{facts.recovered} == True"
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: conservation
+
+      # ONE AI CALL FOR BOTH (Rule 16). CR_039 previously had no visual claim at all, yet its whole
+      # subject — "balance and state resync WITHOUT a reload" — is something only the screen shows.
+      # Both cases grade the same clip, so they share it.
+      video:
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 line slot. In this clip the network is dropped for about
+          {facts.offline_s} seconds and then restored, and afterwards one more round is played. The
+          ACTION TIMELINE marks when the network went down, when it came back, and the round that
+          followed. Answer:
+
+          WHILE OFFLINE. (1) does a reconnecting indicator or message appear (reconnect_indicator)?
+
+          AFTER IT RECOVERS. (2) does the game become playable again (recovered)? (3) is the player
+          dumped out to a landing page or logged out (kicked_out)? (4) does the game carry on from
+          where it was, WITHOUT reloading back through a loading screen or start button
+          (resumed_without_reload)? (5) do the balance and the rest of the UI read as consistent
+          afterwards — no stale or blank values (state_consistent)?
+        output_schema:
+          reconnect_indicator: { type: boolean }
+          recovered: { type: boolean }
+          kicked_out: { type: boolean }
+          resumed_without_reload: { type: boolean }
+          state_consistent: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_033:
+            reconnect_indicator: true
+            recovered: true
+            kicked_out: false
+            confidence: medium
+          CR_039:
+            resumed_without_reload: true
+            state_consistent: true
+            confidence: medium
+
+  # ── CR_034 / 035 : a long disconnect gives up ──────────────────────────────────────
+  # CR_035 rides along, following Zeus ZZ-28: from the CLIENT's point of view a Wi-Fi A -> B
+  # handover IS a drop and a restore, which is exactly what this run performs, so the same recording
+  # answers it. Only the hardware handover itself stays manual — and that half is about the machine,
+  # not the game.
+  - run:
+      scenario: reconnect-long
+      cases:
+        - id: CR_034
+          title: "A disconnect over 20 seconds stops retrying and sends the player to the landing page"
+          assert:
+            # The inverse of CR_033, and the reason both are needed: a client that silently
+            # reconnected forever would pass CR_033 and fail the compliance rule this case encodes.
+            - stream: "{facts.offline_s} >= 20"
+
+        - id: CR_035
+          title: "Losing the network mid-session (Wi-Fi handover) is handled per design, not silently"
+          assert:
+            - stream: "{facts.offline_s} >= 20"
+
+      video:
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 line slot. In this clip the network is dropped for {facts.offline_s}
+          seconds — longer than the 20-second reconnect threshold — and then restored. The ACTION
+          TIMELINE marks when it went down and came back. Answer: (1) does a popup or message tell
+          the player the connection was lost or the session ended (session_popup)? (2) does the game
+          instead keep silently retrying, with no message, past the threshold (still_retrying)?
+          (3) is the player taken back to a landing / home screen rather than left on a dead play
+          screen (returned_to_landing)?
+        output_schema:
+          session_popup: { type: boolean }
+          still_retrying: { type: boolean }
+          returned_to_landing: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_034:
+            # `returned_to_landing` was in the schema but NOT in expected, so the AI read it and
+            # nothing checked it — while the case TITLE says "sends the player to the landing page".
+            # Zeus grades the same claim as `returns_to_home: true` (ZZ-27).
+            session_popup: true
+            still_retrying: false
+            returned_to_landing: true
+            confidence: low
+          CR_035:
+            session_popup: true
+            still_retrying: false
+            confidence: low
+
+  # ── CR_036 : same account on two tabs ──────────────────────────────────────────────
+  - run:
+      scenario: multi-tab-session
+      cases:
+        - id: CR_036
+          title: "Opening the same account in a second tab invalidates the first session"
+          assert:
+            - stream: "{facts.second_opened} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. The same account has just been opened in a second browser session.
+                  This clip is the FIRST session. Answer: (1) does a popup appear telling this
+                  session it has been ended or opened elsewhere (invalidated_popup)? (2) is this
+                  session still playable afterwards (still_playable)?
+                output_schema:
+                  invalidated_popup: { type: boolean }
+                  still_playable: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  invalidated_popup: true
+                  still_playable: false
+                  confidence: medium
+
+  # ── CR_037 : disconnect while auto-play is running ─────────────────────────────────
+  - run:
+      scenario: reconnect-during-auto
+      cases:
+        - id: CR_037
+          title: "Reconnecting mid-Auto-Play restores a consistent state with no lost or duplicated rounds"
+          assert:
+            - stream: conservation                  # the real risk here is a double-charged round
+            - stream: "{facts.recovered} == True"
+            # Rule 10: the stream owns "no round was lost or double-charged"; only the screen can
+            # show what Auto Play DID about it, which is the half the CSV case actually asks for
+            # ("Trang thai Auto Play duoc xu ly dung theo thiet ke").
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner, a 5x3 line slot. Auto Play is running when the network is dropped
+                  for about {facts.offline_s} seconds and then restored; the ACTION TIMELINE marks
+                  both moments. Answer: (1) does the game reconnect and become playable again
+                  (reconnected)? (2) after reconnecting, is Auto Play left in a CLEAR state — either
+                  visibly resumed and spinning, or visibly stopped with the normal Spin control back
+                  — rather than a stuck half-state with a spinner that never resolves or a disabled
+                  Spin button (auto_state_clear)? (3) does the reel area show a complete, settled
+                  result rather than a frozen or partly-drawn spin (grid_settled)?
+                output_schema:
+                  reconnected: { type: boolean }
+                  auto_state_clear: { type: boolean }
+                  grid_settled: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reconnected: true
+                  auto_state_clear: true
+                  grid_settled: true
+                  confidence: medium
+
+  # ── CR_064 / 066 / 067 : languages ─────────────────────────────────────────────────
+  # Burmese is the deliberate stress case: the longest strings and stacked diacritics, so it breaks
+  # text scaling and clipping before any other script does.
+  - run:
+      scenario: language-tour
+      params: { languages: "random:3", include: ["my"] }
+      cases:
+        - id: CR_064
+          title: "Every text surface renders in the selected language with no missing keys"
+          assert:
+            # The hard companion that closes the vacuous-pass hole: every language the case claims
+            # to have toured really launched. Without it, a tour that silently failed to switch
+            # would still produce a confident green.
+            - stream: "{facts.language_count} == {facts.requested}"
+
+        - id: CR_066
+          title: "Long strings auto-scale instead of overflowing their container"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"
+
+        - id: CR_067
+          title: "No character is clipped — diacritics and descenders survive (Burmese is the stress case)"
+          assert:
+            - stream: "{facts.language_count} == {facts.requested}"
+
+      # ONE AI CALL PER SHOT FOR ALL THREE CASES (Rule 16). Each case used to carry its own `image:`
+      # assert with no shot selector, so all three graded the SAME stills: three calls per screen,
+      # ~18 screens (6 surfaces x 3 languages), 54 calls where 18 do. They now share this block and
+      # `expected_by_case` re-grades the one answer per case.
+      #
+      # `{shot.label}` — not `{facts.language_name}`. The label is the only per-shot text the model
+      # gets, and the tour writes the language, the surface and any switched-from language into it.
+      # The old prompts said "rendered in {facts.language_name}", which resolves ONCE to the FIRST
+      # language of the tour — so on a 3-language run two thirds of the shots were described to the
+      # model as the wrong language.
+      image:
+        prompt: >-
+          A Chaos Runner UI surface, captured as: {shot.label}. That label gives the language code
+          and name, the surface shown, and — after a mid-session change — the language it switched
+          FROM. Judge the screen against the language the label names, at full resolution, and
+          answer three groups of questions.
+
+          LANGUAGE. (1) is all visible text rendered in the language the label names, rather than
+          English fallback or the language it switched from (correct_language)? (2) is any raw
+          translation key visible — text like "ui.button.spin" or "MISSING_KEY" (raw_keys_visible)?
+          (3) is any string left untranslated (untranslated_strings)?
+
+          LAYOUT. (4) does any text overflow outside its button, panel or label boundary
+          (text_overflows)? (5) does any text run underneath or on top of another element
+          (text_collides)? (6) is text in longer-string languages visibly scaled down to fit
+          (scaled_to_fit)?
+
+          GLYPHS — examine the characters closely. (7) is any character cut off at the top or bottom
+          of its line (glyphs_clipped)? (8) for scripts with marks above or below the base letter
+          (Burmese, Thai, Vietnamese), are those marks fully rendered (diacritics_intact)? (9) is any
+          descender — the tail of a g, y or p — sliced off (descenders_intact)?
+        output_schema:
+          correct_language: { type: boolean }
+          raw_keys_visible: { type: boolean }
+          untranslated_strings: { type: boolean }
+          text_overflows: { type: boolean }
+          text_collides: { type: boolean }
+          scaled_to_fit: { type: boolean }
+          glyphs_clipped: { type: boolean }
+          diacritics_intact: { type: boolean }
+          descenders_intact: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_064:
+            correct_language: true
+            raw_keys_visible: false
+            untranslated_strings: false
+            confidence: medium
+          CR_066:
+            text_overflows: false
+            text_collides: false
+            confidence: medium
+          CR_067:
+            glyphs_clipped: false
+            diacritics_intact: true
+            descenders_intact: true
+            confidence: medium
+
+  # ── CR_065 : language persists across games ────────────────────────────────────────
+  - run:
+      scenario: language-switch
+      cases:
+        - id: CR_065
+          title: "The chosen language carries over rather than resetting (single-game half only)"
+          assert:
+            - stream: "{facts.switched} == True"
+            # NOTE: the real case is "open game B and find it already in the same language". This
+            # run only proves the choice survives a relaunch of THIS game. Verify the cross-game
+            # half manually until a second game is wired into the same session.
+
+  # ── CR_068 / 069 / 070 / 071 : the tutorial ────────────────────────────────────────
+  - run:
+      scenario: open-tutorial
+      cases:
+        - id: CR_068
+          title: "The tutorial opens, pages forward and back, and closes cleanly"
+          assert:
+            - stream: "{facts.tutorial_open} == True"
+            - stream: "{facts.scroll_steps} >= 1"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner's tutorial / info screen, being opened and scrolled. Answer: (1) does
+                  the tutorial open (opens)? (2) does its content actually move as it is scrolled
+                  (content_scrolls)? (3) is any page blank, broken or overlapping (layout_broken)?
+                output_schema:
+                  opens: { type: boolean }
+                  content_scrolls: { type: boolean }
+                  layout_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  opens: true
+                  content_scrolls: true
+                  layout_broken: false
+                  confidence: medium
+
+        - id: CR_069
+          title: "Tutorial content matches the design and is in the active language"
+          assert:
+            - stream: "{facts.tutorial_open} == True"
+
+        - id: CR_071
+          title: "Tutorial imagery is correct, sharp, and matches the game's real features"
+          assert:
+            - stream: "{facts.tutorial_open} == True"
+
+      # ONE AI CALL FOR BOTH CASES AND ALL SCREENFULS (Rule 16 + `combine`). Text and imagery are
+      # two questions about the same guide, and the stills are consecutive screenfuls of it rather
+      # than separate surfaces — so "does it describe a Buy Bonus?" has to be asked of the WHOLE
+      # guide. Per-page it could only ever find a feature wrongly described on the page in hand,
+      # never one missing from the document. CR_068 keeps its own `video:` assert above — different
+      # medium, and its claim ("the content MOVES as it scrolls") is one a still cannot answer.
+      image:
+        combine: true
+        prompt: >-
+          These screenshots are the Chaos Runner tutorial, captured as it was scrolled from top to
+          bottom; read them as ONE guide. Chaos Runner is a 5x3 slot whose real
+          features are: free spins triggered by 3+ Bonus symbols, a random multiplier
+          (x1/x2/x5/x10), Raining Wild, an Ante Bet, and the P1 "Fuel" symbol that pays by ways on
+          reels 1/3/5. It has NO Buy Bonus. Answer about TEXT and about IMAGERY, across the guide as
+          a whole.
+
+          TEXT. (1) is the text spelled correctly and free of placeholder content anywhere
+          (text_clean)? (2) does the guide describe any feature this game does NOT have — especially
+          a Buy Bonus (describes_absent_feature)? (3) is the text in a single consistent language
+          throughout (language_consistent)?
+
+          IMAGERY. (4) are all images rendered sharply rather than blurred or pixelated
+          (images_sharp)? (5) is any image missing, broken or showing a placeholder
+          (broken_images)? (6) do the symbols shown match a post-apocalyptic runner theme — fuel
+          can, mask, cog, and card ranks (symbols_on_theme)?
+        output_schema:
+          text_clean: { type: boolean }
+          describes_absent_feature: { type: boolean }
+          language_consistent: { type: boolean }
+          images_sharp: { type: boolean }
+          broken_images: { type: boolean }
+          symbols_on_theme: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_069:
+            text_clean: true
+            describes_absent_feature: false
+            language_consistent: true
+            confidence: low
+          CR_071:
+            images_sharp: true
+            broken_images: false
+            symbols_on_theme: true
+            confidence: low
+
+  # ── CR_070 / 098 … 107 : Dynamic Game Help ─────────────────────────────────────────
+  # Every section here is BO-toggled and the RTP line is template-filled, so what appears depends on
+  # config the bridge does not expose. These are therefore image reads over the captured screens,
+  # with facts.shot_count as the hard companion proving the surface opened and scrolled at all.
+  # A case whose section is configured OFF should report it absent — read the verdict against the
+  # BO config in force for the run, not against a blanket expectation.
+  # REUSES Mystic's `open-tutorial` (Mah_057/059/060). Chaos's Dynamic Game Help lives behind
+  # the SAME `info` control as the tutorial and is paged the same way, so a Chaos-specific
+  # scenario was redundant — it has been removed and its per-screen screenshotting folded into
+  # open-tutorial, which now also falls back to wheeling the popup on a build with no WebView.
+  - run:
+      scenario: open-tutorial
+      params: { scroll_steps: 8, scroll_dwell_ms: 2000, dwell_s: 2 }
+      cases:
+        - id: CR_070
+          title: "Base symbol payouts in the tutorial track the current bet"
+          assert:
+            - stream: "{facts.shot_count} >= 2"
+
+        - id: CR_098
+          title: "Dynamic Game Help shows or hides per the BO configuration"
+          assert:
+            - stream: "{facts.shot_count} >= 1"       # the surface opened at all
+
+        - id: CR_107
+          title: "Game Help RTP text fills every configured key with no placeholder left behind"
+          assert:
+            - stream: "{facts.shot_count} >= 2"
+
+        - id: CR_099
+          title: "Game Help sections render per config — Max Win, Game Limits, Volatility, RTP, Interruption Policy, Auto Finalize, Status"
+          assert:
+            # CR_099-CR_106 are one visual sweep: each names a section whose presence is a BO flag.
+            # Rather than eight near-identical runs, one tour shoots every screen and this single
+            # read enumerates what is actually there, to be compared against the BO config in force.
+            - stream: "{facts.shot_count} >= 2"
+
+      # ONE AI CALL FOR THE THREE IMAGE CASES *AND* FOR ALL THE SCREENFULS (Rule 16 + `combine`).
+      # CR_098 stays stream-only: its claim is about BO configuration, which the screens cannot
+      # settle on their own.
+      #
+      # `combine: true` is the important part here. These stills are not different surfaces — they
+      # are consecutive screenfuls of ONE scrolling help document. Graded one at a time, every
+      # question about a SECTION is unanswerable: "does this page show RTP information?" is honestly
+      # "no" for the four pages that do not, so an assert that expects RTP fails on almost every
+      # shot even when the document is perfect. The prompt had to be written page-conditionally to
+      # survive that, which weakened it to "if it is here, check it" and could never catch a section
+      # that was MISSING ALTOGETHER.
+      #
+      # Combined, the model sees all the screenfuls in order as one surface and answers about the
+      # document: "is there an RTP section anywhere", "is a Buy Bonus line present anywhere", "list
+      # every section heading". Absence becomes checkable, which is what CR_099 and CR_107 actually
+      # assert. It is also cheaper — one call instead of one per screenful.
+      image:
+        combine: true
+        prompt: >-
+          These screenshots are the Chaos Runner Dynamic Game Help, captured as it was scrolled from
+          top to bottom. Read them as ONE document and answer about the whole of it — a section
+          counts as present if it appears on any screenful.
+
+          PAYTABLE. (1) does the help show symbol payouts anywhere (paytable_on_page)? If it does:
+          (2) are those payouts shown as currency amounts derived from the current bet rather than
+          bare multipliers (currency_amounts)? (3) read the bet value printed alongside them
+          (bet_text).
+
+          RTP. The RTP section is template-filled from BO values and reads like "The theoretical RTP
+          of this game is <gameRTP>%", with further lines for the bonus game RTP and the Ante RTP.
+          Chaos Runner has NO Buy Bonus, so a Buy Bonus RTP line should NOT appear anywhere.
+          (4) does the help show RTP information (rtp_on_page)? (5) is any unfilled placeholder or
+          raw key visible anywhere, such as "gameRTP", "{{", "%s" or "null" (placeholder_visible)?
+          (6) is a Buy Bonus RTP line present (buy_bonus_rtp_present)? (7) transcribe every RTP
+          percentage you can read (rtp_values_text).
+
+          SECTIONS AND LAYOUT. (8) list every section heading you can see across all the screenfuls,
+          in the order they appear (sections_present). (9) is any section showing an empty value, a
+          dash or "null" where a number belongs (empty_values)? (10) is any text clipped or
+          overlapping on any screenful (layout_broken)?
+        output_schema:
+          paytable_on_page: { type: boolean }
+          currency_amounts: { type: boolean }
+          bet_text: { type: string }
+          rtp_on_page: { type: boolean }
+          placeholder_visible: { type: boolean }
+          buy_bonus_rtp_present: { type: boolean }
+          rtp_values_text: { type: string }
+          sections_present: { type: string }
+          empty_values: { type: boolean }
+          layout_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_070:
+            # now assertable: the paytable must be SOMEWHERE in the help, not on a nominated page
+            paytable_on_page: true
+            currency_amounts: true
+            confidence: low
+          CR_107:
+            rtp_on_page: true
+            placeholder_visible: false
+            buy_bonus_rtp_present: false
+            confidence: low
+          CR_099:
+            empty_values: false
+            layout_broken: false
+            confidence: low
+
+# ── NOT AUTOMATED in this suite ────────────────────────────────────────────────────────
+# CR_030 / 031 / 032  Sound. Blocked on isSoundEnabled() / isMusicEnabled() — see the note at the
+#                 top of the runs. Zeus automates these exactly; Chaos cannot until the getters land.
+# CR_038          Long tab-hide / session expiry. Needs a wall-clock wait past the session TTL —
+#                 too slow for a suite. Verify manually, or drive with a shortened TTL on BO.
+# CR_040          Slow / unstable network. Needs request-level throttling and duplicate-request
+#                 detection, which is a CDP-level harness rather than a scenario.
+# CR_072 … CR_080 Replay. Needs a real replay URL (`?mode=replay`) for a specific past round, so the
+#                 run must be seeded with a round id captured earlier. The bridge exposes
+#                 IS_REPLAY_MODE and `replay` / `replayLanguage` popups, so this is buildable —
+#                 it needs a replay-link scenario plus a seeded round, which does not exist yet.
+# CR_081 … CR_083 Promo. `HAS_PROMO` is runtime-true only when the server sends `gameInfo.promo`, so
+#                 these need a seeded promo account. Note the bridge warning: the promo popups are
+#                 Promise-driven and hiding one without firing its button HANGS the game — a promo
+#                 scenario must click through, never dismiss.
+# CR_084 … CR_091 Compliance settings. Each is a BO flag (autoPlay, turboMode, minSpinDurationSec,
+#                 oneClickPerSpin, realityCheckEnabled, maxSessionTimeMin, bonusBuyAllowed) that
+#                 changes what the build ships. They are verified by launching with the flag set and
+#                 confirming the control is absent — the profile capability flags then make the
+#                 dependent runs report "precondition not met" automatically.
+#                 CR_090 (bonusBuyAllowed = false) is already the permanent state of this game:
+#                 HAS_BUY_BONUS is false, `buyBonus` always resolves to null.
+# CR_092 … CR_097 Last Bet. Moved to cr-lastbet.yml (CR_094 is still NOT APPLICABLE — Chaos has
+#                 no Buy Bonus — and CR_097 still needs the seeded promo account of CR_081-083).

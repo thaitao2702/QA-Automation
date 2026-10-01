@@ -1,0 +1,99 @@
+# Mystic — Spin input (Mah_035-040) + Turbo (Mah_021-023) from test-case-mahjong.csv.
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-spin-turbo.yml
+#
+# ⚠ LIVE-UNVERIFIED + timing-sensitive: these drive real pointer/keyboard holds, double-click and
+# hold-to-turbo. Cocos may not react to a synthetic hold the same as a real one; if a case fails,
+# the scenario can be switched to the bridge hold (hold_button(..., use_bridge=True) ->
+# holdSpinStart/End). Reel-speed / sudden-stop are AI (video) reads -> probabilistic.
+
+runs:
+  # ── Mah_035-040 : one recording of every spin input, graded per case ───────────────
+  - run:
+      scenario: spin-inputs
+      teardown: return-to-base
+      cases:
+        - id: Mah_035
+          title: "Spin with the Spin button starts the reels"
+          assert:
+            - stream: "{res.stake} > 0"                # a real bet fired from the button spin
+        - id: Mah_036
+          title: "Spin with the Space key starts the reels"
+          assert:
+            - stream: "{rounds[1].stake} > 0"          # a real bet fired from the Space spin
+        - id: Mah_037
+          title: "Holding Spin starts continuous auto-spin"
+        - id: Mah_038
+          title: "Holding Spin while the reels turn triggers a sudden stop"
+        - id: Mah_039
+          title: "Releasing the held Spin stops the auto-spin"
+        - id: Mah_040
+          title: "Double-clicking Spin triggers a sudden stop"
+      video:
+        high_fps: true                       # 16fps effective — fast holds / sudden stops
+        timestamp: true                      # burn a clock per sub-frame; prompt gets the ACTION TIMELINE
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot. Several distinct spin inputs are performed in sequence.
+          The ACTION TIMELINE below gives the EXACT time of each one — line each up with the burned-in
+          timestamps on the frames and judge the game's behaviour AT that moment (do not confuse one
+          action with another). Answer each:
+          (1) at "SPIN via the Spin button", do the reels spin normally (btn_spin_works)?
+          (2) at "SPIN via the Space key", do the reels spin normally (space_spin_works)?
+          (3) starting at "HOLD the Spin button ...", while the button is held does the game keep
+          auto-spinning on its own (hold_starts_autospin), and when released does it STOP
+          (release_stops_autospin)?
+          (4) at "SUDDEN STOP: hold Spin ...", does holding Spin during a turning reel make it stop
+          immediately (hold_sudden_stop)?
+          (5) at "SUDDEN STOP: double-click Spin ...", does the double-click make a turning reel stop
+          immediately (doubleclick_sudden_stop)?
+        output_schema:
+          btn_spin_works: { type: boolean }
+          space_spin_works: { type: boolean }
+          hold_starts_autospin: { type: boolean }
+          release_stops_autospin: { type: boolean }
+          hold_sudden_stop: { type: boolean }
+          doubleclick_sudden_stop: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_035: { btn_spin_works: true, confidence: medium }
+          Mah_036: { space_spin_works: true, confidence: medium }
+          Mah_037: { hold_starts_autospin: true, confidence: low }
+          Mah_038: { hold_sudden_stop: true, confidence: low }
+          Mah_039: { release_stops_autospin: true, confidence: low }
+          Mah_040: { doubleclick_sudden_stop: true, confidence: low }
+
+  # ── Mah_021-023 : Turbo (toggle + hold-mouse + hold-Space), one recording ──────────
+  - run:
+      scenario: turbo-modes
+      teardown: return-to-base
+      cases:
+        - id: Mah_021
+          title: "Turbo makes the reels resolve faster"
+          assert:
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+        - id: Mah_022
+          title: "Holding the mouse enables Turbo only while held"
+        - id: Mah_023
+          title: "Holding Space enables Turbo only while held"
+      video:
+        high_fps: true                       # 16fps effective — reel-speed / hold-turbo timing
+        timestamp: true
+        prompt: >-
+          Mystic is a 7x7 cluster-pays slot with a Turbo feature. This clip: (a) spins once with
+          Turbo OFF, then toggles the Turbo button ON and spins; (b) toggles it back off, then
+          presses-and-HOLDS the mouse on Spin and releases; (c) presses-and-HOLDS the Space key and
+          releases. Answer each: with Turbo toggled ON, do the reels resolve/spin FASTER than the
+          first spin, played with Turbo OFF (turbo_faster)? while HOLDING the mouse on Spin, is
+          Turbo active (fast) only during the hold and back to normal after release
+          (mouse_hold_turbo)? while HOLDING Space, is Turbo active only during the hold
+          (space_hold_turbo)?
+        output_schema:
+          turbo_faster: { type: boolean }
+          mouse_hold_turbo: { type: boolean }
+          space_hold_turbo: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          Mah_021: { turbo_faster: true, confidence: medium }
+          Mah_022: { mouse_hold_turbo: true, confidence: medium }
+          Mah_023: { space_hold_turbo: true, confidence: medium }

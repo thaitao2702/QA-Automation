@@ -1,0 +1,4777 @@
+{
+  "AnteBetSetting": {
+    "Enabled": false,
+    "AnteBetMultiplier": 0
+  },
+  "BaseGame": {
+    "Name": "BaseGame",
+    "Cols": 5,
+    "ReelMask": [
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    ],
+    "SymbolMultipliers": [
+      {
+        "Name": "P1",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.5,
+          1.25,
+          2.5
+        ]
+      },
+      {
+        "Name": "P2",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.4,
+          1,
+          2
+        ]
+      },
+      {
+        "Name": "P3",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.3,
+          0.75,
+          1.5
+        ]
+      },
+      {
+        "Name": "P4",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.25,
+          0.5,
+          1
+        ]
+      },
+      {
+        "Name": "P5",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.2,
+          0.35,
+          0.75
+        ]
+      },
+      {
+        "Name": "A",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.15,
+          0.2,
+          0.5
+        ]
+      },
+      {
+        "Name": "K",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.1,
+          0.15,
+          0.4
+        ]
+      },
+      {
+        "Name": "Q",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.05,
+          0.1,
+          0.3
+        ]
+      },
+      {
+        "Name": "J",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.05,
+          0.08,
+          0.2
+        ]
+      },
+      {
+        "Name": "Ten",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "Name": "Nine",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "WaysSetting": {
+      "SpecialSymbols": [
+        "Scatter"
+      ],
+      "StackingFixedWildMultiplier": {
+        "Enabled": false,
+        "Type": "Multiplication",
+        "Wilds": []
+      },
+      "NonStackingRandomWildMultiplier": {
+        "Enabled": true,
+        "Wilds": [
+          {
+            "Name": "WILD_D",
+            "MultiplierList": [
+              {
+                "Multiplier": 1,
+                "Weight": 4700
+              },
+              {
+                "Multiplier": 2,
+                "Weight": 3300
+              },
+              {
+                "Multiplier": 3,
+                "Weight": 1800
+              },
+              {
+                "Multiplier": 5,
+                "Weight": 100
+              },
+              {
+                "Multiplier": 8,
+                "Weight": 40
+              },
+              {
+                "Multiplier": 10,
+                "Weight": 25
+              },
+              {
+                "Multiplier": 15,
+                "Weight": 15
+              },
+              {
+                "Multiplier": 30,
+                "Weight": 10
+              },
+              {
+                "Multiplier": 40,
+                "Weight": 10
+              }
+            ]
+          }
+        ]
+      },
+      "ExpandingWild": {
+        "Enabled": false,
+        "WildName": "WILD_D",
+        "ExcludedSymbols": [
+          "Scatter",
+          "P1"
+        ],
+        "Reels": []
+      },
+      "RandomWinMultiplier": {
+        "Enabled": false,
+        "MultiplierList": []
+      }
+    },
+    "FreeSpinTrigger": {
+      "ScatterSymbol": "Scatter",
+      "Triggers": [
+        {
+          "ScatterCount": 3,
+          "FreeSpins": 8
+        },
+        {
+          "ScatterCount": 4,
+          "FreeSpins": 12
+        },
+        {
+          "ScatterCount": 5,
+          "FreeSpins": 15
+        }
+      ]
+    },
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Weight": 50,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 0
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 187
+              },
+              {
+                "Name": "P1",
+                "Weight": 16
+              },
+              {
+                "Name": "P2",
+                "Weight": 6
+              },
+              {
+                "Name": "P3",
+                "Weight": 6
+              },
+              {
+                "Name": "P4",
+                "Weight": 15
+              },
+              {
+                "Name": "P5",
+                "Weight": 17
+              },
+              {
+                "Name": "A",
+                "Weight": 25
+              },
+              {
+                "Name": "K",
+                "Weight": 30
+              },
+              {
+                "Name": "Q",
+                "Weight": 34
+              },
+              {
+                "Name": "J",
+                "Weight": 38
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 189
+              },
+              {
+                "Name": "P1",
+                "Weight": 7
+              },
+              {
+                "Name": "P2",
+                "Weight": 16
+              },
+              {
+                "Name": "P3",
+                "Weight": 13
+              },
+              {
+                "Name": "P4",
+                "Weight": 27
+              },
+              {
+                "Name": "P5",
+                "Weight": 2
+              },
+              {
+                "Name": "A",
+                "Weight": 5
+              },
+              {
+                "Name": "K",
+                "Weight": 3
+              },
+              {
+                "Name": "Q",
+                "Weight": 54
+              },
+              {
+                "Name": "J",
+                "Weight": 56
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 187
+              },
+              {
+                "Name": "P1",
+                "Weight": 31
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 3
+              },
+              {
+                "Name": "P5",
+                "Weight": 34
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "K",
+                "Weight": 52
+              },
+              {
+                "Name": "Q",
+                "Weight": 2
+              },
+              {
+                "Name": "J",
+                "Weight": 2
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 47
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 24
+              },
+              {
+                "Name": "P5",
+                "Weight": 25
+              },
+              {
+                "Name": "A",
+                "Weight": 18
+              },
+              {
+                "Name": "K",
+                "Weight": 19
+              },
+              {
+                "Name": "Q",
+                "Weight": 20
+              },
+              {
+                "Name": "J",
+                "Weight": 20
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 48
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 25
+              },
+              {
+                "Name": "P5",
+                "Weight": 25
+              },
+              {
+                "Name": "A",
+                "Weight": 18
+              },
+              {
+                "Name": "K",
+                "Weight": 19
+              },
+              {
+                "Name": "Q",
+                "Weight": 19
+              },
+              {
+                "Name": "J",
+                "Weight": 19
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Id": 2,
+        "Weight": 50,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 0
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 187
+              },
+              {
+                "Name": "P1",
+                "Weight": 7
+              },
+              {
+                "Name": "P2",
+                "Weight": 21
+              },
+              {
+                "Name": "P3",
+                "Weight": 19
+              },
+              {
+                "Name": "P4",
+                "Weight": 7
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 30
+              },
+              {
+                "Name": "K",
+                "Weight": 34
+              },
+              {
+                "Name": "Q",
+                "Weight": 36
+              },
+              {
+                "Name": "J",
+                "Weight": 27
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 187
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 33
+              },
+              {
+                "Name": "P3",
+                "Weight": 2
+              },
+              {
+                "Name": "P4",
+                "Weight": 5
+              },
+              {
+                "Name": "P5",
+                "Weight": 17
+              },
+              {
+                "Name": "A",
+                "Weight": 55
+              },
+              {
+                "Name": "K",
+                "Weight": 55
+              },
+              {
+                "Name": "Q",
+                "Weight": 2
+              },
+              {
+                "Name": "J",
+                "Weight": 2
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 187
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 5
+              },
+              {
+                "Name": "P3",
+                "Weight": 33
+              },
+              {
+                "Name": "P4",
+                "Weight": 18
+              },
+              {
+                "Name": "P5",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 3
+              },
+              {
+                "Name": "K",
+                "Weight": 3
+              },
+              {
+                "Name": "Q",
+                "Weight": 58
+              },
+              {
+                "Name": "J",
+                "Weight": 51
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 32
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 20
+              },
+              {
+                "Name": "K",
+                "Weight": 21
+              },
+              {
+                "Name": "Q",
+                "Weight": 21
+              },
+              {
+                "Name": "J",
+                "Weight": 22
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 6
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 32
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 20
+              },
+              {
+                "Name": "K",
+                "Weight": 21
+              },
+              {
+                "Name": "Q",
+                "Weight": 20
+              },
+              {
+                "Name": "J",
+                "Weight": 21
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "ReelDistributionThreshold": 1
+  },
+  "FreeSpinGame": {
+    "Name": "FreeGame",
+    "Cols": 5,
+    "ReelMask": [
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    ],
+    "SymbolMultipliers": [
+      {
+        "Name": "P1",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.5,
+          1.25,
+          2.5
+        ]
+      },
+      {
+        "Name": "P2",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.4,
+          1,
+          2
+        ]
+      },
+      {
+        "Name": "P3",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.3,
+          0.75,
+          1.5
+        ]
+      },
+      {
+        "Name": "P4",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.25,
+          0.5,
+          1
+        ]
+      },
+      {
+        "Name": "P5",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.2,
+          0.35,
+          0.75
+        ]
+      },
+      {
+        "Name": "A",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.15,
+          0.2,
+          0.5
+        ]
+      },
+      {
+        "Name": "K",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.1,
+          0.15,
+          0.4
+        ]
+      },
+      {
+        "Name": "Q",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.05,
+          0.1,
+          0.3
+        ]
+      },
+      {
+        "Name": "J",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0.05,
+          0.08,
+          0.2
+        ]
+      },
+      {
+        "Name": "Ten",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "Name": "Nine",
+        "Type": "Normal",
+        "Pays": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "WaysSetting": {
+      "SpecialSymbols": [
+        "Scatter"
+      ],
+      "StackingFixedWildMultiplier": {
+        "Enabled": false,
+        "Type": "Multiplication",
+        "Wilds": []
+      },
+      "NonStackingRandomWildMultiplier": {
+        "Enabled": true,
+        "Wilds": [
+          {
+            "Name": "WILD_D",
+            "MultiplierList": [
+              {
+                "Multiplier": 1,
+                "Weight": 0
+              },
+              {
+                "Multiplier": 2,
+                "Weight": 2350
+              },
+              {
+                "Multiplier": 3,
+                "Weight": 1600
+              },
+              {
+                "Multiplier": 5,
+                "Weight": 4000
+              },
+              {
+                "Multiplier": 8,
+                "Weight": 1700
+              },
+              {
+                "Multiplier": 10,
+                "Weight": 200
+              },
+              {
+                "Multiplier": 15,
+                "Weight": 50
+              },
+              {
+                "Multiplier": 30,
+                "Weight": 50
+              },
+              {
+                "Multiplier": 40,
+                "Weight": 50
+              }
+            ]
+          }
+        ]
+      },
+      "ExpandingWild": {
+        "Enabled": false,
+        "WildName": "WILD_D",
+        "ExcludedSymbols": [
+          "Scatter",
+          "P1"
+        ],
+        "Reels": []
+      },
+      "RandomWinMultiplier": {
+        "Enabled": false,
+        "MultiplierList": []
+      }
+    },
+    "FreeSpinTrigger": {
+      "ScatterSymbol": "Scatter",
+      "Triggers": [
+        {
+          "ScatterCount": 3,
+          "FreeSpins": 8
+        },
+        {
+          "ScatterCount": 4,
+          "FreeSpins": 12
+        },
+        {
+          "ScatterCount": 5,
+          "FreeSpins": 15
+        }
+      ]
+    },
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Weight": 50,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 0
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 20
+              },
+              {
+                "Name": "P2",
+                "Weight": 6
+              },
+              {
+                "Name": "P3",
+                "Weight": 6
+              },
+              {
+                "Name": "P4",
+                "Weight": 18
+              },
+              {
+                "Name": "P5",
+                "Weight": 20
+              },
+              {
+                "Name": "A",
+                "Weight": 28
+              },
+              {
+                "Name": "K",
+                "Weight": 30
+              },
+              {
+                "Name": "Q",
+                "Weight": 32
+              },
+              {
+                "Name": "J",
+                "Weight": 36
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 5
+              },
+              {
+                "Name": "P1",
+                "Weight": 4
+              },
+              {
+                "Name": "P2",
+                "Weight": 8
+              },
+              {
+                "Name": "P3",
+                "Weight": 8
+              },
+              {
+                "Name": "P4",
+                "Weight": 22
+              },
+              {
+                "Name": "P5",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 4
+              },
+              {
+                "Name": "K",
+                "Weight": 50
+              },
+              {
+                "Name": "Q",
+                "Weight": 4
+              },
+              {
+                "Name": "J",
+                "Weight": 76
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 28
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 4
+              },
+              {
+                "Name": "P5",
+                "Weight": 30
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "K",
+                "Weight": 4
+              },
+              {
+                "Name": "Q",
+                "Weight": 52
+              },
+              {
+                "Name": "J",
+                "Weight": 5
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 5
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 38
+              },
+              {
+                "Name": "K",
+                "Weight": 38
+              },
+              {
+                "Name": "Q",
+                "Weight": 38
+              },
+              {
+                "Name": "J",
+                "Weight": 40
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 39
+              },
+              {
+                "Name": "K",
+                "Weight": 39
+              },
+              {
+                "Name": "Q",
+                "Weight": 38
+              },
+              {
+                "Name": "J",
+                "Weight": 39
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Id": 2,
+        "Weight": 50,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 0
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 28
+              },
+              {
+                "Name": "P3",
+                "Weight": 26
+              },
+              {
+                "Name": "P4",
+                "Weight": 6
+              },
+              {
+                "Name": "P5",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 28
+              },
+              {
+                "Name": "K",
+                "Weight": 30
+              },
+              {
+                "Name": "Q",
+                "Weight": 32
+              },
+              {
+                "Name": "J",
+                "Weight": 34
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 5
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 4
+              },
+              {
+                "Name": "P3",
+                "Weight": 30
+              },
+              {
+                "Name": "P4",
+                "Weight": 5
+              },
+              {
+                "Name": "P5",
+                "Weight": 5
+              },
+              {
+                "Name": "A",
+                "Weight": 4
+              },
+              {
+                "Name": "K",
+                "Weight": 48
+              },
+              {
+                "Name": "Q",
+                "Weight": 4
+              },
+              {
+                "Name": "J",
+                "Weight": 75
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 32
+              },
+              {
+                "Name": "P3",
+                "Weight": 4
+              },
+              {
+                "Name": "P4",
+                "Weight": 5
+              },
+              {
+                "Name": "P5",
+                "Weight": 5
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "K",
+                "Weight": 4
+              },
+              {
+                "Name": "Q",
+                "Weight": 71
+              },
+              {
+                "Name": "J",
+                "Weight": 5
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 5
+              },
+              {
+                "Name": "P1",
+                "Weight": 4
+              },
+              {
+                "Name": "P2",
+                "Weight": 8
+              },
+              {
+                "Name": "P3",
+                "Weight": 8
+              },
+              {
+                "Name": "P4",
+                "Weight": 4
+              },
+              {
+                "Name": "P5",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 38
+              },
+              {
+                "Name": "K",
+                "Weight": 38
+              },
+              {
+                "Name": "Q",
+                "Weight": 38
+              },
+              {
+                "Name": "J",
+                "Weight": 38
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "WILD_A",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_B",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_C",
+                "Weight": 0
+              },
+              {
+                "Name": "WILD_D",
+                "Weight": 15
+              },
+              {
+                "Name": "Scatter",
+                "Weight": 4
+              },
+              {
+                "Name": "P1",
+                "Weight": 4
+              },
+              {
+                "Name": "P2",
+                "Weight": 8
+              },
+              {
+                "Name": "P3",
+                "Weight": 8
+              },
+              {
+                "Name": "P4",
+                "Weight": 4
+              },
+              {
+                "Name": "P5",
+                "Weight": 4
+              },
+              {
+                "Name": "A",
+                "Weight": 39
+              },
+              {
+                "Name": "K",
+                "Weight": 38
+              },
+              {
+                "Name": "Q",
+                "Weight": 38
+              },
+              {
+                "Name": "J",
+                "Weight": 38
+              },
+              {
+                "Name": "Ten",
+                "Weight": 0
+              },
+              {
+                "Name": "Nine",
+                "Weight": 0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "ReelDistributionThreshold": 1
+  },
+  "AnteBetBaseGame": {},
+  "AnteBetFreeSpinGame": {},
+  "Packages": [
+    {
+      "Id": 1,
+      "Name": "packagea",
+      "BuyMultiplier": 75,
+      "FreeSpins": 15,
+      "Cols": 5,
+      "ReelMask": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "SymbolMultipliers": [
+        {
+          "Name": "P1",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.5,
+            1.25,
+            2.5
+          ]
+        },
+        {
+          "Name": "P2",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.4,
+            1,
+            2
+          ]
+        },
+        {
+          "Name": "P3",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.3,
+            0.75,
+            1.5
+          ]
+        },
+        {
+          "Name": "P4",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.25,
+            0.5,
+            1
+          ]
+        },
+        {
+          "Name": "P5",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.2,
+            0.35,
+            0.75
+          ]
+        },
+        {
+          "Name": "A",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.15,
+            0.2,
+            0.5
+          ]
+        },
+        {
+          "Name": "K",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.1,
+            0.15,
+            0.4
+          ]
+        },
+        {
+          "Name": "Q",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.1,
+            0.3
+          ]
+        },
+        {
+          "Name": "J",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.08,
+            0.2
+          ]
+        },
+        {
+          "Name": "Ten",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "Name": "Nine",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "WaysSetting": {
+        "SpecialSymbols": [
+          "Scatter"
+        ],
+        "StackingFixedWildMultiplier": {
+          "Enabled": false,
+          "Type": "Multiplication",
+          "Wilds": []
+        },
+        "NonStackingRandomWildMultiplier": {
+          "Enabled": true,
+          "Wilds": [
+            {
+              "Name": "WILD_D",
+              "MultiplierList": [
+                {
+                  "Multiplier": 1,
+                  "Weight": 0
+                },
+                {
+                  "Multiplier": 2,
+                  "Weight": 2400
+                },
+                {
+                  "Multiplier": 3,
+                  "Weight": 2200
+                },
+                {
+                  "Multiplier": 5,
+                  "Weight": 3200
+                },
+                {
+                  "Multiplier": 8,
+                  "Weight": 1300
+                },
+                {
+                  "Multiplier": 10,
+                  "Weight": 500
+                },
+                {
+                  "Multiplier": 15,
+                  "Weight": 200
+                },
+                {
+                  "Multiplier": 30,
+                  "Weight": 150
+                },
+                {
+                  "Multiplier": 40,
+                  "Weight": 50
+                }
+              ]
+            }
+          ]
+        },
+        "ExpandingWild": {
+          "Enabled": false,
+          "WildName": "WILD_D",
+          "ExcludedSymbols": [
+            "Scatter",
+            "P1"
+          ],
+          "Reels": []
+        },
+        "RandomWinMultiplier": {
+          "Enabled": false,
+          "MultiplierList": []
+        }
+      },
+      "FreeSpinTrigger": {
+        "ScatterSymbol": "Scatter",
+        "Triggers": [
+          {
+            "ScatterCount": 3,
+            "FreeSpins": 8
+          },
+          {
+            "ScatterCount": 4,
+            "FreeSpins": 12
+          },
+          {
+            "ScatterCount": 5,
+            "FreeSpins": 15
+          }
+        ]
+      },
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 20
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 18
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 20
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 36
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 22
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 50
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 76
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 30
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 52
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 40
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Id": 2,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 26
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 34
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 30
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 48
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 75
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 32
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 71
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "LuckySpinMultiplierSetting": {
+        "Enabled": false,
+        "DefaultMultiplier": 0,
+        "MultiplierList": []
+      }
+    },
+    {
+      "Id": 2,
+      "Name": "extfreespin",
+      "ExtType": "freespin",
+      "BuyMultiplier": 14,
+      "FreeSpins": 3,
+      "Cols": 5,
+      "ReelMask": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "SymbolMultipliers": [
+        {
+          "Name": "P1",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.5,
+            1.25,
+            2.5
+          ]
+        },
+        {
+          "Name": "P2",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.4,
+            1,
+            2
+          ]
+        },
+        {
+          "Name": "P3",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.3,
+            0.75,
+            1.5
+          ]
+        },
+        {
+          "Name": "P4",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.25,
+            0.5,
+            1
+          ]
+        },
+        {
+          "Name": "P5",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.2,
+            0.35,
+            0.75
+          ]
+        },
+        {
+          "Name": "A",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.15,
+            0.2,
+            0.5
+          ]
+        },
+        {
+          "Name": "K",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.1,
+            0.15,
+            0.4
+          ]
+        },
+        {
+          "Name": "Q",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.1,
+            0.3
+          ]
+        },
+        {
+          "Name": "J",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.08,
+            0.2
+          ]
+        },
+        {
+          "Name": "Ten",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "Name": "Nine",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "WaysSetting": {
+        "SpecialSymbols": [
+          "Scatter"
+        ],
+        "StackingFixedWildMultiplier": {
+          "Enabled": false,
+          "Type": "Multiplication",
+          "Wilds": []
+        },
+        "NonStackingRandomWildMultiplier": {
+          "Enabled": true,
+          "Wilds": [
+            {
+              "Name": "WILD_D",
+              "MultiplierList": [
+                {
+                  "Multiplier": 1,
+                  "Weight": 0
+                },
+                {
+                  "Multiplier": 2,
+                  "Weight": 2350
+                },
+                {
+                  "Multiplier": 3,
+                  "Weight": 1600
+                },
+                {
+                  "Multiplier": 5,
+                  "Weight": 4000
+                },
+                {
+                  "Multiplier": 8,
+                  "Weight": 1700
+                },
+                {
+                  "Multiplier": 10,
+                  "Weight": 200
+                },
+                {
+                  "Multiplier": 15,
+                  "Weight": 50
+                },
+                {
+                  "Multiplier": 30,
+                  "Weight": 50
+                },
+                {
+                  "Multiplier": 40,
+                  "Weight": 50
+                }
+              ]
+            }
+          ]
+        },
+        "ExpandingWild": {
+          "Enabled": false,
+          "WildName": "WILD_D",
+          "ExcludedSymbols": [
+            "Scatter",
+            "P1"
+          ],
+          "Reels": []
+        },
+        "RandomWinMultiplier": {
+          "Enabled": false,
+          "MultiplierList": []
+        }
+      },
+      "FreeSpinTrigger": {
+        "ScatterSymbol": "Scatter",
+        "Triggers": [
+          {
+            "ScatterCount": 3,
+            "FreeSpins": 8
+          },
+          {
+            "ScatterCount": 4,
+            "FreeSpins": 12
+          },
+          {
+            "ScatterCount": 5,
+            "FreeSpins": 15
+          }
+        ]
+      },
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 20
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 18
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 20
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 36
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 22
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 50
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 76
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 30
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 52
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 40
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Id": 2,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 26
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 34
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 30
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 48
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 75
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 32
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 71
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "LuckySpinMultiplierSetting": {
+        "Enabled": false,
+        "DefaultMultiplier": 0,
+        "MultiplierList": []
+      }
+    },
+    {
+      "Id": 3,
+      "Name": "extbonusa",
+      "ExtType": "bonus",
+      "BuyMultiplier": 15,
+      "FreeSpins": 3,
+      "Cols": 5,
+      "ReelMask": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "SymbolMultipliers": [
+        {
+          "Name": "P1",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.5,
+            1.25,
+            2.5
+          ]
+        },
+        {
+          "Name": "P2",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.4,
+            1,
+            2
+          ]
+        },
+        {
+          "Name": "P3",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.3,
+            0.75,
+            1.5
+          ]
+        },
+        {
+          "Name": "P4",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.25,
+            0.5,
+            1
+          ]
+        },
+        {
+          "Name": "P5",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.2,
+            0.35,
+            0.75
+          ]
+        },
+        {
+          "Name": "A",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.15,
+            0.2,
+            0.5
+          ]
+        },
+        {
+          "Name": "K",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.1,
+            0.15,
+            0.4
+          ]
+        },
+        {
+          "Name": "Q",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.1,
+            0.3
+          ]
+        },
+        {
+          "Name": "J",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0.05,
+            0.08,
+            0.2
+          ]
+        },
+        {
+          "Name": "Ten",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "Name": "Nine",
+          "Type": "Normal",
+          "Pays": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "WaysSetting": {
+        "SpecialSymbols": [
+          "Scatter"
+        ],
+        "StackingFixedWildMultiplier": {
+          "Enabled": false,
+          "Type": "Multiplication",
+          "Wilds": []
+        },
+        "NonStackingRandomWildMultiplier": {
+          "Enabled": true,
+          "Wilds": [
+            {
+              "Name": "WILD_D",
+              "MultiplierList": [
+                {
+                  "Multiplier": 1,
+                  "Weight": 0
+                },
+                {
+                  "Multiplier": 2,
+                  "Weight": 2400
+                },
+                {
+                  "Multiplier": 3,
+                  "Weight": 2200
+                },
+                {
+                  "Multiplier": 5,
+                  "Weight": 3200
+                },
+                {
+                  "Multiplier": 8,
+                  "Weight": 1300
+                },
+                {
+                  "Multiplier": 10,
+                  "Weight": 500
+                },
+                {
+                  "Multiplier": 15,
+                  "Weight": 200
+                },
+                {
+                  "Multiplier": 30,
+                  "Weight": 150
+                },
+                {
+                  "Multiplier": 40,
+                  "Weight": 50
+                }
+              ]
+            }
+          ]
+        },
+        "ExpandingWild": {
+          "Enabled": false,
+          "WildName": "WILD_D",
+          "ExcludedSymbols": [
+            "Scatter",
+            "P1"
+          ],
+          "Reels": []
+        },
+        "RandomWinMultiplier": {
+          "Enabled": false,
+          "MultiplierList": []
+        }
+      },
+      "FreeSpinTrigger": {
+        "ScatterSymbol": "Scatter",
+        "Triggers": [
+          {
+            "ScatterCount": 3,
+            "FreeSpins": 8
+          },
+          {
+            "ScatterCount": 4,
+            "FreeSpins": 12
+          },
+          {
+            "ScatterCount": 5,
+            "FreeSpins": 15
+          }
+        ]
+      },
+      "ReelDistributions": [
+        {
+          "Id": 1,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 20
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 18
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 20
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 36
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 22
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 50
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 76
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 30
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 52
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 40
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 39
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Id": 2,
+          "Weight": 50,
+          "Reels": [
+            {
+              "Id": 1,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 28
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 26
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 6
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 6
+                },
+                {
+                  "Name": "A",
+                  "Weight": 28
+                },
+                {
+                  "Name": "K",
+                  "Weight": 30
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 32
+                },
+                {
+                  "Name": "J",
+                  "Weight": 34
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 2,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 30
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 4
+                },
+                {
+                  "Name": "K",
+                  "Weight": 48
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 4
+                },
+                {
+                  "Name": "J",
+                  "Weight": 75
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 3,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 32
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 5
+                },
+                {
+                  "Name": "A",
+                  "Weight": 50
+                },
+                {
+                  "Name": "K",
+                  "Weight": 4
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 71
+                },
+                {
+                  "Name": "J",
+                  "Weight": 5
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 4,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 5
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 38
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            },
+            {
+              "Id": 5,
+              "Symbols": [
+                {
+                  "Name": "WILD_A",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_B",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_C",
+                  "Weight": 0
+                },
+                {
+                  "Name": "WILD_D",
+                  "Weight": 15
+                },
+                {
+                  "Name": "Scatter",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P1",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P2",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P3",
+                  "Weight": 8
+                },
+                {
+                  "Name": "P4",
+                  "Weight": 4
+                },
+                {
+                  "Name": "P5",
+                  "Weight": 4
+                },
+                {
+                  "Name": "A",
+                  "Weight": 39
+                },
+                {
+                  "Name": "K",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Q",
+                  "Weight": 38
+                },
+                {
+                  "Name": "J",
+                  "Weight": 38
+                },
+                {
+                  "Name": "Ten",
+                  "Weight": 0
+                },
+                {
+                  "Name": "Nine",
+                  "Weight": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "ReelDistributionThreshold": 1,
+      "LuckySpinMultiplierSetting": {
+        "Enabled": false,
+        "DefaultMultiplier": 0,
+        "MultiplierList": []
+      }
+    }
+  ],
+  "FreespinExtension": true
+}

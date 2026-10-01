@@ -1,0 +1,152 @@
+[
+  {
+    "id": "mark-0",
+    "action": "mark",
+    "description": "BET LEVEL A = 0.1",
+    "start_ms": 338498,
+    "end_ms": 338498,
+    "result": null
+  },
+  {
+    "id": "click-1",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 338501,
+    "end_ms": 340821,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "scroll-2",
+    "action": "scroll",
+    "description": "scroll bet row 0 into view",
+    "start_ms": 340823,
+    "end_ms": 340828,
+    "result": {
+      "row": 0
+    }
+  },
+  {
+    "id": "click-3",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 355834,
+    "end_ms": 358149,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "click-4",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 358160,
+    "end_ms": 358481,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-5",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 358156,
+    "end_ms": 361815,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-6",
+    "action": "shot",
+    "description": "screenshot: paytable-bet-a",
+    "start_ms": 361816,
+    "end_ms": 361895,
+    "result": {
+      "label": "paytable-bet-a",
+      "file": "00-paytable-bet-a.png"
+    }
+  },
+  {
+    "id": "mark-7",
+    "action": "mark",
+    "description": "BET LEVEL B = 7",
+    "start_ms": 361898,
+    "end_ms": 361898,
+    "result": null
+  },
+  {
+    "id": "click-8",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 361900,
+    "end_ms": 364222,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "scroll-9",
+    "action": "scroll",
+    "description": "scroll bet row 3 into view",
+    "start_ms": 364228,
+    "end_ms": 364231,
+    "result": {
+      "row": 3
+    }
+  },
+  {
+    "id": "click-10",
+    "action": "click",
+    "description": "click bet:row:3",
+    "start_ms": 364231,
+    "end_ms": 366560,
+    "result": {
+      "button": "bet:row:3"
+    }
+  },
+  {
+    "id": "click-11",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 366563,
+    "end_ms": 368883,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "click-12",
+    "action": "click",
+    "description": "open settings to reach settings:info",
+    "start_ms": 368893,
+    "end_ms": 369200,
+    "result": {
+      "button": "settings",
+      "to_reach": "settings:info"
+    }
+  },
+  {
+    "id": "click-13",
+    "action": "click",
+    "description": "click settings:info",
+    "start_ms": 368890,
+    "end_ms": 372518,
+    "result": {
+      "button": "settings:info"
+    }
+  },
+  {
+    "id": "shot-14",
+    "action": "shot",
+    "description": "screenshot: paytable-bet-b",
+    "start_ms": 372518,
+    "end_ms": 372585,
+    "result": {
+      "label": "paytable-bet-b",
+      "file": "01-paytable-bet-b.png"
+    }
+  }
+]

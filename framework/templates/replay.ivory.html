@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Replay Viewer</title>
+<style>
+:root{color-scheme:light;--ink:#435677;--muted:#71809a;--line:#e3e8f1;--blue:#0865cc;--canvas:#edf0f5}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:3px solid #6aa9ef;outline-offset:3px}[hidden]{display:none!important}.brand{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase}.brand svg{width:28px;height:28px;color:#0865cc;flex-shrink:0}.badge,.verdict-badge{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;padding:3px 9px;border-radius:5px;background:#e5eaf2;color:#4c607e;font-size:11px;font-weight:600;line-height:1.6;white-space:nowrap;text-transform:capitalize}.badge.green,.verdict-green{background:#aaebce;color:#245d4f}.badge.red,.badge.error,.verdict-red,.verdict-error{background:#ffb0bf;color:#78273c}.badge.orange,.verdict-orange{background:#ffdfa2;color:#75501d}.badge.inconclusive,.verdict-inconclusive{background:#e3d5fa;color:#624a89}
+body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}.workspace{flex:1;min-height:0;display:flex;flex-direction:column;padding:26px 36px 28px}#header{display:flex;align-items:center;gap:18px;flex-shrink:0;margin-bottom:18px}.heading{min-width:0;flex:1}.eyebrow{font-size:10px;color:#788ca9;letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px}#test-title{font-size:17px;font-weight:600;letter-spacing:-.2px;line-height:1.4;overflow-wrap:anywhere;margin:0}.meta{font-size:10px;color:var(--muted);margin-top:5px}#main{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(310px,1fr);flex:1;min-height:0;gap:18px}#video-panel,#events-panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:white;border:1px solid #e0e6f0;border-radius:5px;overflow:hidden;box-shadow:0 2px 6px #1e3b6406}.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 20px 0;flex-shrink:0}.panel-heading h2{font-size:13px;font-weight:500;color:#ab6b00;margin:0;border-bottom:2px solid #ffa216;padding-bottom:12px}.panel-heading>span{font-size:10px;color:var(--muted)}#video-wrap{flex:1;min-height:0;position:relative;margin:0 16px;background:#101b2e;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:3px}#video-wrap video{width:100%;height:100%;object-fit:contain;display:block}#video-message{position:absolute;inset:0;display:grid;align-content:center;gap:8px;padding:20px;text-align:center;background:#101b2e;color:#d6e2f3}#video-message small{font-size:11px;color:#a3b5d0}#video-controls{padding:16px;flex-shrink:0}.seek-line{display:flex;align-items:center;gap:15px;margin-bottom:12px}#seek-bar{appearance:none;flex:1;min-width:40px;height:3px;border-radius:2px;cursor:pointer;background:linear-gradient(to right,#0865cc var(--progress,0%),#e0e8f3 var(--progress,0%))}#seek-bar::-webkit-slider-thumb{appearance:none;width:10px;height:10px;border-radius:50%;background:#0865cc}#seek-bar::-moz-range-thumb{width:10px;height:10px;border:0;border-radius:50%;background:#0865cc}#time-display{font:10px/1.4 ui-monospace,Consolas,monospace;color:#6b7f9e;white-space:nowrap}.transport{display:flex;align-items:center;justify-content:space-between;gap:10px}.transport-group,.speed-group{display:flex;align-items:center;gap:6px}#video-controls button{display:inline-grid;place-items:center;border:1px solid #dfe7f3;border-radius:4px;background:#fff;color:#4476b5;padding:4px 9px;font-size:11px;height:30px}#video-controls button:hover{background:#edf4fe}#video-controls #btn-play{background:#0865cc;color:white;border-color:#0865cc;width:38px}#video-controls button.active{background:#e4effd;color:#075bb7;border-color:#b8d6f9}.speed-group{gap:0}.transport-hint{font-size:10px;color:var(--muted);margin-left:6px}#timeline{border-top:1px solid var(--line);padding:13px 16px;background:#fbfcfe;flex-shrink:0}.timeline-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.timeline-label{font-size:11px;font-weight:600}.timeline-heading small{font-size:10px;color:var(--muted)}#timeline-bar{display:flex;gap:6px;overflow-x:auto;padding:2px 1px 5px;scrollbar-width:thin;scrollbar-color:#c3d5ec transparent}.step-segment{flex:1 0 110px;max-width:170px;text-align:left;padding:8px 10px;border-radius:3px;border:1px solid #e0e7f1;background:#f0f4fa;color:#536b90}.step-segment:hover{background:#eaf2fd}.step-segment.active{background:#e1edfc;color:#075bb7;border-color:#a9cdf8;box-shadow:inset 2px 0 #1475df}.step-index{font:9px/1.2 ui-monospace,Consolas,monospace;color:#6e87aa}.step-name{display:block;font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:4px 0}.step-time{display:block;font:9px/1.3 ui-monospace,Consolas,monospace;color:#6b7f9d}.inspector-hint{color:var(--muted);font-size:10px;padding:10px 20px;margin:0}.event-search-wrap{padding:0 16px 12px}#event-search{width:100%;font-size:11px;padding:8px 10px;border:1px solid #d8e1ef;border-radius:5px;background:#fff;color:var(--ink)}#event-count{padding:3px 8px;background:#edf3fc;border-radius:4px;color:#4774b0}#filter-bar{display:flex;gap:5px;flex-wrap:wrap;padding:0 16px 12px;border-bottom:1px solid var(--line);flex-shrink:0}.filter-btn{font-size:9px;padding:3px 7px;border:1px solid transparent;border-radius:12px}.filter-btn.on{border-color:currentColor}.filter-btn:hover{filter:brightness(.97)}#show-future-btn{margin-left:auto;background:#f0f5fc;color:#5077a9;border:1px solid #dce6f4;border-radius:12px;font-size:9px;padding:3px 7px}#show-future-btn.on{background:#dfedff;border-color:#99c3f6;color:#075bb7}#events-log{flex:1;overflow-y:auto;min-height:0;padding:4px 8px;scrollbar-width:thin;scrollbar-color:#c3d5ec transparent}.event-row{width:100%;text-align:left;font:inherit;border:0;background:#fff;display:grid;grid-template-columns:50px minmax(0,1fr);gap:4px 10px;align-items:start;padding:10px;border-radius:2px;cursor:pointer}.event-row:hover{background:#edf3fd}.event-row.future{opacity:.6}.event-row.future.hide-future{display:none}.event-row.current{background:#e4eefb}.event-time{grid-row:1/3;font:10px/1.6 ui-monospace,Consolas,monospace;color:#7186a7}.event-badge{justify-self:start;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600}.event-data{grid-column:2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:10px;color:#586f93}.empty-state{padding:30px 16px;text-align:center;color:var(--muted);font-size:11px}.inspector-footer{padding:11px 16px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}#event-popup-overlay{display:none;position:fixed;inset:0;background:#152c5666;backdrop-filter:blur(3px);z-index:100;align-items:center;justify-content:center}#event-popup-overlay.open{display:flex}#event-popup{background:#fff;border:1px solid #dbe4f1;border-radius:7px;max-width:660px;width:92%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px #16315a44}#event-popup-header{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line)}.popup-title{flex:1;font-size:13px;font-weight:600;overflow-wrap:anywhere}.popup-time{font:10px/1.5 ui-monospace,Consolas,monospace;color:var(--muted)}#popup-close-btn{background:#edf3fb;color:#5581b9;border:0;border-radius:4px;font-size:20px;padding:0 8px}#event-popup-body{padding:20px;overflow-y:auto;min-height:0;background:#f8fafd}#event-popup-body pre{font:11px/1.8 ui-monospace,Consolas,monospace;color:#4f6587;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}#event-popup-actions{display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}#event-popup-actions button{background:#fff;border:1px solid #dfe7f3;border-radius:4px;color:#0865cc;padding:7px 11px;font-size:11px}#event-popup-actions button:hover{background:#edf4fe}#event-popup-actions .popup-seek-btn{background:#0865cc;color:white;margin-left:auto;border-color:#0865cc}#event-popup-actions button.copied{background:#aaebce;color:#245d4f}
+@media(max-width:1100px){#main{grid-template-columns:minmax(0,1.3fr) minmax(260px,1fr);gap:12px}.transport-hint{display:none}.panel-heading{padding:14px 16px 0}}
+@media(max-width:850px){body{height:auto;min-height:100dvh;overflow:auto}#main{display:flex;flex-direction:column}#video-wrap{flex:none;height:48vh;min-height:220px}#events-log{max-height:420px;min-height:180px}#header{margin-bottom:14px}.transport{flex-wrap:wrap}#test-title{font-size:16px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}
+
+#header{gap:28px;margin-bottom:24px}.brand{flex-direction:column;padding-right:28px;border-right:1px solid #d9e3f1;gap:8px;font-size:9px;letter-spacing:1.8px;flex-shrink:0}.brand svg{width:38px;height:38px}.heading{flex:1;min-width:0}#test-title{font-size:clamp(19px,2.3vw,30px);line-height:1.3;letter-spacing:-.9px}.eyebrow{font-size:10px;letter-spacing:2px;margin-bottom:5px}.meta{font-size:11px;margin-top:8px}#video-panel,#events-panel{border-radius:12px}#main{gap:20px}.event-row{border-bottom:1px solid #edf0f6;border-radius:5px}#events-log{padding:8px 12px}.panel-heading h2{color:#435677;border-bottom:0;padding-bottom:14px}.step-segment{border-radius:5px}
+@media(max-width:950px){.workspace{padding:20px}#header{gap:18px}.brand{padding-right:18px}#main{gap:14px;grid-template-columns:minmax(0,1.4fr) minmax(290px,1fr)}}
+@media(max-width:740px){.workspace{padding:18px 14px}#header{flex-wrap:wrap;gap:12px}.brand{width:100%;flex-direction:row;border:0;padding:0}.brand svg{width:26px;height:26px}#test-title{font-size:19px}}
+
+/* Ivory & citron variant: presentation only; original page structure is retained. */
+:root{--ink:#2b2c29;--muted:#6d6e64;--line:#e2e1d6;--blue:#33352f;--canvas:#e2e3df;--citron:#ffdc62}
+body{font-family:"Century Gothic","Segoe UI",sans-serif;background:#e2e3df;color:var(--ink);font-weight:400}
+:focus-visible{outline:3px solid #9c7c12;outline-offset:3px}
+.brand{font-weight:500;letter-spacing:-.3px;text-transform:none;font-size:17px;gap:8px}.brand svg{color:#33352f;width:23px;height:23px}.brand-text{border:1px solid #999d91;border-radius:4px;padding:3px 12px;white-space:nowrap}.brand-note{color:#717268;font-size:11px;letter-spacing:0}.eyebrow{color:#727467;font-weight:400;letter-spacing:1.4px}
+.badge,.verdict-badge{font-family:"Segoe UI",sans-serif;font-size:11px;border-radius:3px;padding:2px 7px;font-weight:500;background:#e6e5dc;color:#57584c}.badge.green,.verdict-green{background:#edf0e7;color:#43582a}.badge.red,.badge.error,.verdict-red,.verdict-error{background:#f3e8e5;color:#883f34}.badge.orange,.verdict-orange{background:#f6dcc6;color:#8a4212}.badge.inconclusive,.verdict-inconclusive{background:#eeeaf2;color:#695281}
+
+body{padding:22px}.workspace{padding:25px 28px 26px;border-radius:10px;background:#eeefe9;border:1px solid #ffffff55;box-shadow:none}
+#header{gap:24px;margin-bottom:24px}.brand{border-right:1px solid #ced1c3;padding-right:24px;font-size:14px;letter-spacing:-.3px}.brand svg{width:28px;height:28px}#test-title{font-size:clamp(21px,2.3vw,32px);font-weight:350;letter-spacing:-1px}.meta{color:#6b7161;font-size:10px}.eyebrow{font-size:9px}
+#main{gap:10px}#video-panel,#events-panel{border:0;border-radius:8px;box-shadow:none}#video-panel{background:#fffef2c9}.panel-heading{padding:19px 22px 0}.panel-heading h2{font-size:17px;font-weight:400;color:#33392d;letter-spacing:-.45px;padding-bottom:16px}.panel-heading>span{color:#737a66;font-size:10px}#video-wrap{border-radius:6px;margin:0 14px;background:#272b24}#video-message{background:#272b24;color:#eeeee0}#video-message small{color:#bfc6b2}#video-controls{padding:16px 20px}.seek-line{margin-bottom:13px}#seek-bar{height:4px;background:linear-gradient(to right,#e8bf36 var(--progress,0%),#dedfd2 var(--progress,0%))}#seek-bar::-webkit-slider-thumb{width:12px;height:12px;background:#393d31;border:2px solid #ffdc62}#seek-bar::-moz-range-thumb{width:10px;height:10px;background:#393d31;border:2px solid #ffdc62}#time-display{color:#616951}.transport-hint{color:#69735c}#video-controls button{border:1px solid #d7dbcb;border-radius:4px;background:#fffef7;color:#59634a;height:34px}#video-controls button:hover{background:#edeedc}#video-controls #btn-play{border:0;border-radius:4px;background:#30332b;color:#ffdc62}#video-controls button.active{background:#ffdc62;border-color:#ffdc62;color:#423a20}.speed-group{gap:3px;border-radius:4px;background:#eaece0;padding:3px}#video-controls .speed-group .speed-btn{border-radius:4px;border:0;width:44px;height:30px;padding:3px 9px}#timeline{background:#f7f7eaa6;border-top:1px dotted #ccd2be;padding:14px 18px}.timeline-label{font-weight:400;color:#3d4833;font-size:12px}.timeline-heading small{color:#69735c;font-size:9px}.step-segment{border-radius:4px;background:#eeefe2;border:1px solid #e0e4d2;color:#57634a;padding:10px 12px}.step-segment:hover{background:#e5e8d3}.step-segment.active{background:#ffdc62;border-color:#ffdc62;color:#3a3827;box-shadow:none}.step-index,.step-time{color:#697052}.step-name{font-weight:500}.step-segment.active .step-index,.step-segment.active .step-time{color:#625832}#timeline-bar{scrollbar-color:#c2cbb0 transparent}
+#events-panel{background:#30312e;color:#f5f4e9}#events-panel .panel-heading h2{color:#f2f0e3}#event-count{border-radius:4px;background:#ffdc62;color:#423b23;font-size:10px}.inspector-hint{color:#c0c2b6;padding-inline:22px;font-size:10px}.event-search-wrap{padding-inline:18px}#event-search{border-radius:4px;border:1px solid #595c50;background:#41443b;color:#f2f3e6;padding:10px 14px}#event-search::placeholder{color:#c0c7b1}#filter-bar{border-color:#535749;padding:0 18px 14px}.filter-btn{border-radius:4px;padding:4px 8px}#show-future-btn{border-radius:4px;background:#454a3b;border-color:#696f58;color:#e4eacb}#show-future-btn.on{background:#ffdc62;color:#40391f;border-color:#ffdc62}#events-log{padding:8px 12px;scrollbar-color:#666f55 transparent}.event-row{background:transparent;color:#ecefde;border-bottom:1px dotted #62694f;border-radius:6px;padding:13px 10px}.event-row:hover{background:#414735}.event-row.current{background:#4a5138;box-shadow:inset 2px 0 #ffdc62}.event-row.future{opacity:.7}.event-time{color:#bbc4a6}.event-badge{border-radius:3px;font-size:9px;padding:2px 6px;font-weight:500}.event-data{color:#d7dfc7;font-size:11px}.inspector-footer{border-color:#555e44;color:#c4ceb0;font-size:10px;padding:14px 20px}.empty-state{color:#c6cfb2}
+#event-popup-overlay{background:#292d266e}#event-popup{background:#f9faef;border:1px solid #e5e9d9;border-radius:8px;box-shadow:0 25px 70px #1d231555}#event-popup-header{border-color:#dce2ce;padding:20px 22px}.popup-title{font-weight:500;color:#38432f}.popup-time{color:#717e61}#popup-close-btn{background:#e9eeda;color:#5c6a49;border-radius:4px;width:30px;height:30px}#event-popup-body{background:#f1f4e7}#event-popup-body pre{color:#536444}#event-popup-actions{border-color:#dce2ce}#event-popup-actions button{border-color:#ced7bd;border-radius:4px;color:#536444;background:#fcfdf5}#event-popup-actions button:hover{background:#e7edda}#event-popup-actions .popup-seek-btn{background:#303b27;color:#fff8d3;border-color:#303b27}#event-popup-actions button.copied{background:#ffdc62;color:#4a4121}
+@media(max-width:950px){body{padding:12px}.workspace{padding:20px;border-radius:8px}#header{gap:18px}.brand{padding-right:18px}}
+@media(max-width:850px){body{height:auto;min-height:100dvh;overflow:auto}.workspace{flex:none}#video-wrap{height:48vh;min-height:220px}#events-log{min-height:220px;max-height:420px}}
+@media(max-width:740px){body{padding:8px}.workspace{padding:18px 12px;border-radius:8px}.brand{border:0;padding:0;font-size:14px}.brand svg{width:24px;height:24px}#header{gap:12px}#video-panel,#events-panel{border-radius:8px}.transport{gap:8px}.panel-heading{padding:16px 18px 0}}
+
+/* Shared transport geometry applies equally to all three controls. */
+#video-controls :is(#btn-back,#btn-play,#btn-forward){width:44px;height:36px;min-width:44px;min-height:36px;flex:0 0 44px;padding:0;border:1px solid #d7dbcb;border-radius:4px;box-sizing:border-box;font-size:11px;line-height:1;display:inline-grid;place-items:center}
+</style>
+</head>
+<body><div class="workspace">
+
+<div id="header"><div class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 4h8v7H3zM14 4h7v7h-7zM3 14h8v7H3z" fill="currentColor"/><path d="m15 15 2 3 4-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="brand-text">Game QA</span></div>
+  <div class="heading"><div class="eyebrow">Replay studio / Session review</div><h1 id="test-title">Loading…</h1>
+  <div class="meta" id="test-meta"></div></div>
+  <span class="verdict-badge" id="verdict-badge"></span>
+</div>
+
+<div id="main">
+
+  <section id="video-panel" aria-label="Session recording">
+    <div class="panel-heading"><h2>Session recording</h2><span class="recorded-indicator">Recorded session</span></div>
+    <div id="video-wrap">
+      <video id="player" preload="auto" playsinline></video>
+      <div id="video-message" hidden>Recording unavailable<small>The video could not be loaded. You can still inspect the events and steps.</small></div>
+    </div>
+    <div id="video-controls">
+      <div class="seek-line"><input aria-label="Seek recording" id="seek-bar" type="range" min="0" max="1000" value="0" step="1"><span id="time-display">0.0s / 0.0s</span></div>
+      <div class="transport">
+        <div class="transport-group"><button id="btn-back" aria-label="Back 5 seconds" title="Back 5 seconds">−5s</button><button id="btn-play" aria-label="Play recording">▶</button><button id="btn-forward" aria-label="Forward 5 seconds" title="Forward 5 seconds">+5s</button><span class="transport-hint">Review every moment</span></div>
+        <div class="speed-group" role="group" aria-label="Playback speed"><button id="btn-05" class="speed-btn" data-speed="0.5" aria-pressed="false">0.5×</button><button id="btn-1" class="speed-btn active" data-speed="1" aria-pressed="true">1×</button><button id="btn-2" class="speed-btn" data-speed="2" aria-pressed="false">2×</button></div>
+      </div>
+    </div>
+    <div id="timeline"><div class="timeline-heading"><span class="timeline-label">Step timeline</span><small id="step-count"></small></div><div id="timeline-bar" aria-label="Recorded steps"></div></div>
+  </section>
+
+  <section id="events-panel" aria-label="Recorded events">
+    <div class="panel-heading"><h2>Event inspector</h2><span id="event-count"></span></div>
+    <p class="inspector-hint">The details behind every frame.</p>
+    <div class="event-search-wrap"><input id="event-search" type="search" aria-label="Search events" placeholder="Search events, actions, or values…"></div>
+    <div id="filter-bar">
+      <!-- Populated dynamically -->
+      <button id="show-future-btn" aria-pressed="false">Show future</button>
+    </div>
+    <div id="events-log"></div>
+    <div class="inspector-footer">Select an event to inspect its data or jump to that moment.</div>
+  </section>
+
+</div>
+
+</div><div id="event-popup-overlay">
+  <div id="event-popup" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+    <div id="event-popup-header">
+      <span class="event-badge" id="popup-badge"></span>
+      <span class="popup-title" id="popup-title"></span>
+      <span class="popup-time" id="popup-time"></span>
+      <button id="popup-close-btn" aria-label="Close event details">&times;</button>
+    </div>
+    <div id="event-popup-body">
+      <pre id="popup-json"></pre>
+    </div>
+    <div id="event-popup-actions">
+      <button id="popup-copy-json">Copy JSON</button>
+      <button id="popup-copy-data">Copy Data Only</button>
+      <button class="popup-seek-btn" id="popup-seek">Seek to Event</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Inline data injected by reporter.py ──────────────────────────────
+  const DATA = %%REPLAY_DATA%%;
+
+  // ── Constants ─────────────────────────────────────────────────────────
+  const EVENT_BADGES = {
+    step:             "STEP",
+    state_change:     "STATE",
+    spin_request:     "SPIN",
+    spin_result:      "RESULT",
+    balance_change:   "BAL",
+    socket_send:      "SOCKET↑",
+    socket_recv:      "SOCKET↓",
+    button_state:     "BTN",
+    free_spin:        "FREE",
+    bonus_transition: "BONUS",
+    popup:            "POPUP",
+    error:            "ERROR",
+  };
+
+  // ── DOM references ────────────────────────────────────────────────────
+  const player       = document.getElementById("player");
+  const seekBar      = document.getElementById("seek-bar");
+  const timeDisplay  = document.getElementById("time-display");
+  const btnPlay      = document.getElementById("btn-play");
+  const eventsLog    = document.getElementById("events-log");
+  const filterBar    = document.getElementById("filter-bar");
+  const timelineBar  = document.getElementById("timeline-bar");
+  const showFutureBtn = document.getElementById("show-future-btn");
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let activeFilters  = new Set();  // types currently shown; empty = show all
+  let allTypes       = new Set();
+  let showFuture     = false;
+  let videoDuration  = 0;
+  // video_event_offset: seconds between video start and event collection start
+  const videoEventOffset = DATA.video_event_offset || 0;
+
+  // ── Init header ───────────────────────────────────────────────────────
+  document.getElementById("test-title").textContent =
+    DATA.title || DATA.test_id || "Session replay";
+
+  const badge = document.getElementById("verdict-badge");
+  const v = (DATA.final_verdict || "pending").toLowerCase();
+  badge.textContent = ({green: "Passed", orange: "Partly Failed", red: "Failed", pending: "Pending", skip: "Skipped", inconclusive: "Inconclusive", error: "Error"})[v] || v;
+  badge.className = "verdict-badge verdict-" + v;
+
+  const durationS = (DATA.duration_ms || 0) / 1000;
+  document.getElementById("test-meta").textContent =
+    (DATA.test_id || "Session") + "  ·  Bridge: " + (DATA.bridge_result || "—") + "  ·  AI: " + (DATA.ai_result || "—") + "  ·  " + durationS.toFixed(1) + "s";
+
+  // ── Video setup ───────────────────────────────────────────────────────
+  player.src = DATA.video_file || "session.webm";
+
+  player.addEventListener("loadedmetadata", function () {
+    videoDuration = player.duration;
+    seekBar.max = Math.round(videoDuration * 100);
+    updateTimeDisplay();
+    renderStepTimeline();
+  });
+
+  player.addEventListener("timeupdate", function () {
+    seekBar.value = Math.round(player.currentTime * 100);
+    updateTimeDisplay();
+    syncEventLog();
+    updateActiveStep();
+  });
+
+  player.addEventListener("error", function () {
+    document.getElementById("video-message").hidden = false;
+  });
+  player.addEventListener("play", function () {
+    btnPlay.textContent = "⏸";
+    btnPlay.setAttribute("aria-label", "Pause recording");
+  });
+  player.addEventListener("pause", function () {
+    btnPlay.textContent = "▶";
+    btnPlay.setAttribute("aria-label", "Play recording");
+  });
+
+  player.addEventListener("ended", function () {
+    btnPlay.textContent = "▶";
+  });
+
+  // Play / pause
+  btnPlay.addEventListener("click", function () {
+    if (player.paused) { player.play().catch(function () { btnPlay.textContent = "▶"; }); }
+    else               { player.pause(); }
+  });
+
+  function seekBy(seconds) {
+    if (!Number.isFinite(player.duration)) return;
+    player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + seconds));
+    syncEventLog();
+    updateActiveStep();
+  }
+  document.getElementById("btn-back").addEventListener("click", function () { seekBy(-5); });
+  document.getElementById("btn-forward").addEventListener("click", function () { seekBy(5); });
+
+  // Seek bar
+  seekBar.addEventListener("input", function () {
+    player.currentTime = seekBar.value / 100;
+    syncEventLog();
+    updateActiveStep();
+  });
+
+  // Speed buttons
+  document.querySelectorAll(".speed-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".speed-btn").forEach(function (b) {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-pressed", "true");
+      player.playbackRate = parseFloat(btn.dataset.speed);
+    });
+  });
+
+  // ── Event log rendering ────────────────────────────────────────────────
+  const eventSearch = document.getElementById("event-search");
+  const events = DATA.events || [];
+  document.getElementById("event-count").textContent = events.length + " events";
+
+  // Collect all event types
+  events.forEach(function (ev) { allTypes.add(ev.type); });
+
+  // Render filter buttons
+  function buildFilterBar() {
+    // Remove old filter buttons (keep show-future)
+    filterBar.querySelectorAll(".filter-btn").forEach(function (b) { b.remove(); });
+    const sorted = Array.from(allTypes).sort();
+    sorted.forEach(function (type) {
+      const btn = document.createElement("button");
+      btn.className = "filter-btn " + (activeFilters.has(type) ? "on" : "");
+      const label = EVENT_BADGES[type] || type.toUpperCase().replace(/_/g, "-");
+      btn.textContent = label;
+      btn.setAttribute("aria-pressed", String(activeFilters.has(type)));
+      const typeClass = "badge-" + type;
+      btn.style.cssText =
+        "background:" + (getBadgeColor(type).bg) + ";color:" + (getBadgeColor(type).fg) + ";";
+      btn.addEventListener("click", function () {
+        if (activeFilters.has(type)) {
+          activeFilters.delete(type);
+          btn.classList.remove("on");
+        } else {
+          activeFilters.add(type);
+          btn.classList.add("on");
+        }
+        btn.setAttribute("aria-pressed", String(activeFilters.has(type)));
+        renderEventRows();
+      });
+      filterBar.insertBefore(btn, showFutureBtn);
+    });
+  }
+
+  function getStepActionColor(action) {
+    var map = {
+      navigate:       { bg: "#485448", fg: "#e0e8ce", accent: "#3b82f6" },
+      wait_for_state: { bg: "#5a5134", fg: "#ffe59a", accent: "#eab308" },
+      bridge_action:  { bg: "#455842", fg: "#deebbb", accent: "#10b981" },
+      bridge_assert:  { bg: "#55495d", fg: "#e9d9f2", accent: "#a855f7" },
+      capture:        { bg: "#41575a", fg: "#cfe7e7", accent: "#06b6d4" },
+      assert:         { bg: "#634940", fg: "#ffd9c4", accent: "#f43f5e" },
+      script:         { bg: "#5a5134", fg: "#ffe59a", accent: "#f59e0b" },
+      click:          { bg: "#455842", fg: "#deebbb", accent: "#10b981" },
+      wait_ms:        { bg: "#4c5346", fg: "#e0e6d5", accent: "#64748b" },
+    };
+    return map[action] || { bg: "#485448", fg: "#e0e8ce", accent: "#60a5fa" };
+  }
+
+  function getBadgeColor(type) {
+    const colorMap = {
+      step:             { bg: "#485448", fg: "#e0e8ce" },
+      state_change:     { bg: "#5a5134", fg: "#ffe59a" },
+      spin_request:     { bg: "#485448", fg: "#e0e8ce" },
+      spin_result:      { bg: "#455842", fg: "#deebbb" },
+      balance_change:   { bg: "#41575a", fg: "#cfe7e7" },
+      socket_send:      { bg: "#4c5346", fg: "#e0e6d5" },
+      socket_recv:      { bg: "#4c5346", fg: "#e0e6d5" },
+      button_state:     { bg: "#55495d", fg: "#e9d9f2" },
+      free_spin:        { bg: "#5a5134", fg: "#ffe59a" },
+      bonus_transition: { bg: "#5b4956", fg: "#f0d2e6" },
+      popup:            { bg: "#5a5134", fg: "#ffe59a" },
+      error:            { bg: "#634940", fg: "#ffd9c4" },
+    };
+    return colorMap[type] || { bg: "#4c5346", fg: "#e0e6d5" };
+  }
+
+  // Render event rows into the DOM
+  const eventRowEls = [];
+
+  function renderEventRows() {
+    eventsLog.innerHTML = "";
+    eventRowEls.length = 0;
+
+    const query = eventSearch.value.trim().toLowerCase();
+    events.forEach(function (ev, idx) {
+      if (query && !(ev.type + " " + formatEventData(ev)).toLowerCase().includes(query)) return;
+      if (activeFilters.size > 0 && !activeFilters.has(ev.type)) return;
+
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "event-row";
+      row.dataset.t = ev.t;
+      row.dataset.idx = idx;
+
+      // For step events, use action-specific badge and colors
+      var badgeText, badgeColor;
+      if (ev.type === "step" && ev.data) {
+        var action = ev.data.action || "step";
+        badgeText = action.toUpperCase();
+        badgeColor = getStepActionColor(action);
+        // Style the whole row for step events
+        row.style.borderLeft = "3px solid " + badgeColor.accent;
+        row.style.paddingLeft = "8px";
+        if (!ev.data.success) {
+          row.style.background = "#483830";
+        }
+      } else {
+        badgeText = EVENT_BADGES[ev.type] || ev.type;
+        badgeColor = getBadgeColor(ev.type);
+      }
+
+      const badge = document.createElement("span");
+      badge.className = "event-badge";
+      badge.style.background = badgeColor.bg;
+      badge.style.color = badgeColor.fg;
+      badge.textContent = badgeText;
+
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "event-time";
+      timeSpan.textContent = ev.t.toFixed(2) + "s";
+
+      const dataSpan = document.createElement("span");
+      dataSpan.className = "event-data";
+      if (ev.type === "step" && ev.data && !ev.data.success) {
+        dataSpan.style.color = "#ffd9c4";
+      }
+      dataSpan.textContent = formatEventData(ev);
+
+      row.appendChild(timeSpan);
+      row.appendChild(badge);
+      row.appendChild(dataSpan);
+
+      // Click event row -> open detail popup
+      row.addEventListener("click", function () {
+        openEventPopup(ev);
+      });
+
+      eventsLog.appendChild(row);
+      eventRowEls.push({ el: row, t: ev.t });
+    });
+
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = !events.length ? "No events were recorded for this session." :
+      !eventRowEls.length ? "No events match your search and filters." :
+      "No events at this moment. Play the recording or select Show future to explore ahead.";
+    eventsLog.appendChild(empty);
+    syncEventLog();
+  }
+
+  function formatEventData(ev) {
+    var data = ev.data;
+    if (!data) return "";
+
+    // Format step events as readable action lines
+    if (ev.type === "step") {
+      var icon = data.success ? "\u2713" : "\u2717";
+      var line = icon + " " + (data.action || "") + " " + (data.description || "");
+      if (data.detail) line += "  " + data.detail;
+      if (data.error) line += "  ERR: " + data.error;
+      if (data.duration_ms != null) line += "  (" + data.duration_ms + "ms)";
+      return line;
+    }
+
+    const parts = [];
+    for (const [k, v] of Object.entries(data)) {
+      parts.push(k + "=" + JSON.stringify(v));
+    }
+    return parts.join("  ");
+  }
+
+  // Sync event row visibility with current video time
+  function syncEventLog() {
+    const videoT = player.currentTime;
+    // Event timestamp relative to collection start; video time includes offset
+    const currentEventT = videoT - videoEventOffset;
+
+    let lastVisible = null;
+    eventRowEls.forEach(function (item) {
+      const evT = parseFloat(item.el.dataset.t);
+      const isFuture = evT > currentEventT;
+      item.el.classList.remove("future", "current");
+      if (isFuture) {
+        item.el.classList.add("future");
+        if (showFuture) {
+          item.el.classList.remove("hide-future");
+          item.el.classList.add("show-future");
+        } else {
+          item.el.classList.remove("show-future");
+          item.el.classList.add("hide-future");
+        }
+      } else {
+        lastVisible = item.el;
+      }
+    });
+
+    const empty = eventsLog.querySelector(".empty-state");
+    if (empty) empty.hidden = !!lastVisible || (showFuture && eventRowEls.length > 0);
+
+    // Scroll to latest visible event
+    if (lastVisible) {
+      lastVisible.classList.add("current");
+      lastVisible.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  eventSearch.addEventListener("input", renderEventRows);
+
+  // ── Show future toggle ─────────────────────────────────────────────────
+  showFutureBtn.addEventListener("click", function () {
+    showFuture = !showFuture;
+    showFutureBtn.classList.toggle("on", showFuture);
+    showFutureBtn.setAttribute("aria-pressed", String(showFuture));
+    syncEventLog();
+  });
+
+  // ── Step timeline ──────────────────────────────────────────────────────
+  const steps = DATA.steps || [];
+  const stepSegments = [];
+
+  function renderStepTimeline() {
+    // Remove old segments (keep label)
+    timelineBar.querySelectorAll(".step-segment").forEach(function (s) { s.remove(); });
+    stepSegments.length = 0;
+
+    document.getElementById("step-count").textContent = steps.length ? steps.length + " steps · click to seek" : "No steps recorded";
+    steps.forEach(function (step, index) {
+      const seg = document.createElement("button");
+      seg.className = "step-segment";
+      const number = document.createElement("span");
+      number.className = "step-index";
+      number.textContent = String(index + 1).padStart(2, "0");
+      const name = document.createElement("span");
+      name.className = "step-name";
+      name.textContent = step.id || step.action || "Step";
+      const timing = document.createElement("span");
+      timing.className = "step-time";
+      timing.textContent = (step.start_ms / 1000).toFixed(1) + "s – " + (step.end_ms / 1000).toFixed(1) + "s";
+      seg.append(number, name, timing);
+      seg.title = step.id + " (" + step.action + ")" +
+        (step.description ? "\n" + step.description : "") +
+        "\n" + step.start_ms + "ms – " + step.end_ms + "ms";
+
+      // Click step -> seek video to step start
+      seg.addEventListener("click", function () {
+        // step.start_ms is relative to test start; convert to video time
+        const stepStartS = step.start_ms / 1000 + videoEventOffset;
+        player.currentTime = Math.max(0, stepStartS);
+        syncEventLog();
+        updateActiveStep();
+      });
+
+      timelineBar.appendChild(seg);
+      stepSegments.push({ el: seg, step: step });
+    });
+  }
+
+  function updateActiveStep() {
+    const videoT = player.currentTime;
+    const eventT = (videoT - videoEventOffset) * 1000; // ms
+
+    stepSegments.forEach(function (item) {
+      const s = item.step;
+      const active = eventT >= s.start_ms && eventT <= s.end_ms;
+      item.el.classList.toggle("active", active);
+    });
+  }
+
+  function updateTimeDisplay() {
+    const cur = player.currentTime || 0;
+    const dur = videoDuration || 0;
+    seekBar.style.setProperty("--progress", (dur > 0 ? Math.min(100, cur / dur * 100) : 0) + "%");
+    timeDisplay.textContent = cur.toFixed(1) + "s / " + dur.toFixed(1) + "s";
+  }
+
+  // ── Event detail popup ─────────────────────────────────────────────
+  const popupOverlay  = document.getElementById("event-popup-overlay");
+  const popupBadge    = document.getElementById("popup-badge");
+  const popupTitle    = document.getElementById("popup-title");
+  const popupTime     = document.getElementById("popup-time");
+  const popupJson     = document.getElementById("popup-json");
+  const popupCloseBtn = document.getElementById("popup-close-btn");
+  const popupCopyJson = document.getElementById("popup-copy-json");
+  const popupCopyData = document.getElementById("popup-copy-data");
+  const popupSeek     = document.getElementById("popup-seek");
+  let currentPopupEvent = null;
+  let popupTrigger = null;
+
+  function openEventPopup(ev) {
+    popupTrigger = document.activeElement;
+    currentPopupEvent = ev;
+
+    // Badge
+    var badgeText, badgeColor;
+    if (ev.type === "step" && ev.data) {
+      badgeText = (ev.data.action || "step").toUpperCase();
+      badgeColor = getStepActionColor(ev.data.action || "step");
+    } else {
+      badgeText = EVENT_BADGES[ev.type] || ev.type;
+      badgeColor = getBadgeColor(ev.type);
+    }
+    popupBadge.textContent = badgeText;
+    popupBadge.style.background = badgeColor.bg;
+    popupBadge.style.color = badgeColor.fg;
+
+    // Title
+    if (ev.type === "step" && ev.data) {
+      popupTitle.textContent = (ev.data.id || "") + " — " + (ev.data.description || ev.data.action || "");
+    } else {
+      popupTitle.textContent = ev.type.replace(/_/g, " ");
+    }
+
+    // Time
+    popupTime.textContent = ev.t.toFixed(3) + "s";
+
+    // JSON body — formatted
+    popupJson.textContent = JSON.stringify(ev, null, 2);
+
+    popupOverlay.classList.add("open");
+    popupCloseBtn.focus();
+  }
+
+  function closeEventPopup() {
+    popupOverlay.classList.remove("open");
+    currentPopupEvent = null;
+    popupCopyJson.textContent = "Copy JSON";
+    popupCopyJson.classList.remove("copied");
+    popupCopyData.textContent = "Copy Data Only";
+    popupCopyData.classList.remove("copied");
+    if (popupTrigger && popupTrigger.isConnected) popupTrigger.focus();
+  }
+
+  popupCloseBtn.addEventListener("click", closeEventPopup);
+
+  // Close on overlay click (outside popup)
+  popupOverlay.addEventListener("click", function (e) {
+    if (e.target === popupOverlay) closeEventPopup();
+  });
+
+  // Close on Escape
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Tab" && popupOverlay.classList.contains("open")) {
+      if (e.shiftKey && document.activeElement === popupCloseBtn) {
+        e.preventDefault();
+        popupSeek.focus();
+      } else if (!e.shiftKey && document.activeElement === popupSeek) {
+        e.preventDefault();
+        popupCloseBtn.focus();
+      }
+    }
+    if (e.key === "Escape" && popupOverlay.classList.contains("open")) {
+      closeEventPopup();
+    }
+  });
+
+  // Copy full event JSON
+  popupCopyJson.addEventListener("click", function () {
+    if (!currentPopupEvent) return;
+    var text = JSON.stringify(currentPopupEvent, null, 2);
+    navigator.clipboard.writeText(text).then(function () {
+      popupCopyJson.textContent = "Copied!";
+      popupCopyJson.classList.add("copied");
+      setTimeout(function () {
+        popupCopyJson.textContent = "Copy JSON";
+        popupCopyJson.classList.remove("copied");
+      }, 1500);
+    });
+  });
+
+  // Copy data only
+  popupCopyData.addEventListener("click", function () {
+    if (!currentPopupEvent || !currentPopupEvent.data) return;
+    var text = JSON.stringify(currentPopupEvent.data, null, 2);
+    navigator.clipboard.writeText(text).then(function () {
+      popupCopyData.textContent = "Copied!";
+      popupCopyData.classList.add("copied");
+      setTimeout(function () {
+        popupCopyData.textContent = "Copy Data Only";
+        popupCopyData.classList.remove("copied");
+      }, 1500);
+    });
+  });
+
+  // Seek to event time
+  popupSeek.addEventListener("click", function () {
+    if (!currentPopupEvent) return;
+    var videoT = currentPopupEvent.t + videoEventOffset;
+    player.currentTime = Math.max(0, videoT);
+    syncEventLog();
+    updateActiveStep();
+    closeEventPopup();
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  buildFilterBar();
+  renderEventRows();
+  renderStepTimeline();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,810 @@
+# Chaos Runner — Auto Play, Turbo, spin inputs and feature notifications
+# (CR_010, CR_018 … CR_029, CR_041 … CR_043, CR_108 … CR_111) from test-case-chaos.csv.
+#
+# Run:  python scripts/run_scenario.py --game chaos --env dev --suite games/chaos/test-suites/cr-auto-turbo.yml
+#
+# RUN LIFECYCLE (docs/run-lifecycle.md). A clean base is the FRAMEWORK's invariant now, not this
+# file's: PREPARE runs `return-to-base` + `waitForSpinClickable` before every run and CLEANUP does
+# the same after, falling back to a reload. So no run below declares `teardown: return-to-base` —
+# declared teardowns are for EXTRAS only, like topping the wallet back up after a drain.
+#
+# Scenarios here follow docs/scenario-authoring-rules.md: every spin goes through
+# `spin_and_finish()` so a free-spin trigger is played out inside the loop body (Rule 1); bonus
+# drains end on `is_terminal()` (Rule 2); every "…and then it stops" claim goes through
+# `confirm_stopped()` — watched, then held (Rule 4); controls are addressed by ROLE.
+#
+# IMAGE vs VIDEO (follow the Mystic convention — it is ~97% video). Default to `video:`. Reach for
+# `image:` ONLY when ONE still answers the question AND the detail is too fine for a montage —
+# text, glyphs, diacritics, clipping, small payout digits, image sharpness. A video assert grades a
+# DOWNSAMPLED composite, so a missing Burmese mark or a two-pixel clip is simply not in those
+# pixels; conversely anything that CHANGES over time (a popup opening and closing, an animation, a
+# counter ticking, "and then it stopped") cannot be shown by a still at all.
+#
+# An `image:` assert also needs its scenario to CAPTURE stills and RETURN them
+# (`ScenarioResult(..., shots=ctx.shots)`). Miss either and the assert sits at `pending` forever —
+# it reads as "the AI never ran" rather than "there was nothing to grade".
+# tests/chaos/validate_suites.py now fails the suite for both mistakes.
+#
+# All mechanism-free: every run reuses a shared scenario. The profile's dialect translation points
+# the engine's `auto:confirm` / `auto:count:4` at this build's `autoplay:confirm` /
+# `autoplay:count:4`, so nothing here needed rewriting for Chaos.
+#
+# ⚠ THE AUTOPLAY COUNT OPTIONS ARE UNDOCUMENTED. Neither source doc lists them, and the bridge only
+# exposes `autoplay:count:<i>` by index. The shared scenarios use index 4 as "infinite" because that
+# is the reference build's layout — on Chaos that is a GUESS (game_profile.ChaosRunner.AUTO_COUNTS
+# carries the same caveat). The first live run must open the autoplay popup and check what the
+# indices actually are; until then, treat a count-specific failure as a suspected mapping problem
+# rather than a game defect. Cases that depend on a specific index say so in their title.
+#
+# TURBO AND COMPLIANCE. CR_026-029 assume `turboMode = true` on BO. If the build under test has
+# turbo disabled (CR_085), the turbo runs report unreached rather than failing — the profile's
+# HAS_TURBO flag and the instant `has_button` probe both route a missing control to "precondition
+# not met". A feature the build does not ship is not a defect.
+
+runs:
+  # ── CR_018 / 019 / 024 / 025 : a plain auto-play sequence ──────────────────────────
+  - run:
+      scenario: auto-play
+      params: { count: 10 }        # the FIRST count option, whatever it is on this build
+      cases:
+        - id: CR_018
+          title: "Auto Play starts and spins by itself, with the spin button showing the count left"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"
+            - stream: conservation
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner, a 5x3 slot, running an Auto Play sequence of
+                  {facts.rounds_played} observed spin(s). Answer: (1) do the reels spin repeatedly
+                  without the player clicking (spins_unattended)? (2) does the spin button area show
+                  a remaining auto-spin count (count_shown)? (3) does that count decrease as spins
+                  complete (count_decrements)?
+                output_schema:
+                  spins_unattended: { type: boolean }
+                  count_shown: { type: boolean }
+                  count_decrements: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  spins_unattended: true
+                  count_shown: true
+                  count_decrements: true
+                  confidence: medium
+
+        - id: CR_019
+          title: "Auto Play stops by itself once the configured number of spins is used up"
+          assert:
+            - stream: "{facts.rounds_played} == {facts.auto_count}"
+            - stream: "{facts.completed} == True"
+            # Rule 4 (docs/scenario-authoring-rules.md): "it stopped" is a NEGATIVE claim, and a
+            # negative is only worth something if you waited. confirm_stopped() watches
+            # awaitBetResponse for a few seconds — NOTHING ARRIVING IS THE EVIDENCE — then holds so
+            # the still screen is filmed. Collecting N rounds only proves OUR loop ended.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            # Rule 10 — the stream proves the count was honoured; only the clip proves the player
+            # sees it end. CR_018 and CR_024 grade this same footage, but for other moments (auto
+            # running, controls locked); the counter reaching zero is this case's own claim.
+            - video:
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. Auto-play was started for
+                  {facts.auto_count} spins and left to run to the end; the clip then holds still.
+                  Answer: (1) do spins start on their own without a click (auto_ran)? (2) is a
+                  remaining-spins counter visible while it runs, and does it count DOWN
+                  (counter_counts_down)? (3) in the still tail at the end, does the screen show
+                  auto-play has finished on its own — no counter left, the spin button back to its
+                  normal idle look, no further spin starting (auto_finished_on_screen)? (4) is
+                  anything visibly broken — a counter stuck above zero, a stuck overlay,
+                  placeholder text (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  counter_counts_down: { type: boolean }
+                  auto_finished_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  counter_counts_down: true
+                  auto_finished_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+        - id: CR_024
+          title: "While Auto Play runs, bet controls are locked and the menu buttons are disabled"
+          assert:
+            - stream: "{facts.rounds_played} >= 2"     # there was a real run to be locked during
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner during an Auto Play sequence. Answer: (1) are the bet + and -
+                  controls disabled or greyed out (bet_locked)? (2) are the menu-side buttons
+                  (paytable/info, settings, sound, history, trophy) disabled or non-interactive
+                  (menu_locked)? (3) does the spin button show the remaining count rather than a
+                  normal spin icon (spin_shows_count)?
+                output_schema:
+                  bet_locked: { type: boolean }
+                  menu_locked: { type: boolean }
+                  spin_shows_count: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_locked: true
+                  menu_locked: true
+                  spin_shows_count: true
+                  confidence: medium
+
+
+  # ── CR_025 : auto-play uses the bet chosen BEFORE it started ──────────────────────
+  # REUSES Mystic's `auto-change-bet-first` (Mah_020), which exists for exactly this question:
+  # pick a denomination first, then run auto, and check every auto spin carried that stake.
+  # Better than reading `auto-play`'s stake facts, because it CHOOSES the bet rather than
+  # accepting whatever the panel defaulted to — so "unchanged" is measured against a known value.
+  - run:
+      scenario: auto-change-bet-first
+      params: { count: 10 }
+      cases:
+        - id: CR_025
+          title: "Auto Play bets the amount selected before it started, unchanged throughout"
+          assert:
+            # The response's own stake equals the denomination we picked — exact, and it cannot be
+            # satisfied by a bet that changed and changed back between two sampled frames.
+            - stream: "{res.stake} == {facts.picked_bet}"
+            - stream: conservation
+            # Rule 10 — the stake in the RESPONSE being right does not mean the bet LABEL shows it.
+            # A stale or mis-formatted bet display during auto is a real defect, and this run had no
+            # AI assert at all until now. (Mystic grades the same case, Mah_020, with a video.)
+            - video:
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. A bet of {facts.picked_bet} was
+                  selected and THEN auto-play was started; every spin in this clip should be at that
+                  bet. Answer: (1) do spins start on their own without a click (auto_ran)? (2) read
+                  the bet amount shown on the main screen while auto is running (bet_text). (3) does
+                  that bet amount stay the SAME for every spin in the clip — never changing between
+                  spins (bet_unchanged)? (4) is anything visibly broken — a blank or placeholder bet
+                  field, overlapping or cut-off digits (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  bet_text: { type: string }
+                  bet_unchanged: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  bet_unchanged: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_020 : stop on any win — ONE CASE PER WIN SHAPE ──────────────────────────────
+  # "Stop at any win" can be ended by two completely different events, and they look nothing alike:
+  # a LINE WIN on the spin itself, or a FREE-SPIN FEATURE that the spin awards and that then plays
+  # out. A single run cannot say which it will get, so its prompt has to describe both and the AI
+  # grades whichever it happens to see — which is how this case first went orange: it stopped on a
+  # feature, the trigger round paid 0, and the clip (scoped to that one spin) showed no win at all.
+  #
+  # So: two runs, each pinned with `stop_on`. A stop of the wrong shape is discarded and auto is
+  # restarted, so each run captures the event its prompt actually describes.
+
+  # ── CR_020a : a LINE WIN stops it ──────────────────────────────────────────────────
+  # No forced paytable: on the real reels a plain win is the common outcome, so this is the shape
+  # that lands first almost every time.
+  - run:
+      scenario: auto-stop-at-win
+      params: { stop_on: base_win }
+      cases:
+        - id: CR_020a
+          title: "With Stop at Any Win on, Auto Play halts on the first winning spin (line win)"
+          assert:
+            # NOT `{facts.won_via} == base_win`: the evaluator interpolates the value into a
+            # Python expression, so a bare word becomes a NameError. Assert the boolean.
+            - stream: "{facts.won_by_feature} == False"   # this run is about the line-win shape
+            - stream: "{facts.won_payout} > 0"
+            - stream: "{facts.spins_to_win} >= 1"
+            # The rule: it stopped BECAUSE of the win.
+            - stream: "{facts.auto_stopped} == True"
+            - stream: conservation
+            # Rule 4 (docs/scenario-authoring-rules.md): "it stopped" is a NEGATIVE claim, and a
+            # negative is only worth something if you waited. confirm_stopped() watches
+            # awaitBetResponse for a few seconds — NOTHING ARRIVING IS THE EVIDENCE — then holds so
+            # the still screen is filmed. Collecting N rounds only proves OUR loop ended.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            # Rule 10: the asserts above are the game's own account of itself. They cannot see the
+            # screen — `isAutoPlay: false` while the auto counter still spins on the button is a real
+            # defect they would all pass.
+            - video:
+                at: [win, win_end]
+                timestamp: true
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. Auto-play was running with "stop at
+                  any win" enabled, and this clip covers the spin that ENDED it plus everything
+                  after, up to the game sitting still. That spin paid a LINE WIN of
+                  {facts.won_payout} — no free-spin feature was awarded. Answer: (1) was auto-play
+                  visibly running — spins starting on their own without a click (auto_ran)? (2) is a
+                  win presented for that spin — a win amount shown and the winning line(s) marked
+                  (win_shown)? (3) in the still tail at the end, does the screen show auto-play is NO
+                  LONGER running — no auto or remaining-spins counter, the spin button back to its
+                  normal idle look, and no further spin starting by itself (auto_stopped_on_screen)?
+                  (4) is anything visibly broken — a counter still ticking, a stuck overlay,
+                  placeholder text (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  win_shown: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  win_shown: true
+                  auto_stopped_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_020b : a FREE-SPIN FEATURE stops it ─────────────────────────────────────────
+  # The easy-trigger paytable (Rule 6) is what makes this shape reachable at all — unforced, a
+  # trigger is a ~1-in-thousands event and the hunt would give up. `max_win_x` bounds the feature so
+  # a run cannot spin for hundreds of rounds (Rule 9: it may also END the bonus early, which the
+  # scenario discards and retries).
+  #
+  # `tail_dwell_ms` is the padding: after a feature the last thing on screen is the bonus outro, so
+  # without it "is auto still running?" is asked of a screen that is still animating.
+  - run:
+      scenario: auto-stop-at-win
+      # 500, not 10, and for a REASON specific to this case rather than a defect: the claim is
+      # that auto stops when the FEATURE is reached, so the bonus has to be the thing that ends,
+      # not the cap. A capped round ends cleanly and clears the counter (backend fix 2026-09-05,
+      # Rule 9), so a tight cap here would cut the bonus short and grade a stop that the cap
+      # caused. Runaway backstop only — same reason as CR_011.
+      paytable: { ref: chaos-fs-easy, max_win_x: 20 }
+      params: { stop_on: freespin, tail_dwell_ms: 3000 }
+      cases:
+        - id: CR_020b
+          title: "With Stop at Any Win on, Auto Play halts after a free-spin feature is won"
+          assert:
+            - stream: "{facts.won_by_feature} == True"    # this run is about the feature shape
+            # The WHOLE event: the trigger round pays 0 and the money arrives across the drained
+            # bonus, so this is the sum, not the triggering spin's payout.
+            - stream: "{facts.won_payout} > 0"
+            - stream: "{facts.feature_rounds} >= 1"      # the bonus really did play rounds
+            - stream: "{facts.auto_stopped} == True"
+            - stream: conservation
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                # SPAN: the triggering spin -> every free spin -> back to base -> the idle tail.
+                # win_end's window runs to the end of the scenario, so it carries confirm_stopped's
+                # hold and the tail_dwell padding with it.
+                at: [win, win_end]
+                timestamp: true
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. Auto-play was running with "stop at
+                  any win" enabled. This clip covers the spin that AWARDED A FREE-SPIN FEATURE, the
+                  {facts.feature_rounds} free spin(s) that then played out, the return to the normal
+                  base game, and a still tail at the end. The feature paid {facts.won_payout} in
+                  total. Note the triggering spin shows a FEATURE AWARD, not a line win. Answer:
+                  (1) was auto-play visibly running before the trigger — spins starting on their own
+                  without a click (auto_ran)? (2) is a free-spin feature clearly awarded and then
+                  played — an award/intro for it and free spins running (feature_played)? (3) does
+                  the game return to the normal base game afterwards (returned_to_base)? (4) in the
+                  still tail at the end, does the screen show auto-play is NO LONGER running — no
+                  auto or remaining-spins counter, the spin button back to its normal idle look, and
+                  no further spin starting by itself (auto_stopped_on_screen)? (5) is anything
+                  visibly broken — a counter still ticking, a stuck overlay, placeholder text
+                  (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  feature_played: { type: boolean }
+                  returned_to_base: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  feature_played: true
+                  returned_to_base: true
+                  auto_stopped_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_022 : the player stops it ───────────────────────────────────────────────────
+  - run:
+      scenario: auto-user-stop
+      cases:
+        - id: CR_022
+          title: "Pressing Stop ends Auto Play after the current spin finishes (count index 4 = infinite — VERIFY THE INDEX)"
+          assert:
+            - stream: "{facts.spins_before_stop} >= 1"
+            - stream: "{facts.auto_stopped} == True"
+            - stream: conservation
+            # Rule 4 (docs/scenario-authoring-rules.md): "it stopped" is a NEGATIVE claim, and a
+            # negative is only worth something if you waited. confirm_stopped() watches
+            # awaitBetResponse for a few seconds — NOTHING ARRIVING IS THE EVIDENCE — then holds so
+            # the still screen is filmed. Collecting N rounds only proves OUR loop ended.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            # Rule 10 — the stream proves it stopped; only the clip proves the screen says so.
+            - video:
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. Auto-play was running and partway
+                  through the player pressed Stop ({facts.spins_before_stop} spin(s) had run). The
+                  clip continues for several seconds after that and then holds still. Answer: (1)
+                  was auto-play visibly running beforehand — spins starting on their own without a
+                  click (auto_ran)? (2) in the still tail at the end, does the screen show auto-play
+                  is NO LONGER running — no auto or remaining-spins counter, the spin button back to
+                  its normal idle look, and no further spin starting by itself
+                  (auto_stopped_on_screen)? (3) is anything visibly broken — a counter still
+                  ticking, a stuck overlay, placeholder text (display_broken)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  auto_stopped_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_010 / CR_021 : auto-play meets an empty wallet ──────────────────────────────
+  - run:
+      scenario: auto-until-empty
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: CR_021
+          title: "Auto Play stops and warns when the balance can no longer cover the bet"
+          assert:
+            - stream: "{facts.spins_played} >= 1"
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: conservation
+            # Rule 4 (docs/scenario-authoring-rules.md): "it stopped" is a NEGATIVE claim, and a
+            # negative is only worth something if you waited. confirm_stopped() watches
+            # awaitBetResponse for a few seconds — NOTHING ARRIVING IS THE EVIDENCE — then holds so
+            # the still screen is filmed. Collecting N rounds only proves OUR loop ended.
+            - stream: "{facts.extra_round_after_stop} == False"
+            # The money really ran out -- this is what makes it an OUT-OF-MONEY stop rather than
+            # auto simply ending for some other reason. Read from the SERVER balance after each
+            # round, because a winning spin tops the wallet back up: funding N bets does not mean
+            # the wallet is empty after N spins.
+            - stream: "{facts.balance_below_bet} == True"
+            # NO `auto_flag_after` assert here, unlike CR_020. When the balance runs out the client
+            # stays in the auto STATE and puts the out-of-money popup up; the popup is what stops
+            # any further bet, and the flag only clears once it is dealt with. Verified live
+            # 2026-09-04: no further round was wagered and the screen was plainly idle, yet
+            # isAutoPlay stayed true. Asserting it here would fail a game that behaved correctly.
+            # Still exposed as a fact; CR_020 (stop-at-win, no popup) still asserts it.
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner running Auto Play until the balance runs out. The clip deliberately
+                  continues for about {facts.stop_watch_s} seconds AFTER the last spin and then
+                  holds still — during that tail the reels must not start again. A clip that simply
+                  ends is not evidence; judge the tail. Answer: (1) does Auto Play stop on its own
+                  when funds run out (auto_stopped)? (2) does an insufficient-funds message or popup
+                  appear (popup_shown)? (3) do any further spins start during the tail
+                  (spins_after_popup)?
+                output_schema:
+                  auto_stopped: { type: boolean }
+                  popup_shown: { type: boolean }
+                  spins_after_popup: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_stopped: true
+                  popup_shown: true
+                  spins_after_popup: false
+                  confidence: medium
+
+        - id: CR_010
+          title: "Auto Play does not keep betting once the balance is exhausted"
+          assert:
+            # Same play, the money half of it: the final balance could not cover another bet.
+            - stream: conservation
+            - stream: "{facts.stopped_on_empty} == True"
+            # Rule 10, no `video:` here ON PURPOSE: CR_021 above is the SAME run and its clip already
+            # grades what this play looks like (auto stopping, the insufficient-funds message). This
+            # case is the money half of that footage and adds no separate screen claim, so a second
+            # AI call would grade the same pixels twice.
+
+  # ── CR_023 : reload cancels auto-play ──────────────────────────────────────────────
+  - run:
+      scenario: auto-reload-cancels
+      cases:
+        - id: CR_023
+          title: "Auto Play does not resume after a reload; the game returns to its default state"
+          assert:
+            - stream: "{facts.spins_before_reload} >= 1"   # it really was running before the reload
+            - stream: "{facts.auto_cancelled} == True"
+            # Rule 4 (docs/scenario-authoring-rules.md): "it stopped" is a NEGATIVE claim, and a
+            # negative is only worth something if you waited. confirm_stopped() watches
+            # awaitBetResponse for a few seconds — NOTHING ARRIVING IS THE EVIDENCE — then holds so
+            # the still screen is filmed. Collecting N rounds only proves OUR loop ended.
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            # Rule 10 — a reload that clears the FLAG but repaints an auto-looking control is a real
+            # defect the asserts above cannot see.
+            - video:
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row payline slot. Auto-play was running
+                  ({facts.spins_before_reload} spin(s)) and then the game was RELOADED. Answer: (1)
+                  after the reload finishes, is the game sitting idle in the base game
+                  (idle_after_reload)? (2) is auto-play NOT running — no auto or remaining-spins
+                  counter, the spin button in its normal idle look, and no spin starting by itself
+                  (auto_not_running_after_reload)? (3) is anything visibly broken — a blank screen,
+                  a stuck loader, placeholder text (display_broken)?
+                output_schema:
+                  idle_after_reload: { type: boolean }
+                  auto_not_running_after_reload: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  idle_after_reload: true
+                  auto_not_running_after_reload: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_026 / 027 / 028 / 029 : turbo, held and toggled ─────────────────────────────
+  - run:
+      scenario: turbo-modes
+      # ONE AI CALL FOR THE WHOLE RUN.
+      #
+      # These four cases all grade the SAME clip -- none of them narrows it with `at:` -- so as four
+      # separate `video:` asserts they uploaded and analysed that clip four times over, for four
+      # prompts that differ only in which moment they ask about. A run-level `video:` block with
+      # `expected_by_case` is analysed ONCE and graded against each case's expected subset, so a
+      # failure still lands on the case it belongs to (see build_cases in scripts/run_scenario.py).
+      #
+      # The prompt therefore has to describe the whole sequence, not one moment. `timestamp: true`
+      # puts the ACTION TIMELINE in front of the model so it can line each question up with the
+      # step it is about; the scenario marks TURBO ON / TURBO OFF / the two holds for exactly this.
+      # `high_fps` is kept because three of the four questions are about gestures lasting ~1.5s.
+      #
+      # The two hold cases had to be renamed apart: both used to ask `turbo_on_during_hold`, which
+      # in one shared schema would have collided into a single answer covering both gestures.
+      video:
+        timestamp: true
+        high_fps: true
+        prompt: >-
+          Chaos Runner. ONE recording of a normal spin and four separate turbo behaviours, in this
+          order -- use the action timeline to tell them apart:
+          (0) one spin is taken with Turbo OFF;
+          (A) the Turbo button is switched ON and a spin is taken;
+          (B) Turbo is switched back OFF;
+          (C) the Spin button is pressed and HELD with the mouse, which both starts a spin and keeps
+          the control held while the reels are already turning;
+          (D) the Space key is pressed and HELD.
+          Answer each of the following about the moment it names, and answer independently -- some
+          may be true while others are false:
+          (1) turbo_faster: is the spin taken in (A), with Turbo ON, visibly faster to resolve than
+          the spin taken in (0), with Turbo OFF?
+          (2) button_state_changed: does the Turbo button itself change appearance between its ON
+          and OFF states?
+          (3) turbo_on_during_mouse_hold: during (C), does turbo / fast mode become active while the
+          mouse stays held down?
+          (4) turbo_off_after_mouse_release: after the mouse in (C) is released, does the game go
+          back to normal speed?
+          (5) turbo_on_during_key_hold: during (D), does turbo become active while Space stays held?
+          (6) turbo_off_after_key_release: after Space is released, does it go back to normal speed?
+          (7) sudden_stop: in (C), where the control is held while the reels are ALREADY turning, do
+          the reels stop immediately instead of running their full spin?
+          (8) result_intact: after that sudden stop, is the round's result still presented correctly?
+          (9) animation_broken: at ANY point in the clip, does a reel freeze, stutter, or get stuck
+          in the turbo state?
+        output_schema:
+          turbo_faster: { type: boolean }
+          button_state_changed: { type: boolean }
+          turbo_on_during_mouse_hold: { type: boolean }
+          turbo_off_after_mouse_release: { type: boolean }
+          turbo_on_during_key_hold: { type: boolean }
+          turbo_off_after_key_release: { type: boolean }
+          sudden_stop: { type: boolean }
+          result_intact: { type: boolean }
+          animation_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        # Each case is graded against ONLY its own fields. `confidence` is a minimum ("at least"),
+        # so the toggle case can still demand a firmer read than the hold cases, which are genuinely
+        # hard to see, off one shared answer.
+        expected_by_case:
+          CR_026:
+            turbo_faster: true
+            button_state_changed: true
+            confidence: medium
+          CR_027:
+            turbo_on_during_mouse_hold: true
+            turbo_off_after_mouse_release: true
+            confidence: low
+          CR_028:
+            turbo_on_during_key_hold: true
+            turbo_off_after_key_release: true
+            confidence: low
+          CR_029:
+            sudden_stop: true
+            result_intact: true
+            animation_broken: false
+            confidence: low
+      cases:
+        - id: CR_026
+          title: "Toggling Turbo speeds the reels up and back down"
+          assert:
+            # getSpeedMode() is the hard check that turbo really engaged — without it this is only
+            # an AI impression of "looked faster".
+            - stream: "{facts.speed_toggled} == True"
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+            # The screen half is the run-level `video:` above (turbo_faster, button_state_changed).
+
+        - id: CR_027
+          title: "Holding the mouse on Spin engages Turbo for the duration of the hold"
+          assert:
+            - stream: "{facts.mouse_hold_done} == True"
+            - stream: "{facts.turbo_control_present} == True"
+            # Screen half: turbo_on_during_mouse_hold / turbo_off_after_mouse_release above.
+
+        - id: CR_028
+          title: "Holding the Space key engages Turbo for the duration of the hold"
+          assert:
+            - stream: "{facts.key_hold_done} == True"
+            # Screen half: turbo_on_during_key_hold / turbo_off_after_key_release above.
+
+        - id: CR_029
+          title: "Holding during a spin sudden-stops the reels without breaking the animation"
+          assert:
+            - stream: conservation                      # the outcome survived the interruption
+            # Screen half: sudden_stop / result_intact / animation_broken above.
+
+  # ── CR_041 / 042 / 043 : the spin control itself ───────────────────────────────────
+  - run:
+      scenario: spin-inputs
+      # ONE AI CALL FOR THE WHOLE RUN (Rule 16).
+      #
+      # CR_042 and CR_043 both graded this same clip -- neither narrows it with `at:` -- so as two
+      # separate `video:` asserts the recording was uploaded and analysed twice for two prompts
+      # about two moments of it. A run-level `video:` block with `expected_by_case` is analysed ONCE
+      # and graded against each case's own expected subset, so a failure still lands on its case.
+      #
+      # BOTH CASES ASKED `sudden_stop`, about DIFFERENT gestures -- a held button in CR_042, a
+      # double-click in CR_043. Merged as-is that would collapse into a single answer covering both,
+      # and the two cases could never disagree. They are renamed apart below.
+      #
+      # CR_041 stays without any AI claim on purpose (see its own note): it owns the arithmetic,
+      # which is exactly what a downsampled montage cannot settle.
+      video:
+        timestamp: true            # the ACTION TIMELINE is how the model tells the gestures apart
+        high_fps: true             # CR_043's double-click and the mid-spin holds are ~200ms events
+        prompt: >-
+          Chaos Runner. ONE recording of every way to start or interrupt a spin, in this order --
+          use the action timeline to tell them apart:
+          (A) a spin is started by CLICKING the Spin button;
+          (B) a spin is started by pressing the SPACE key;
+          (C) the Spin button is PRESSED AND HELD for about 1.8 seconds, then released;
+          (D) a spin is started, and while its reels are already turning the Spin button is held
+          down briefly;
+          (E) a spin is started, and while its reels are already turning the Spin control is
+          DOUBLE-CLICKED.
+          Answer each of the following about the moment it names, and answer independently -- some
+          may be true while others are false:
+          (1) auto_spin_started: during (C), does holding the button start a repeating / automatic
+          run of spins rather than just one?
+          (2) stops_on_release: does that repeating run end when the button is released?
+          (3) sudden_stop_on_hold: in (D), do the already-turning reels stop early because the
+          button is held, instead of running their full spin?
+          (4) sudden_stop_on_double_click: in (E), do the already-turning reels stop immediately on
+          the double-click?
+          (5) result_intact: after the double-click in (E), is the round's result still shown and
+          paid correctly?
+          (6) animation_broken: at ANY point in the clip, do the reels stall, glitch, or lose the
+          result?
+          (7) one_spin_from_button_click: at (A) does the single click start EXACTLY ONE spin -- one
+          spin begins, and no further spin starts before the Space press at (B)?
+          (8) one_spin_from_space_key: at (B) does the single Space press start EXACTLY ONE spin --
+          one spin begins, and no further spin starts before the hold at (C)?
+          For (7) and (8), a spin that never starts at all is FALSE, and so is a second spin
+          starting on its own before the next marked action.
+        output_schema:
+          auto_spin_started: { type: boolean }
+          stops_on_release: { type: boolean }
+          sudden_stop_on_hold: { type: boolean }
+          sudden_stop_on_double_click: { type: boolean }
+          result_intact: { type: boolean }
+          animation_broken: { type: boolean }
+          one_spin_from_button_click: { type: boolean }
+          one_spin_from_space_key: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        # Each case is graded ONLY against its own fields. `confidence` is a minimum ("at least"),
+        # so a case can still demand a firmer read than its neighbours off one shared answer.
+        expected_by_case:
+          # CR_041's SCREEN half. The exact count stays on the stream asserts below -- this is the
+          # corroboration, and it is only askable because each input is MARKED: the model counts
+          # spins BETWEEN two known moments rather than trying to judge "was that one spin or two?"
+          # from an unanchored clip. Low confidence expected: fast spins are genuinely hard to count.
+          CR_041:
+            one_spin_from_button_click: true
+            one_spin_from_space_key: true
+            confidence: low
+          CR_042:
+            auto_spin_started: true
+            stops_on_release: true
+            sudden_stop_on_hold: true
+            confidence: medium
+          CR_043:
+            sudden_stop_on_double_click: true
+            result_intact: true
+            animation_broken: false
+            confidence: medium
+      cases:
+        - id: CR_041
+          title: "Both the Spin button and the Space key start exactly one spin each"
+          assert:
+            # Exact and decisive: one PAID round per input. A double-fire shows up as a count
+            # mismatch, which no amount of watching the reels would settle reliably. These count
+            # base rounds only (base_rounds_since), so a bonus drained mid-sequence cannot inflate
+            # them — that is the trap docs/scenario-authoring-rules.md calls out for this claim.
+            - stream: "{facts.click_rounds} == 1"
+            - stream: "{facts.key_rounds} == 1"
+            - stream: conservation
+            # The STREAM owns the arithmetic and stays the decisive check: a double-fire is two
+            # responses, which is exact, where a downsampled montage can make two fast spins look
+            # like one. The run-level `video:` adds the screen half anyway
+            # (one_spin_from_button_click / one_spin_from_space_key) -- worth asking here because
+            # every input is MARKED, so the model counts spins BETWEEN two known moments instead of
+            # judging a spin count from unanchored footage. It rides on the shared call, so it is
+            # free. If the two ever disagree, believe the stream and look at the clip to see why.
+
+        - id: CR_042
+          title: "Holding Spin engages auto-spin, and holding on through a spin sudden-stops it"
+          assert:
+            - stream: "{facts.hold_done} == True"
+            # Screen half: auto_spin_started / stops_on_release / sudden_stop_on_hold, in the
+            # run-level `video:` above.
+
+        - id: CR_043
+          title: "Double-clicking during a spin sudden-stops the reels and keeps the result"
+          assert:
+            - stream: "{facts.dblclick_done} == True"
+            - stream: conservation                      # the payout was not lost to the interruption
+            # Screen half: sudden_stop_on_double_click / result_intact / animation_broken above.
+
+  # ── CR_108 : the Turbo notification ────────────────────────────────────────────────
+  # REUSES Mystic's `toggle-turbo` (Mah_105). It toggles Turbo ON then OFF from the main screen and
+  # DWELLS after each click so the notification sits in frame long enough to be read — which a
+  # rapid burst deliberately does not do. It also reads getSpeedMode() around each click, so
+  # "the feature really toggled" stays exact and only "the notification appeared" is left to the AI.
+  - run:
+      scenario: toggle-turbo
+      params: { dwell_ms: 2000 }
+      cases:
+        - id: CR_108
+          title: "Toggling Turbo raises the Turbo Enabled / Disabled notification"
+          assert:
+            # Hard companion: the speed mode actually changed, so there WAS a toggle to notify about.
+            - stream: "{facts.speed_before} != {facts.speed_after_on}"
+            - stream: "{facts.toggled_off} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. The Turbo control is switched ON and then OFF, with a pause after
+                  each so any notification is readable. Answer: (1) does a notification appear when
+                  Turbo is enabled (popup_on_enable)? (2) does one appear when it is disabled
+                  (popup_on_disable)? (3) transcribe whichever notification text is most legible
+                  (notification_text).
+                output_schema:
+                  popup_on_enable: { type: boolean }
+                  popup_on_disable: { type: boolean }
+                  notification_text: { type: string }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  popup_on_enable: true
+                  popup_on_disable: true
+                  confidence: low
+
+  # ── CR_110 : the Auto Play notification ────────────────────────────────────────────
+  # REUSES Mystic's `toggle-auto` (Mah_107): start auto, let ONE spin play so it is genuinely
+  # running, then stop it from the main screen — dwelling after both so each notification is
+  # readable. Starting and immediately stopping would not prove auto ever ran.
+  - run:
+      scenario: toggle-auto
+      params: { count_index: 0, spins_before_stop: 1, dwell_ms: 2000 }
+      cases:
+        - id: CR_110
+          title: "Toggling Auto Play raises the Auto Play Enabled / Disabled notification"
+          assert:
+            - stream: "{facts.auto_started} == True"
+            - stream: "{facts.stop_clicked} == True"
+            - stream: "{facts.spins_played} >= 1"       # it genuinely ran before being stopped
+            - stream: "{facts.returned_to_idle} == True"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. Auto Play is started, one spin plays, then it is stopped. Answer:
+                  (1) does a notification appear when Auto Play starts (popup_on_enable)? (2) does
+                  one appear when it stops (popup_on_disable)?
+                output_schema:
+                  popup_on_enable: { type: boolean }
+                  popup_on_disable: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  popup_on_enable: true
+                  popup_on_disable: true
+                  confidence: low
+
+  # ── CR_111 : several notifications in rapid succession ─────────────────────────────
+  # stacked-popups keeps ONLY the burst case. CR_108/CR_110 moved to the dedicated Mystic
+  # scenarios above, which dwell on each toggle — the opposite of what a burst is for.
+  # (CR_109, the Ante Bet notification, lives in cr-ante.yml next to the rest of the ante cases.)
+  - run:
+      scenario: stacked-popups
+      # ONE AI CALL FOR THE WHOLE RUN (Rule 16).
+      #
+      # All three cases grade this same burst -- none narrows it with `at:` -- so as separate
+      # `video:` asserts the clip was uploaded and analysed three times. A run-level block with
+      # `expected_by_case` analyses it ONCE and grades each case against its own fields.
+      #
+      # CR_111b and CR_111c both asked `popup_on_enable` / `popup_on_disable`, about DIFFERENT
+      # features. Merged as-is those collapse into one answer and the two cases can never disagree,
+      # so they are renamed apart below.
+      #
+      # WHICH features are toggled is PROBED from the build (GAME.FEATURE_TOGGLES -- turbo, ante and
+      # sound for Chaos), and the scenario deliberately never starts Auto Play. The prompt therefore
+      # leans on the ACTION TIMELINE to say what was tapped and in what order, rather than naming a
+      # fixed set the build might not have.
+      video:
+        timestamp: true
+        high_fps: true          # the whole point is that the taps are back-to-back
+        prompt: >-
+          Chaos Runner. Several main-screen feature toggles are switched ON and OFF back-to-back,
+          with no pause between them, raising {facts.toggles_landed} notifications in a second or
+          two, notification display as text right above the bet amount section, inside the reel. The ACTION TIMELINE lists every tap and the feature it belongs to -- use it, and do
+          not assume which features are involved. No spin is played.
+          Answer each of the following independently:
+          (1) turbo_notification_shown: does a notification appear for the TURBO control, both when
+          it is switched on and when it is switched off?
+          (2) second_feature_notification_shown: does at least one OTHER feature -- any toggle in the
+          timeline that is not Turbo -- also raise its own notification during the burst?
+          (3) notification_text: transcribe whichever notification text is most legible.
+          (4) shown_sequentially: do the notifications appear one after another rather than piling up
+          on screen together?
+          (5) overlap: do any two notifications overlap or draw on top of each other?
+        output_schema:
+          turbo_notification_shown: { type: boolean }
+          second_feature_notification_shown: { type: boolean }
+          notification_text: { type: string }
+          shown_sequentially: { type: boolean }
+          overlap: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        # Each case is graded ONLY against its own fields; `confidence` is a minimum ("at least").
+        expected_by_case:
+          CR_111b:
+            turbo_notification_shown: true
+            confidence: medium
+          CR_111c:
+            second_feature_notification_shown: true
+            confidence: medium
+          CR_111:
+            shown_sequentially: true
+            overlap: false
+            covers_key_ui: false
+            confidence: medium
+      cases:
+        - id: CR_111b
+          title: "The rapid burst really did toggle several features (companion for CR_111)"
+          assert:
+            - stream: "{facts.toggles_landed} >= 2"      # on AND off both landed
+            # Screen half: turbo_notification_shown, in the run-level `video:` above.
+
+        - id: CR_111c
+          title: "A second feature's notification also appeared in the burst (companion for CR_111)"
+          # RETITLED. This used to read "Auto Play was one of the features the burst toggled" and its
+          # prompt asked whether an Auto Play notification appeared -- but `stacked-popups` never
+          # starts Auto Play (it says so itself), and Chaos's FEATURE_TOGGLES are turbo / ante /
+          # sound. The case was asking the AI about something that cannot happen in this clip.
+          # Its PURPOSE is intact and is what it now asserts: more than one feature notified, which
+          # is what makes CR_111's "several notifications in succession" meaningful.
+          assert:
+            - stream: "{facts.toggles_landed} >= 1"
+            # Screen half: second_feature_notification_shown above.
+
+        - id: CR_111
+          title: "Rapid consecutive toggles queue their notifications without overlapping"
+          assert:
+            # The burst has to have been RAPID for the case to mean anything — the scenario probes
+            # each control with an instant getButtonRect rather than waiting, precisely so the
+            # clicks land back to back.
+            - stream: "{facts.toggles_landed} >= 3"
+            - stream: "{facts.max_concurrent_popups} <= 1"
+            # Screen half: shown_sequentially / overlap / covers_key_ui above.

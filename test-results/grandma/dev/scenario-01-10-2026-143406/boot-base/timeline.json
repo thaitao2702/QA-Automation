@@ -1,0 +1,21 @@
+[
+  {
+    "id": "shot-0",
+    "action": "shot",
+    "description": "screenshot: base",
+    "start_ms": 10407,
+    "end_ms": 10650,
+    "result": {
+      "label": "base",
+      "file": "00-base.png"
+    }
+  },
+  {
+    "id": "settle-1",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 10650,
+    "end_ms": 11675,
+    "result": null
+  }
+]

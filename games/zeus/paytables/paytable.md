@@ -311,6 +311,37 @@ one file ad-hoc.
 Naming is illustrative — pick whatever convention fits the deployment
 pipeline. The principle is: one file per behavioural axis you want to pin.
 
+#### The fixtures this repo actually ships
+
+`games/zeus/paytables/` holds four, and `games/zeus/test-suites/zz-holdspin.yml`
+names which case rides on which:
+
+| File | Base reels | `FreeSpinGame.CoinWeight` | The path it reaches | Cases |
+|---|---|---|---|---|
+| `fs-trigger3-countdown.json` | COIN on reel 1 | all `0` (p = 0) | trigger on 3, **no** new coin, 3→2→1→0 | ZZ-30/32/33/35/36/38 |
+| `fs-trigger3-reset.json` | COIN on reel 1 | all `300` (p = 0.30) | a coin lands, grid does **not** fill → the counter must reset to 3 | ZZ-34 |
+| `fs-trigger3-addcoin.json` | COIN on reel 1 | all `1000` (p = 1) | every empty cell fills at once → 9 **during** the feature | ZZ-37 |
+| `fs-trigger9.json` | COIN on all 3 | all `0` | 9 coins on the **trigger**; no respin is fired | ZZ-31 |
+
+> **Why `fs-trigger3-reset` exists, and why p = 0.30.** A "reset the counter"
+> case cannot run on `p = 1`: from a 3-coin trigger, all six empty cells fill on
+> the first respin, the grid reaches 9, and the feature ends — and a full grid is
+> the one case where **no reset is due**, so the check passes without ever
+> happening. Aim at the middle of the distribution instead (authoring Rule 6).
+> With six empty cells:
+>
+> | p | P(≥1 new coin) | P(instant fill to 9) | P(a reset is observable) |
+> |---|---|---|---|
+> | 0.15 | 0.623 | 0.000011 | **0.623** |
+> | **0.30** | 0.882 | 0.000729 | **0.882** |
+> | 0.40 | 0.953 | 0.004096 | **0.949** |
+> | 1.00 | 1.000 | 1.000000 | **0** |
+>
+> `fs-trigger3-addcoin` is kept unchanged: its instant fill is exactly what
+> ZZ-37 ("filling all 9 during the feature stops it immediately") needs, and
+> there the 100% force is right — the outcome does not scale with the weight,
+> the grid either fills or it does not.
+
 ---
 
 ## 4. Mechanics notes

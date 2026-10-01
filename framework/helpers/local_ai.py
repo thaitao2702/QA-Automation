@@ -44,6 +44,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,10 @@ from framework.helpers.gemini import GeminiResult
 from framework.helpers.gemini_video import VideoResult
 
 logger = logging.getLogger(__name__)
+
+# AI calls run on a thread pool (scripts/ai_video.run_ai); `x += n` on an attribute is not
+# atomic, so the call/token counters the cost summary reads are updated under this lock.
+_COUNTER_LOCK = threading.Lock()
 
 # Request timeout (seconds). Video uploads + on-prem inference can be slow.
 _REQUEST_TIMEOUT = 300
@@ -271,9 +276,13 @@ class LocalVideoHelper(_LocalAIClient):
         output_schema: dict[str, Any],
         ref_images: list[Path] | None = None,
         reference: Any | None = None,
+        high_fps: bool = False,
+        timestamp: bool = False,
     ) -> VideoResult:
-        """Send *video_path* to the local endpoint and parse the response."""
-        self._call_count += 1
+        """Send *video_path* to the local endpoint and parse the response.
+        `high_fps` / `timestamp` accepted for interface parity (raw clip is sent as-is)."""
+        with _COUNTER_LOCK:
+            self._call_count += 1
 
         if ref_images:
             logger.debug(
@@ -355,7 +364,8 @@ class LocalImageHelper(_LocalAIClient):
         reference: Any | None = None,
     ) -> GeminiResult:
         """Send *image_path* to the local endpoint and parse the response."""
-        self._call_count += 1
+        with _COUNTER_LOCK:
+            self._call_count += 1
 
         if extra_images:
             logger.debug(

@@ -1,0 +1,2068 @@
+{
+  "BaseGame": {
+    "Name": "BaseGame",
+    "MultiplierLevels": [
+      {
+        "Level": 1,
+        "Multiplier": 1
+      },
+      {
+        "Level": 2,
+        "Multiplier": 2
+      },
+      {
+        "Level": 3,
+        "Multiplier": 3
+      },
+      {
+        "Level": 4,
+        "Multiplier": 5
+      },
+      {
+        "Level": 5,
+        "Multiplier": 8
+      },
+      {
+        "Level": 6,
+        "Multiplier": 10
+      }
+    ],
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 40
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 5
+              },
+              {
+                "Name": "B",
+                "Weight": 4
+              },
+              {
+                "Name": "C",
+                "Weight": 55
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 40
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 5
+              },
+              {
+                "Name": "B",
+                "Weight": 3
+              },
+              {
+                "Name": "C",
+                "Weight": 55
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 5
+              },
+              {
+                "Name": "P2",
+                "Weight": 40
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 5
+              },
+              {
+                "Name": "B",
+                "Weight": 4
+              },
+              {
+                "Name": "C",
+                "Weight": 55
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 9
+              },
+              {
+                "Name": "P2",
+                "Weight": 45
+              },
+              {
+                "Name": "P3",
+                "Weight": 7
+              },
+              {
+                "Name": "A",
+                "Weight": 9
+              },
+              {
+                "Name": "B",
+                "Weight": 9
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 16
+              },
+              {
+                "Name": "P2",
+                "Weight": 10
+              },
+              {
+                "Name": "P3",
+                "Weight": 17
+              },
+              {
+                "Name": "A",
+                "Weight": 18
+              },
+              {
+                "Name": "B",
+                "Weight": 18
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          }
+        ],
+        "Weight": 12
+      },
+      {
+        "Id": 2,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 43
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 12
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 12
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 12
+              },
+              {
+                "Name": "D",
+                "Weight": 12
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 44
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 12
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 12
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 12
+              },
+              {
+                "Name": "D",
+                "Weight": 12
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 44
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          }
+        ],
+        "Weight": 77
+      },
+      {
+        "Id": 3,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1000
+              },
+              {
+                "Name": "P1",
+                "Weight": 0
+              },
+              {
+                "Name": "P2",
+                "Weight": 0
+              },
+              {
+                "Name": "P3",
+                "Weight": 0
+              },
+              {
+                "Name": "A",
+                "Weight": 0
+              },
+              {
+                "Name": "B",
+                "Weight": 0
+              },
+              {
+                "Name": "C",
+                "Weight": 0
+              },
+              {
+                "Name": "D",
+                "Weight": 0
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 40
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 3
+              },
+              {
+                "Name": "D",
+                "Weight": 50
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 40
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 2
+              },
+              {
+                "Name": "D",
+                "Weight": 50
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 40
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 3
+              },
+              {
+                "Name": "D",
+                "Weight": 50
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 40
+              },
+              {
+                "Name": "P2",
+                "Weight": 10
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 8
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 11
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 0
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 16
+              },
+              {
+                "Name": "P3",
+                "Weight": 18
+              },
+              {
+                "Name": "A",
+                "Weight": 17
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 18
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          }
+        ],
+        "Weight": 11
+      }
+    ],
+    "ReelDistributionThreshold": 1
+  },
+  "FreeGame": {
+    "Name": "FreeGame",
+    "MultiplierLevels": [
+      {
+        "Level": 1,
+        "Multiplier": 2
+      },
+      {
+        "Level": 2,
+        "Multiplier": 4
+      },
+      {
+        "Level": 3,
+        "Multiplier": 6
+      },
+      {
+        "Level": 4,
+        "Multiplier": 10
+      },
+      {
+        "Level": 5,
+        "Multiplier": 16
+      },
+      {
+        "Level": 6,
+        "Multiplier": 20
+      }
+    ],
+    "ReelDistributions": [
+      {
+        "Id": 1,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 6
+              },
+              {
+                "Name": "B",
+                "Weight": 6
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 6
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 7
+              },
+              {
+                "Name": "B",
+                "Weight": 6
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 3
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 3
+              },
+              {
+                "Name": "B",
+                "Weight": 3
+              },
+              {
+                "Name": "C",
+                "Weight": 50
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 2
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 3
+              },
+              {
+                "Name": "B",
+                "Weight": 3
+              },
+              {
+                "Name": "C",
+                "Weight": 50
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 3
+              },
+              {
+                "Name": "P2",
+                "Weight": 50
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 3
+              },
+              {
+                "Name": "B",
+                "Weight": 3
+              },
+              {
+                "Name": "C",
+                "Weight": 50
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 11
+              },
+              {
+                "Name": "P2",
+                "Weight": 8
+              },
+              {
+                "Name": "P3",
+                "Weight": 60
+              },
+              {
+                "Name": "A",
+                "Weight": 10
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 8
+              },
+              {
+                "Name": "P2",
+                "Weight": 17
+              },
+              {
+                "Name": "P3",
+                "Weight": 60
+              },
+              {
+                "Name": "A",
+                "Weight": 16
+              },
+              {
+                "Name": "B",
+                "Weight": 18
+              },
+              {
+                "Name": "C",
+                "Weight": 60
+              },
+              {
+                "Name": "D",
+                "Weight": 20
+              }
+            ]
+          }
+        ],
+        "Weight": 33
+      },
+      {
+        "Id": 2,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 43
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 13
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 12
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 12
+              },
+              {
+                "Name": "D",
+                "Weight": 12
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 43
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 12
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 12
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 12
+              },
+              {
+                "Name": "D",
+                "Weight": 12
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 44
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 12
+              },
+              {
+                "Name": "P3",
+                "Weight": 50
+              },
+              {
+                "Name": "A",
+                "Weight": 12
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 12
+              },
+              {
+                "Name": "D",
+                "Weight": 12
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 10
+              },
+              {
+                "Name": "P2",
+                "Weight": 38
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 43
+              },
+              {
+                "Name": "B",
+                "Weight": 10
+              },
+              {
+                "Name": "C",
+                "Weight": 44
+              },
+              {
+                "Name": "D",
+                "Weight": 44
+              }
+            ]
+          }
+        ],
+        "Weight": 34
+      },
+      {
+        "Id": 3,
+        "Reels": [
+          {
+            "Id": 1,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 6
+              },
+              {
+                "Name": "P3",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 10
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 6
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 2,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 7
+              },
+              {
+                "Name": "P3",
+                "Weight": 6
+              },
+              {
+                "Name": "A",
+                "Weight": 10
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 6
+              },
+              {
+                "Name": "D",
+                "Weight": 60
+              }
+            ]
+          },
+          {
+            "Id": 3,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 3
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 4,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 2
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 2
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 5,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 50
+              },
+              {
+                "Name": "P2",
+                "Weight": 3
+              },
+              {
+                "Name": "P3",
+                "Weight": 3
+              },
+              {
+                "Name": "A",
+                "Weight": 50
+              },
+              {
+                "Name": "B",
+                "Weight": 50
+              },
+              {
+                "Name": "C",
+                "Weight": 3
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 6,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 8
+              },
+              {
+                "Name": "P2",
+                "Weight": 10
+              },
+              {
+                "Name": "P3",
+                "Weight": 10
+              },
+              {
+                "Name": "A",
+                "Weight": 60
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 11
+              },
+              {
+                "Name": "D",
+                "Weight": 40
+              }
+            ]
+          },
+          {
+            "Id": 7,
+            "Symbols": [
+              {
+                "Name": "FreeSpin!",
+                "Weight": 1
+              },
+              {
+                "Name": "P1",
+                "Weight": 17
+              },
+              {
+                "Name": "P2",
+                "Weight": 16
+              },
+              {
+                "Name": "P3",
+                "Weight": 8
+              },
+              {
+                "Name": "A",
+                "Weight": 60
+              },
+              {
+                "Name": "B",
+                "Weight": 60
+              },
+              {
+                "Name": "C",
+                "Weight": 18
+              },
+              {
+                "Name": "D",
+                "Weight": 20
+              }
+            ]
+          }
+        ],
+        "Weight": 33
+      }
+    ],
+    "ReelDistributionThreshold": 1
+  },
+  "Payouts": {
+    "Multipliers": [
+      {
+        "Symbol": "P1",
+        "Multiplier": 1,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 1.5,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 2,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 4,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 7,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 12.5,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 20,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 30,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 50,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 100,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "P1",
+        "Multiplier": 200,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 0.7,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 1,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 1.5,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 3,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 5,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 8,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 12.5,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 20,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 40,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 75,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "P2",
+        "Multiplier": 150,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 0.5,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 0.75,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 1,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 1.5,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 3,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 5,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 7,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 10,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 20,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 40,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "P3",
+        "Multiplier": 80,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 0.4,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 0.5,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 0.75,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 1,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 1.25,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 2,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 3,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 5,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 10,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 20,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "A",
+        "Multiplier": 50,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 0.3,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 0.4,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 0.5,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 0.75,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 1,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 1.5,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 2.5,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 3.5,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 8,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 15,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "B",
+        "Multiplier": 35,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 0.25,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 0.3,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 0.4,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 0.5,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 0.75,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 1.25,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 2,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 3,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 6,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 12,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "C",
+        "Multiplier": 25,
+        "OccurenceCount": 15
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 0.2,
+        "OccurenceCount": 5
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 0.25,
+        "OccurenceCount": 6
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 0.3,
+        "OccurenceCount": 7
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 0.4,
+        "OccurenceCount": 8
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 0.5,
+        "OccurenceCount": 9
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 1,
+        "OccurenceCount": 10
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 1.5,
+        "OccurenceCount": 11
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 2.5,
+        "OccurenceCount": 12
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 5,
+        "OccurenceCount": 13
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 10,
+        "OccurenceCount": 14
+      },
+      {
+        "Symbol": "D",
+        "Multiplier": 20,
+        "OccurenceCount": 15
+      }
+    ],
+    "SymbolOccurenceLimit": 15
+  },
+  "FreeSpins": [
+    {
+      "Occurrences": 3,
+      "FreeSpins": 8
+    },
+    {
+      "Occurrences": 4,
+      "FreeSpins": 10
+    },
+    {
+      "Occurrences": 5,
+      "FreeSpins": 12
+    },
+    {
+      "Occurrences": 6,
+      "FreeSpins": 14
+    },
+    {
+      "Occurrences": 7,
+      "FreeSpins": 16
+    }
+  ]
+}

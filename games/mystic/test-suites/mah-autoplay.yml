@@ -1,0 +1,122 @@
+# Mystic — Auto Play variants (Mah_015, 017, 018, 020, 010/016) from test-case-mahjong.csv.
+# (Mah_014 "stops after N" and Mah_019 "button states" live in mah-001-020.yml as Mah_014_019.)
+#
+# Run:  python scripts/run_scenario.py --env dev --suite games/mystic/test-suites/mah-autoplay.yml
+#
+# ⚠ LIVE-UNVERIFIED: these drive auto:stop / auto:stopAtWin / auto:count:4 (Infinity) and detect the
+# "auto stopped" state by the Spin button becoming clickable again. The button names are documented
+# (bridge-qa-api.md) but not yet exercised — treat the first run as a smoke test of the affordances.
+
+runs:
+  # ── Mah_015 : Stop at Any Win ─────────────────────────────────────────────────────
+  - run:
+      scenario: auto-stop-at-win           # stopAtWin on, Infinity count, spins until the first win
+      teardown: return-to-base
+      cases:
+        - id: Mah_015
+          title: "Auto-play with 'Stop at Any Win' halts right after the first win"
+          assert:
+            - stream: "{res.payout} > 0"                 # the round it stopped on actually won
+            - video:
+                at: win
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Auto-play is running with "stop on any win"
+                  enabled. Does auto spin on its own and then STOP immediately after the first
+                  winning spin (auto no longer running once a win lands)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  stopped_after_first_win: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  stopped_after_first_win: true
+                  confidence: medium
+
+  # ── Mah_017 : User Stop ───────────────────────────────────────────────────────────
+  - run:
+      scenario: auto-user-stop             # Infinity count, a few spins, then user presses stop
+      teardown: return-to-base
+      cases:
+        - id: Mah_017
+          title: "Pressing Stop halts auto-play immediately"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Auto-play is running; partway through the
+                  player presses Stop. Does auto-play stop promptly after Stop is pressed (it
+                  finishes at most the current spin and does not start another)?
+                output_schema:
+                  auto_ran: { type: boolean }
+                  stopped_on_user_stop: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  stopped_on_user_stop: true
+                  confidence: medium
+
+  # ── Mah_018 : Reload cancels auto ─────────────────────────────────────────────────
+  - run:
+      scenario: auto-reload-cancels        # a couple auto spins, then reload
+      teardown: return-to-base
+      cases:
+        - id: Mah_018
+          title: "Reloading the game cancels an active auto-play"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Auto-play was running, then the game was
+                  reloaded. After the reload finishes, is the game sitting idle in the base game
+                  with auto-play NOT running (no auto spins firing, Spin button normal)?
+                output_schema:
+                  auto_not_running_after_reload: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_not_running_after_reload: true
+                  confidence: medium
+
+  # ── Mah_020 : change the bet before starting auto ─────────────────────────────────
+  - run:
+      scenario: auto-change-bet-first      # pick a denomination, then auto for 10; every spin uses it
+      teardown: return-to-base
+      cases:
+        - id: Mah_020
+          title: "Auto-play runs at the bet amount chosen before it started"
+          assert:
+            # response proof: the first auto spin was charged the chosen stake
+            - stream: "{res.stake} == {facts.picked_bet}"
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. The player set the bet to {facts.picked_bet}
+                  and then started auto-play. Does every auto spin use the bet amount
+                  {facts.picked_bet} (the stake shown does not revert to a different value)?
+                output_schema:
+                  bet_stays_at_chosen: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_stays_at_chosen: true
+                  confidence: medium
+
+  # ── Mah_010 / Mah_016 : auto stops when the balance runs out ───────────────────────
+  # Self-funds: sets the wallet to ~3 spins' worth (whole-unit Playsite move) then runs auto until it
+  # runs dry. Needs PLAYSITE_*; the teardown refunds +10000 afterwards. Wins can extend the drain, but
+  # RTP < 100% + the 200-spin cap bound it; reached=false (inconclusive) only if it never runs out.
+  - run:
+      scenario: auto-until-empty
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: Mah_010_016
+          title: "Auto-play stops automatically and shows the out-of-money popup when balance runs out"
+          assert:
+            - video:
+                prompt: >-
+                  Mystic is a 7x7 cluster-pays slot. Auto-play runs until the balance is used up.
+                  When there is no longer enough balance for the next spin, does auto-play STOP on
+                  its own and show a "not enough balance" / out-of-money popup?
+                output_schema:
+                  auto_stopped_on_empty: { type: boolean }
+                  out_of_money_popup: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_stopped_on_empty: true
+                  out_of_money_popup: true
+                  confidence: medium

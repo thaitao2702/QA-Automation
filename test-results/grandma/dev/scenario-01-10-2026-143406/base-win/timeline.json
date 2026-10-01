@@ -1,0 +1,422 @@
+[
+  {
+    "id": "base-0",
+    "action": "base",
+    "description": "base",
+    "start_ms": 29979,
+    "end_ms": 30152,
+    "result": {
+      "seq": 0,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15226.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685095084589057"
+    }
+  },
+  {
+    "id": "settle-1",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 30152,
+    "end_ms": 47974,
+    "result": null
+  },
+  {
+    "id": "base-1",
+    "action": "base",
+    "description": "base",
+    "start_ms": 48481,
+    "end_ms": 48656,
+    "result": {
+      "seq": 1,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15219.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685250248671233"
+    }
+  },
+  {
+    "id": "settle-3",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 48656,
+    "end_ms": 53012,
+    "result": null
+  },
+  {
+    "id": "base-2",
+    "action": "base",
+    "description": "base",
+    "start_ms": 53521,
+    "end_ms": 53654,
+    "result": {
+      "seq": 2,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15212.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685292518866945"
+    }
+  },
+  {
+    "id": "settle-5",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 53654,
+    "end_ms": 61873,
+    "result": null
+  },
+  {
+    "id": "base-3",
+    "action": "base",
+    "description": "base",
+    "start_ms": 62385,
+    "end_ms": 62518,
+    "result": {
+      "seq": 3,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15205.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685366892265473"
+    }
+  },
+  {
+    "id": "settle-7",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 62518,
+    "end_ms": 66288,
+    "result": null
+  },
+  {
+    "id": "base-4",
+    "action": "base",
+    "description": "base",
+    "start_ms": 66793,
+    "end_ms": 66931,
+    "result": {
+      "seq": 4,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15198.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685403877638145"
+    }
+  },
+  {
+    "id": "settle-9",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 66931,
+    "end_ms": 74852,
+    "result": null
+  },
+  {
+    "id": "base-5",
+    "action": "base",
+    "description": "base",
+    "start_ms": 75360,
+    "end_ms": 75491,
+    "result": {
+      "seq": 5,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15191.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685475709288449"
+    }
+  },
+  {
+    "id": "settle-11",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 75491,
+    "end_ms": 85008,
+    "result": null
+  },
+  {
+    "id": "base-6",
+    "action": "base",
+    "description": "base",
+    "start_ms": 85522,
+    "end_ms": 85651,
+    "result": {
+      "seq": 6,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15184.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685560962711553"
+    }
+  },
+  {
+    "id": "settle-13",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 85651,
+    "end_ms": 92918,
+    "result": null
+  },
+  {
+    "id": "base-7",
+    "action": "base",
+    "description": "base",
+    "start_ms": 93425,
+    "end_ms": 93555,
+    "result": {
+      "seq": 7,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15177.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685627249491969"
+    }
+  },
+  {
+    "id": "settle-15",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 93555,
+    "end_ms": 97277,
+    "result": null
+  },
+  {
+    "id": "base-8",
+    "action": "base",
+    "description": "base",
+    "start_ms": 97783,
+    "end_ms": 97942,
+    "result": {
+      "seq": 8,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15170.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685663874154497"
+    }
+  },
+  {
+    "id": "settle-17",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 97942,
+    "end_ms": 108856,
+    "result": null
+  },
+  {
+    "id": "base-9",
+    "action": "base",
+    "description": "base",
+    "start_ms": 109364,
+    "end_ms": 109492,
+    "result": {
+      "seq": 9,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15163.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685760955514881"
+    }
+  },
+  {
+    "id": "settle-19",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 109492,
+    "end_ms": 113317,
+    "result": null
+  },
+  {
+    "id": "base-10",
+    "action": "base",
+    "description": "base",
+    "start_ms": 113824,
+    "end_ms": 113956,
+    "result": {
+      "seq": 10,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15156.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685798368706561"
+    }
+  },
+  {
+    "id": "settle-21",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 113956,
+    "end_ms": 118384,
+    "result": null
+  },
+  {
+    "id": "base-11",
+    "action": "base",
+    "description": "base",
+    "start_ms": 118890,
+    "end_ms": 119018,
+    "result": {
+      "seq": 11,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15149.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685840873783297"
+    }
+  },
+  {
+    "id": "settle-23",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 119018,
+    "end_ms": 122782,
+    "result": null
+  },
+  {
+    "id": "base-12",
+    "action": "base",
+    "description": "base",
+    "start_ms": 123290,
+    "end_ms": 123438,
+    "result": {
+      "seq": 12,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 0.0,
+      "balance": 15142.836,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685877766881281"
+    }
+  },
+  {
+    "id": "settle-25",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 123438,
+    "end_ms": 127159,
+    "result": null
+  },
+  {
+    "id": "base-13",
+    "action": "base",
+    "description": "base",
+    "start_ms": 127671,
+    "end_ms": 127808,
+    "result": {
+      "seq": 13,
+      "phase": "base",
+      "game_state": 1,
+      "free_spins": 0,
+      "total_free_spin": 0,
+      "won_free_spins": 0,
+      "stake": 7.0,
+      "base_stake": 7.0,
+      "payout": 5.6,
+      "balance": 15141.436,
+      "has_max_win": false,
+      "cascades": 1,
+      "round_id": "949685914517372929"
+    }
+  },
+  {
+    "id": "settle-27",
+    "action": "settle",
+    "description": "presentation settle",
+    "start_ms": 127808,
+    "end_ms": 141631,
+    "result": null
+  }
+]

@@ -1,0 +1,138 @@
+{
+  "kind": "run",
+  "scenario": "freespin-zero-balance",
+  "description": "Spend the player's LAST STAKE into a free-spin trigger, then reload and prove the owed free spins still play out with nothing left in the wallet -- a free-spin round does not check the balance, because it costs nothing. Each attempt funds the wallet with EXACTLY one bet, reloads so the client re-reads it, and spins: the stake is debited, so a spin that triggers leaves the player broke with a bonus owed. One free spin is then played and HELD on (observe_ms) so the award and its result are watchable, and the game is reloaded with the bonus still pending. An attempt is DISCARDED and re-hunted when it does not trigger, or when the trigger or the first free spin hits the max-win cap (the server truncates back to base, leaving nothing for the reload to resume). Streams: stake_zero_in_freespins + conservation over the resumed rounds. Exposes facts.broke_at_trigger / balance_after_trigger / observed_before_reload / fs_rounds_resumed / attempts_discarded. Needs PLAYSITE_*; restore the wallet with `teardown: restore-balance`.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    169.95466327667236,
+    277.9564344882965
+  ],
+  "shots": [],
+  "facts": {
+    "stake": 0.1,
+    "balance_after_trigger": 0.0,
+    "broke_at_trigger": true,
+    "triggers_paid_out": 0,
+    "funded_attempts": 2,
+    "attempts_no_trigger": 1,
+    "triggers_capped": 0,
+    "fs_rounds_played": 8,
+    "played_after_zero": true,
+    "reloaded_mid_bonus": false
+  },
+  "marks": {
+    "trigger": 1,
+    "terminal": 9
+  },
+  "cases": [
+    {
+      "id": "TC-010",
+      "title": "Owed free spins play out with an empty wallet",
+      "stream": [
+        {
+          "spec": "{facts.broke_at_trigger} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.fs_rounds_played} >= 1",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.reloaded_mid_bonus} == False",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "stake_zero_in_freespins",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "conservation",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": [
+            "trigger",
+            "terminal"
+          ],
+          "asset_groups": null,
+          "assets": [
+            "symbols.scatter"
+          ],
+          "window": [
+            196.463,
+            277.956
+          ],
+          "status": "pass",
+          "timestamp": true,
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. This clip is a spin that starts free spins, and the free spins that follow.\n(1) spins_play_out: do the free spins play out by themselves, although player balance is zero to the end? (2) blocked_by_balance: does the game ever stop the bonus or show a message about funds? (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "spins_play_out": {
+              "type": "boolean"
+            },
+            "blocked_by_balance": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "spins_play_out": true,
+            "blocked_by_balance": false,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492621632",
+          "timeline_hint": "\n\nACTION TIMELINE (clip-relative seconds, matching the burned-in timestamps):\n- FREE SPINS START: the balance is spent: at t=0.14s\n- EXTENSION OFFER: declined: at t=79.57s",
+          "data": {
+            "spins_play_out": true,
+            "blocked_by_balance": false,
+            "ui_broken": false,
+            "notes": "The bonus round plays to completion and returns to the base game.",
+            "confidence": "high",
+            "reason": "The video shows the full sequence from the triggering spin (t=0.14s) through all 8 free spins to the total win summary. Despite the balance being 0.00 during the feature, the spins are not interrupted. The 'Buy Extra Spin' offer at t=79.57s is a standard gameplay mechanic that occurs after the bonus is finished and does not constitute a block due to insufficient funds."
+          },
+          "mismatches": [],
+          "reason": "The video shows the full sequence from the triggering spin (t=0.14s) through all 8 free spins to the total win summary. Despite the balance being 0.00 during the feature, the spins are not interrupted. The 'Buy Extra Spin' offer at t=79.57s is a standard gameplay mechanic that occurs after the bonus is finished and does not constitute a block due to insufficient funds.",
+          "note": "The video shows the full sequence from the triggering spin (t=0.14s) through all 8 free spins to the total win summary. Despite the balance being 0.00 during the feature, the spins are not interrupted. The 'Buy Extra Spin' offer at t=79.57s is a standard gameplay mechanic that occurs after the bonus is finished and does not constitute a block due to insufficient funds.",
+          "tokens": [
+            6355,
+            1216
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

@@ -1,0 +1,460 @@
+{
+  "kind": "run",
+  "scenario": "open-tutorial",
+  "description": "Open the in-game Info / Tutorial popup and BROWSE THE WHOLE GUIDE: dwell on the top of the page, then wheel DOWN to the bottom one viewport at a time (90% steps, so no band of the document falls between two shots), pausing at each screenful, and rest at the end. The tutorial spans several screens, so a clip of only the first screen cannot support 'the content/images are all correct' \u2014 this exposes every screenful in one clip instead. The page is a CROSS-ORIGIN WebView: only a real mouse wheel can scroll it (the bridge is blocked by the browser) and its scroll position cannot be read back, so the step count is fixed and over-wheeling harmlessly clamps at the end. Marks TUTORIAL TOP / BOTTOM for the ACTION TIMELINE. Exposes facts.tutorial_open (the WebView was really there, not an empty popup), reached_bottom (the full planned scroll was issued \u2014 that the pixels MOVED is a video claim, not a bridge one) and scroll_steps. Set scroll_back=True to also page back UP (Mah_058 next/previous). Unreached if the info button never becomes clickable.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    372.60612750053406,
+    400.5773603916168
+  ],
+  "shots": [
+    {
+      "label": "tutorial-01",
+      "file": "00-tutorial-01.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\00-tutorial-01.png"
+    },
+    {
+      "label": "tutorial-02",
+      "file": "01-tutorial-02.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\01-tutorial-02.png"
+    },
+    {
+      "label": "tutorial-03",
+      "file": "02-tutorial-03.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\02-tutorial-03.png"
+    },
+    {
+      "label": "tutorial-04",
+      "file": "03-tutorial-04.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\03-tutorial-04.png"
+    },
+    {
+      "label": "tutorial-05",
+      "file": "04-tutorial-05.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\04-tutorial-05.png"
+    },
+    {
+      "label": "tutorial-06",
+      "file": "05-tutorial-06.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\05-tutorial-06.png"
+    },
+    {
+      "label": "tutorial-07",
+      "file": "06-tutorial-07.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\06-tutorial-07.png"
+    },
+    {
+      "label": "tutorial-08",
+      "file": "07-tutorial-08.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\07-tutorial-08.png"
+    },
+    {
+      "label": "tutorial-09",
+      "file": "08-tutorial-09.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\08-tutorial-09.png"
+    },
+    {
+      "label": "tutorial-10",
+      "file": "09-tutorial-10.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\09-tutorial-10.png"
+    },
+    {
+      "label": "tutorial-11",
+      "file": "10-tutorial-11.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\10-tutorial-11.png"
+    }
+  ],
+  "facts": {
+    "tutorial_open": true,
+    "scroll_steps": 10,
+    "reached_bottom": true,
+    "scrolled_back": 0,
+    "dwell_s": 2,
+    "shot_count": 11,
+    "is_webview": true,
+    "has_tutorial_webview": true
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-054",
+      "title": "The tutorial opens and its content can be read through",
+      "stream": [
+        {
+          "spec": "{facts.has_tutorial_webview} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.tutorial_open} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.scroll_steps} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [],
+      "image": [
+        {
+          "at": null,
+          "status": "pass",
+          "kind": "schema",
+          "combine": true,
+          "shots": [
+            {
+              "label": "tutorial-01",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\00-tutorial-01.png",
+              "file": "00-tutorial-01.png"
+            },
+            {
+              "label": "tutorial-02",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\01-tutorial-02.png",
+              "file": "01-tutorial-02.png"
+            },
+            {
+              "label": "tutorial-03",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\02-tutorial-03.png",
+              "file": "02-tutorial-03.png"
+            },
+            {
+              "label": "tutorial-04",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\03-tutorial-04.png",
+              "file": "03-tutorial-04.png"
+            },
+            {
+              "label": "tutorial-05",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\04-tutorial-05.png",
+              "file": "04-tutorial-05.png"
+            },
+            {
+              "label": "tutorial-06",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\05-tutorial-06.png",
+              "file": "05-tutorial-06.png"
+            },
+            {
+              "label": "tutorial-07",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\06-tutorial-07.png",
+              "file": "06-tutorial-07.png"
+            },
+            {
+              "label": "tutorial-08",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\07-tutorial-08.png",
+              "file": "07-tutorial-08.png"
+            },
+            {
+              "label": "tutorial-09",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\08-tutorial-09.png",
+              "file": "08-tutorial-09.png"
+            },
+            {
+              "label": "tutorial-10",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\09-tutorial-10.png",
+              "file": "09-tutorial-10.png"
+            },
+            {
+              "label": "tutorial-11",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\10-tutorial-11.png",
+              "file": "10-tutorial-11.png"
+            }
+          ],
+          "prompt": "These screenshots are Grandma Pets' in-game information guide, captured one screenful at a time as it was scrolled from top to bottom. Read them as ONE document, in order, and answer about the whole of it.\n(1) guide_opens: do the screenshots show a real guide with content, rather than an empty frame or a loading screen? (2) pages_differ: does each screenshot show a different part of the guide, i.e. was it paged through rather than showing the same screen repeatedly? (3) text_readable: across every screenful, is the text laid out properly, without running off the edge, overlapping, or being cut in half? (4) images_load: are the pictures actually drawn (symbols, feature artwork) rather than blank boxes, broken-image icons or placeholders? (5) images_in_place: is each picture placed where it belongs next to the text it illustrates, not overlapping text, cut off, or out of place? (6) sections_seen: list the section headings you can read, in order, as a JSON array of strings. (7) ui_broken: on any screenful, is anything else overlapping, placeholder or visibly broken?",
+          "output_schema": {
+            "guide_opens": {
+              "type": "boolean"
+            },
+            "pages_differ": {
+              "type": "boolean"
+            },
+            "text_readable": {
+              "type": "boolean"
+            },
+            "images_load": {
+              "type": "boolean"
+            },
+            "images_in_place": {
+              "type": "boolean"
+            },
+            "sections_seen": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "guide_opens": true,
+            "pages_differ": true,
+            "text_readable": true,
+            "confidence": "medium"
+          },
+          "group": "shared-img-1666492622016",
+          "shot_results": [
+            {
+              "status": "pass",
+              "data": {
+                "guide_opens": true,
+                "pages_differ": true,
+                "text_readable": true,
+                "images_load": true,
+                "images_in_place": true,
+                "sections_seen": [
+                  "Grandma N Pets",
+                  "Wild Multiplier",
+                  "Bonus Feature",
+                  "Walking Wild Feature",
+                  "Buy Bonus - Golden Walk Feature",
+                  "Free Spin Extension",
+                  "1024 Ways",
+                  "MAX WIN",
+                  "Game Limits",
+                  "Game Rules",
+                  "Main Game",
+                  "Game Settings Menu",
+                  "Disconnection And Interruption Policy",
+                  "Additional Information"
+                ],
+                "ui_broken": false,
+                "confidence": "high",
+                "reason": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length."
+              },
+              "mismatches": [],
+              "reason": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+              "note": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+              "tokens": [
+                3461,
+                1766
+              ],
+              "shot": "11 screen(s) graded together",
+              "files": [
+                "00-tutorial-01.png",
+                "01-tutorial-02.png",
+                "02-tutorial-03.png",
+                "03-tutorial-04.png",
+                "04-tutorial-05.png",
+                "05-tutorial-06.png",
+                "06-tutorial-07.png",
+                "07-tutorial-08.png",
+                "08-tutorial-09.png",
+                "09-tutorial-10.png",
+                "10-tutorial-11.png"
+              ]
+            }
+          ],
+          "note": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+          "tokens": [
+            3461,
+            1766
+          ]
+        }
+      ],
+      "verdict": "green"
+    },
+    {
+      "id": "TC-056",
+      "title": "The tutorial's images are present and in place",
+      "stream": [
+        {
+          "spec": "{facts.tutorial_open} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.is_webview} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [],
+      "image": [
+        {
+          "at": null,
+          "status": "pass",
+          "kind": "schema",
+          "combine": true,
+          "shots": [
+            {
+              "label": "tutorial-01",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\00-tutorial-01.png",
+              "file": "00-tutorial-01.png"
+            },
+            {
+              "label": "tutorial-02",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\01-tutorial-02.png",
+              "file": "01-tutorial-02.png"
+            },
+            {
+              "label": "tutorial-03",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\02-tutorial-03.png",
+              "file": "02-tutorial-03.png"
+            },
+            {
+              "label": "tutorial-04",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\03-tutorial-04.png",
+              "file": "03-tutorial-04.png"
+            },
+            {
+              "label": "tutorial-05",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\04-tutorial-05.png",
+              "file": "04-tutorial-05.png"
+            },
+            {
+              "label": "tutorial-06",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\05-tutorial-06.png",
+              "file": "05-tutorial-06.png"
+            },
+            {
+              "label": "tutorial-07",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\06-tutorial-07.png",
+              "file": "06-tutorial-07.png"
+            },
+            {
+              "label": "tutorial-08",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\07-tutorial-08.png",
+              "file": "07-tutorial-08.png"
+            },
+            {
+              "label": "tutorial-09",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\08-tutorial-09.png",
+              "file": "08-tutorial-09.png"
+            },
+            {
+              "label": "tutorial-10",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\09-tutorial-10.png",
+              "file": "09-tutorial-10.png"
+            },
+            {
+              "label": "tutorial-11",
+              "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\open-tutorial\\_shots\\10-tutorial-11.png",
+              "file": "10-tutorial-11.png"
+            }
+          ],
+          "prompt": "These screenshots are Grandma Pets' in-game information guide, captured one screenful at a time as it was scrolled from top to bottom. Read them as ONE document, in order, and answer about the whole of it.\n(1) guide_opens: do the screenshots show a real guide with content, rather than an empty frame or a loading screen? (2) pages_differ: does each screenshot show a different part of the guide, i.e. was it paged through rather than showing the same screen repeatedly? (3) text_readable: across every screenful, is the text laid out properly, without running off the edge, overlapping, or being cut in half? (4) images_load: are the pictures actually drawn (symbols, feature artwork) rather than blank boxes, broken-image icons or placeholders? (5) images_in_place: is each picture placed where it belongs next to the text it illustrates, not overlapping text, cut off, or out of place? (6) sections_seen: list the section headings you can read, in order, as a JSON array of strings. (7) ui_broken: on any screenful, is anything else overlapping, placeholder or visibly broken?",
+          "output_schema": {
+            "guide_opens": {
+              "type": "boolean"
+            },
+            "pages_differ": {
+              "type": "boolean"
+            },
+            "text_readable": {
+              "type": "boolean"
+            },
+            "images_load": {
+              "type": "boolean"
+            },
+            "images_in_place": {
+              "type": "boolean"
+            },
+            "sections_seen": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "images_load": true,
+            "images_in_place": true,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-img-1666492622016",
+          "shot_results": [
+            {
+              "status": "pass",
+              "data": {
+                "guide_opens": true,
+                "pages_differ": true,
+                "text_readable": true,
+                "images_load": true,
+                "images_in_place": true,
+                "sections_seen": [
+                  "Grandma N Pets",
+                  "Wild Multiplier",
+                  "Bonus Feature",
+                  "Walking Wild Feature",
+                  "Buy Bonus - Golden Walk Feature",
+                  "Free Spin Extension",
+                  "1024 Ways",
+                  "MAX WIN",
+                  "Game Limits",
+                  "Game Rules",
+                  "Main Game",
+                  "Game Settings Menu",
+                  "Disconnection And Interruption Policy",
+                  "Additional Information"
+                ],
+                "ui_broken": false,
+                "confidence": "high",
+                "reason": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length."
+              },
+              "mismatches": [],
+              "reason": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+              "note": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+              "tokens": [
+                0,
+                0
+              ],
+              "shot": "11 screen(s) graded together",
+              "files": [
+                "00-tutorial-01.png",
+                "01-tutorial-02.png",
+                "02-tutorial-03.png",
+                "03-tutorial-04.png",
+                "04-tutorial-05.png",
+                "05-tutorial-06.png",
+                "06-tutorial-07.png",
+                "07-tutorial-08.png",
+                "08-tutorial-09.png",
+                "09-tutorial-10.png",
+                "10-tutorial-11.png"
+              ]
+            }
+          ],
+          "note": "The screenshots show a fully functional and populated in-game information guide. Each screenshot displays a different, continuous part of the guide as it's scrolled. All text is clearly laid out and readable, with no overlapping or cut-off parts. Images (symbols, feature artwork) are correctly loaded and placed adjacent to their descriptive text without any visible issues. No other UI elements appear broken or out of place; the header and close button are consistent, and a scrollbar is present, indicating the content's length.",
+          "tokens": [
+            0,
+            0
+          ]
+        }
+      ],
+      "verdict": "green"
+    }
+  ]
+}

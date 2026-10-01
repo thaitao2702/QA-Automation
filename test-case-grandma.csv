@@ -1,0 +1,169 @@
+ID,Module,Test case,Điều kiện,Các bước thực hiện,Kết quả mong đợi
+TC-001,Loading 30%,Game info trả trước 10s,Đang mở game,1. Launch game2. Chờ Game Info response trước 10s,"Thanh loading chạy từ 1% → 30%, sau đó chuyển sang Landing Page và loading tiếp"
+TC-002,Loading 30%,Game info trả sau 10s,Đang mở game,1. Launch game2. Delay Game Info response > 10s3. Quan sát loading,"Thanh loading chạy từ 1% → 30%, sau đó giữ ở 30% chờ nhận Game Info rồi chuyển sang Landing Page và loading tiếp"
+TC-003,Check Denomination,Open game,Game đã được config Denomination,1. Open game2. Kiểm tra Game Info trên Console,Denomination hiển thị đúng config
+TC-004,Check Denomination,Bấm + / -,Game đang ở trạng thái Idle,1. Bấm +2. Bấm -3. Quan sát Bet Amount,Bet Amount tăng/giảm đúng
+TC-005,Check Denomination,Bet Amount level,Game đã được setting Bet Level từ BO,1. Open game với acc mới2. Kiểm tra Bet Amount level,Nhận đúng Bet Level được setting từ BO
+TC-006,Balance,Trừ Balance khi Bet,Balance đủ để bet,1. Kiểm tra Balance hiện tại2. Bấm Bet,Balance = Balance hiện tại - Bet Amount
+TC-007,Balance,Cộng payout sau Bet,Balance đủ để bet,1. Bấm Bet2. Chờ reels quay xong3. Quan sát Balance,Balance = Balance trước Bet + Payout của lượt Bet
+TC-008,Hết số dư,Bấm Bet khi hết Balance,Balance không đủ để Bet,1. Bấm Bet,Hiển thị popup thông báo hết số dư và chặn Bet phía Client
+TC-009,Hết số dư,Auto / Tự động tắt Auto Mode,Auto Mode đang bật và Balance hết,1. Start Auto Mode2. Để Balance về 03. Quan sát game,Hiển thị popup báo hết số dư
+TC-010,Hết số dư,Hết Balance trong FS / Buy Bonus / Promo,Đang ở FS hoặc Buy Bonus hoặc Promo,1. Trigger FS / Buy Bonus / Promo2. Để Balance về 03. Tiếp tục chơi,Có thể chơi tiếp khi hết Balance trong FS / Buy Bonus / Promo
+TC-011,History,History trong Game,Đã hoàn thành 1 lượt Bet,1. Bet2. Mở History trong Game,History đúng Design và đúng kết quả
+TC-012,History,History trên BO,Đã hoàn thành 1 lượt Bet,1. Bet2. Kiểm tra History trên BO,History đúng Design và đúng kết quả
+TC-013,Paytable,UI Paytable Popup,Game đang Idle,1. Click vào Symbol,Paytable Popup hiển thị đúng Flow Design
+TC-014,Paytable,Payout theo Bet Amount,Paytable Popup đang mở,1. Click Symbol2. Thay đổi Bet Amount3. Click lại Symbol4. Quan sát payout,Payout hiển thị đúng công thức = Total Bet × Icon Multiplier
+TC-015,Paytable,Animation Paytable Popup,Paytable Popup đang mở,1. Click Symbol2. Quan sát animation,Animation chạy liên tục theo flow Start → Idle → Stop → Start...
+TC-016,Paytable,Sound Paytable Popup,Sound đang bật,1. Click các Symbol khác nhau2. Quan sát / nghe sound,Sound bật đúng theo từng Symbol
+TC-017,Energy Trail,Click Wild,"Game đang Idle, có Wild Symbol",1. Click Wild,Trigger Energy Trail và hiển thị Paytable Popup
+TC-018,Energy Trail,Click nhiều Wild liên tục,Có nhiều Wild trên reels,1. Click lần lượt nhiều Wild liên tục,Mỗi click tạo 1 Energy Trail; các Energy Trail chạy đúng thứ tự click và không chạy đồng thời
+TC-019,Energy Trail,Kiểm tra đường đi Energy Trail,Có nhiều Wild,1. Click các Wild2. Quan sát Energy Trail,Đường đi của các Energy Trail không được trùng nhau
+TC-020,Energy Trail,Click Wild liên tục,Có nhiều Wild,1. Click liên tục nhiều Wild,"Paytable Popup không mở nhiều popup chồng lên nhau, không flicker/lỗi"
+TC-021,Auto Mode,Bật Auto Mode,Game đang Idle,1. Click Auto Play2. Click Confirm,Auto Mode được bật
+TC-022,Auto Mode,Dừng khi hết Number of Bet,Auto Mode đang bật,1. Set Number of Bet2. Start Auto3. Chờ chạy hết số lượt,Auto Spin dừng khi hết Number of Bet
+TC-023,Auto Mode,Stop at Any Win,"Auto Mode đang bật, Stop at Any Win được chọn",1. Start Auto2. Chờ lượt Bet có Win,Auto Spin dừng khi có Win
+TC-024,Auto Mode,Dừng khi hết Balance,Auto Mode đang bật,1. Start Auto2. Để Balance về 0,Auto Spin dừng và hiển thị popup hết Balance
+TC-025,Auto Mode,User Stop Auto,Auto Mode đang chạy,1. Click Stop Auto,Auto Spin dừng
+TC-026,Auto Mode,Reload / tắt mở Game,Auto Mode đang chạy,1. Reload Page hoặc tắt/mở lại Game,Auto Mode được dừng
+TC-027,Auto Mode,Button state,Auto Mode đang bật,1. Bật Auto2. Quan sát các button,"Button +, -, Buy Bonus, Setting bị disable"
+TC-028,Auto Mode,Hiển thị số lượt quay,Auto Mode đang bật,1. Bật Auto2. Quan sát Spin/Bet button,Bet/Spin button hiển thị đúng số lượt quay
+TC-029,Auto Mode,Thiết lập Bet Amount,Auto Mode đang mở,1. Click Auto Play2. Click +/- điều chỉnh Bet Amount3. Click Confirm,Bet Amount thay đổi đúng theo thao tác
+TC-030,Auto Mode,Auto Spin theo Bet Amount,Auto Mode đã confirm,1. Chọn Bet Amount2. Start Auto,Auto Spin chạy đúng Bet Amount đã chọn
+TC-031,Auto Mode,Enable / Disable notification,Auto Mode,1. Bật Auto2. Tắt Auto,"Hiển thị đúng message: ""Auto-play Enable/Disable"""
+TC-032,Turbo,Bật Turbo,Game đang Idle,1. Bật Turbo2. Spin,Reel quay nhanh hơn và kích hoạt Stop Now
+TC-033,Turbo,Hold chuột khi Turbo ON,Turbo đang bật,1. Nhấn giữ chuột2. Thả chuột,Việc nhấn giữ/thả chuột không ảnh hưởng đến Turbo
+TC-034,Turbo,Enable / Disable notification,Game đang Idle,1. Bật/Tắt Turbo,"Hiển thị đúng message: ""Turbo Enable/Disable"""
+TC-035,Hold for Turbo,Hold chuột,Hold for Turbo được bật,1. Nhấn giữ chuột khoảng 1s2. Thả chuột,"Khi giữ: Turbo sáng và kích hoạt Stop Now. Khi thả: Turbo tắt, game về trạng thái bình thường"
+TC-036,Hold for Turbo,Hold phím Space,Hold for Turbo được bật,1. Nhấn giữ Space khoảng 1s2. Thả Space,"Khi giữ: Turbo sáng và kích hoạt Stop Now. Khi thả: Turbo tắt, game về trạng thái bình thường"
+TC-037,Sound / Music,Hide / Switch Tab,Game đang mở và Sound đang bật,1. Hide game hoặc chuyển tab,Toàn bộ Sound tắt
+TC-038,Sound / Music,Tắt BGM,BGM đang bật,1. Tắt Sound BGM,BGM có Volume = 0
+TC-039,Sound / Music,Tắt Music,Music đang bật,1. Tắt Music,Music có Volume = 0
+TC-040,Auto Reconnect,Disconnect < 20s,Game đang chơi,1. Disconnect < 20s2. Reconnect,Hiển thị text kết nối lại Game và có thể chơi bình thường
+TC-041,Auto Reconnect,Disconnect > 20s,Game đang chơi,1. Disconnect > 20s,Hiển thị Popup chuyển về trang chủ
+TC-042,Auto Reconnect,Change Wi-Fi,Game đang chơi,1. Đổi Wi-Fi từ A → B,Hiển thị Popup chuyển về trang chủ
+TC-043,Auto Reconnect,Login cùng game trên nhiều tab,Cùng account và cùng game,1. Mở cùng game/account trên nhiều tab,Hiển thị Popup chuyển về trang chủ
+TC-044,Auto Reconnect,Auto Mode + Reconnect,Auto Mode đang chạy,1. Bật Auto2. Disconnect3. Reconnect,Auto/Reconnect xử lý đúng theo flow
+TC-045,Auto Reconnect,Switch/Hide tab > 30–45 min,Game đang mở,1. Hide/Switch tab > 30–45 min2. Quay lại Game,Xử lý reconnect đúng flow
+TC-046,Spin,Click Spin button,Game đang Idle,1. Click Spin,"Spin được kích hoạt, Reels bắt đầu quay"
+TC-047,Spin,Nhấn Space,Game đang Idle,1. Nhấn Space,"Spin được kích hoạt, Reels bắt đầu quay"
+TC-048,Spin,Hold Spin button / Space,Game đang Idle,1. Nhấn giữ Spin button hoặc Space2. Quan sát khi đang giữ3. Buông tay,Khi giữ: Auto Spin được kích hoạt; nếu reels đang quay thì kích hoạt Sudden Stop. Khi buông: Auto Spin dừng
+TC-049,Spin,Double click Spin,Reels đang quay,1. Double click Spin button,"Reels dừng ngay lập tức bằng Sudden Stop; kết quả chính xác, không mất animation"
+TC-050,Spin,Response delay,Response từ Server bị delay,1. Trigger Spin2. Delay response,Reels tiếp tục quay cho đến khi nhận response
+TC-051,Multi-Language,Đồng bộ Language,Có nhiều game,1. Thay đổi Language2. Mở các game,Language được đồng bộ giữa các game
+TC-052,Multi-Language,Auto text scaling,Game hỗ trợ multi-language,1. Switch qua các language2. Đặc biệt kiểm tra Burmese/Myanmar,Text không bị tràn viền
+TC-053,Multi-Language,Text không bị cắt,Game hỗ trợ multi-language,1. Switch qua Burmese/Myanmar2. Kiểm tra text,"Text không bị cắt, mất chân"
+TC-054,Tutorial,Nội dung Tutorial,Tutorial đã được config theo Figma,1. Open Tutorial,Nội dung đúng Flow Figma
+TC-055,Tutorial,Payout Base Symbol,Tutorial đang mở,1. Kiểm tra payout Base Symbol2. Thay đổi Bet Amount,Payout đúng Paytable và dynamic theo Bet Amount
+TC-056,Tutorial,Image,Tutorial đang mở,1. Kiểm tra các image,"Image hiển thị đúng, vị trí đúng"
+TC-057,Error Code,Error message,Có Error Code từ Server,1. Trigger từng Error Code,Hiển thị đúng message tương ứng
+TC-058,Error Code,Unknown Error Code,Server trả Error Code không xác định,1. Trigger unknown Error Code,Hiển thị Default Error Message
+TC-059,Replay,Balance - Normal Bet,Có Replay của Normal Bet,1. Open Replay2. Quan sát Balance trước khi reels quay,Trong 0.5s đầu: Balance = Balance sau - Payout + Stake
+TC-060,Replay,Balance sau khi reels quay,Replay Normal Bet,1. Chờ reels quay,Balance = Balance sau - Payout
+TC-061,Replay,Balance sau khi hoàn thành,Replay Normal Bet,1. Chờ Replay hoàn thành,Hiển thị Balance sau theo data trả về
+TC-062,Replay,Balance - Buy Bonus,Có Replay Buy Bonus,1. Open Replay Buy Bonus2. Quan sát Balance trước khi reels quay,Trong 0.5s đầu: Balance = Balance sau - Payout + Buy Bonus Bet
+TC-063,Replay,Balance sau reels - Buy Bonus,Replay Buy Bonus,1. Chờ reels quay,Balance = Balance sau - Payout
+TC-064,Replay,Balance sau hoàn thành - Buy Bonus,Replay Buy Bonus,1. Chờ Replay hoàn thành,Hiển thị Balance sau theo data trả về
+TC-065,Replay,Big Win Normal Bet,Có Replay Big Win Normal Bet,1. Open Replay,Replay Big Win hiển thị đúng
+TC-066,Replay,Big Win FS,Có Replay Big Win FS,1. Open Replay,Replay Big Win FS hiển thị đúng
+TC-067,Replay,Big Win Buy Bonus,Có Replay Big Win Buy Bonus,1. Open Replay,Replay Big Win Buy Bonus hiển thị đúng
+TC-068,Replay,Button state,Đang trong Replay,1. Quan sát các button,#ERROR!
+TC-069,Replay,Turbo / Audio,Đang trong Replay,1. Quan sát Turbo và Audio,Turbo và Audio được enable
+TC-070,Replay,Replay text,Đang trong Replay,1. Quan sát dưới Spin button,"Hiển thị text ""Replay"""
+TC-071,Replay,Watch Again / Copy Link,Replay đã hoàn thành,1. Click Watch Again2. Click Copy Link,Watch Again và Copy Link hoạt động đúng
+TC-072,Promo,Promo Count,Có Promo Count,1. Trigger Promo Count,Hiển thị đúng Promo Count
+TC-073,Promo,Promo Countdown,Có Promo Countdown,1. Trigger Promo Countdown,Hiển thị đúng Countdown
+TC-074,Compliance,Auto Play = false,BO setting autoPlay=false,1. Open game2. Kiểm tra Auto Play,Ẩn Auto Play button và text trong Tutorial
+TC-075,Compliance,Turbo Mode = false,BO setting turboMode=false,1. Open game2. Kiểm tra Turbo và Big Win,Ẩn Turbo button/text trong Tutorial; chặn skip animation Big Win/Total Win và xóa text Press...
+TC-076,Compliance,minSpinDurationSec,BO setting minSpinDurationSec,1. Spin2. Đo thời gian quay,"Reel spin delay đúng theo setting, không lỗi animation"
+TC-077,Compliance,oneClickPerSpin = true,BO setting oneClickPerSpin=true,1. Hold Spin,Không cho Hold Spin
+TC-078,Compliance,realityCheckEnabled,BO setting realityCheckEnabled,1. Spin đến thời điểm Reality Check,Hiển thị Reality Check Popup
+TC-079,Compliance,maxSessionTimeMin,BO setting maxSessionTimeMin,1. Chơi đến hết Session Time,Hiển thị Max Session Popup đúng setting
+TC-080,Compliance,bonusBuyAllowed,BO setting bonusBuyAllowed=false,1. Open game2. Kiểm tra Buy Bonus,Ẩn Buy Bonus button và text trong Tutorial
+TC-081,Compliance,Replay Compliance,Compliance được setting,1. Open Replay2. Kiểm tra Reality Check/Max Session,Replay không hiển thị popup Reality Check và Max Session
+TC-082,Last Bet,Normal Bet không Win,Có Normal Bet không Win,1. Bet2. Open Last Bet,Hiển thị đúng view và Stake
+TC-083,Last Bet,Normal Bet có Win,Có Normal Bet có Win,1. Bet có Win2. Open Last Bet,"Hiển thị View, Win Line, Win Amount và Stake đúng"
+TC-084,Last Bet,Buy Bonus,Đã thực hiện Buy Bonus,1. Buy Bonus2. Open Last Bet,Lưu local màn fake data của Buy Bonus
+TC-085,Last Bet,Change Denom - Normal Bet,Có nhiều Denomination,1. Change Denom2. Bet Normal3. Open Last Bet,Last Bet lấy Bet Level default của Denom List
+TC-086,Last Bet,Change Denom - FS,Đang trong FS,1. Change Denom2. Bet FS3. Kiểm tra Last Bet,Show Stake theo Pending; hết FS mới hiển thị Bet Default của Denom List
+TC-087,Last Bet,Promo,Đang trong Promo,1. Bet trong Promo2. Kiểm tra Last Bet3. Hết Promo,Hiển thị đúng Stake; hết Promo hiển thị theo Bet Level default
+TC-088,Dynamic Game Help,Support setting,BO có setting feature,1. Enable/Disable feature từ BO2. Open Game Help,Feature được ẩn/hiện theo setting BO
+TC-089,Dynamic Game Help,maxWinEnabled,BO setting maxWinEnabled,1. Enable/Disable setting2. Open Game Help,Hiển thị đúng theo setting
+TC-090,Dynamic Game Help,gameLimitsEnabled,BO setting gameLimitsEnabled,1. Enable/Disable setting2. Open Game Help,Hiển thị đúng theo setting
+TC-091,Dynamic Game Help,volatilityEnabled,BO setting volatilityEnabled,1. Enable/Disable setting2. Open Game Help,Hiển thị đúng theo setting
+TC-092,Dynamic Game Help,rtpDisplayEnabled,BO setting rtpDisplayEnabled,1. Enable/Disable setting2. Open Game Help,Hiển thị đúng theo setting
+TC-093,Dynamic Game Help,interruptionPolicyEnabled,BO setting interruptionPolicyEnabled,1. Enable/Disable setting2. Open Game Help,Hiển thị đúng theo setting
+TC-094,Dynamic Game Help,Auto-finalize Duration,BO đã setting Time Auto-finalize,1. Set Duration từ BO2. Open Game Help,Time Auto-finalize nhận đúng setting từ BO
+TC-095,Dynamic Game Help,Status,BO đã setting Status,1. Enable/Disable Status2. Open Game Help,Status ẩn/hiện đúng theo setting
+TC-096,Dynamic Game Help,Duration,BO đã setting Duration,1. Set Duration2. Open Game Help,Hiển thị đúng Duration
+TC-097,Dynamic Game Help,RTP Values,BO đã setting RTP Values,1. Open Game Help2. Kiểm tra RTP,RTP Value đúng theo key
+TC-098,Dynamic Game Help,RTP key mapping,"RTP config gồm gameRTP, bonusTheoRTP, buyBonusRTP, anteTheoRTP, anteRTP",1. Open Game Help2. Kiểm tra từng RTP,Hiển thị đúng value theo key và đúng format text RTP
+TC-099,Dynamic Game Help,Volatility - Tutorial,Có Volatility setting,1. Open Tutorial2. Kiểm tra Volatility,Hiển thị đúng Volatility theo setting
+TC-100,Dynamic Game Help,Volatility - Buy Bonus,Có Volatility setting,1. Open Buy Bonus Popup2. Kiểm tra Volatility,Hiển thị đúng Volatility theo setting
+TC-101,Dynamic Game Help,Buy Bonus Detail API,Buy Bonus Popup,1. Mở Buy Bonus Popup nhiều lần2. Kiểm tra API Detail,"Popup Buy Bonus luôn call API Detail, không bị giới hạn"
+TC-102,Dynamic Game Help,Version,BO đã setting Version,1. Open Game Help,Hiển thị đúng Version
+TC-103,Free Spin,Trigger Free Spin,Có Bonus Symbol trên ít nhất 3 reels,1. Spin2. Nhận Bonus Symbol trên ≥3 reels,"Nhận đúng số FS theo config Paytable, không tính FS theo Way"
+TC-104,Free Spin,Button state khi FS,Đang trong FS,1. Trigger FS2. Quan sát button,#ERROR!
+TC-105,Free Spin,FS count trên Play Button,Đang trong FS,1. Trigger FS2. Quan sát Play Button,Hiển thị đúng số lượt quay
+TC-106,Free Spin,Reload trong FS,Đang trong FS,1. Reload Game,Hiển thị đúng số FS còn lại
+TC-107,Free Spin,Button state sau Reload,Đang trong FS,1. Reload Game2. Quan sát button,"Không nháy enable các button +, -, Autoplay, Setting, Buy Bonus"
+TC-108,Buy Bonus,Fake Buy Bonus,Có thể Buy Bonus,1. Click Buy Bonus2. Quan sát Fake Buy Bonus,Random 5 Bonus Symbol xuất hiện trên 5 reels
+TC-109,Buy Bonus,Fake Buy Bonus - Winning Combination,Fake Buy Bonus đang hiển thị,1. Quan sát 5 Bonus Symbol,Các Symbol được generate không tạo thành tổ hợp thắng
+TC-110,Buy Bonus,Fake Buy Bonus - FS Animation,Fake Buy Bonus,1. Quan sát animation,Animation hiển thị đúng số FS nhận được
+TC-111,Buy Bonus,Reload trong Buy Bonus,Đang trong Buy Bonus,1. Reload Game,Hiển thị đúng số FS còn lại
+TC-112,Buy Bonus,Button state sau Reload,Đang trong Buy Bonus,1. Reload Game2. Quan sát button,"Không nháy enable +, -, Autoplay, Setting, Buy Bonus"
+TC-113,Drama Icon,Trigger Drama Icon,Có Cat/Dog trên các reels,1. Spin2. Kiểm tra Cat/Dog,"Cat và Dog đứng cạnh nhau theo chiều ngang, cùng hàng và trên 2 reels liền kề"
+TC-114,Drama Icon,Trigger probability,Có cặp Cat/Dog hợp lệ,1. Spin nhiều lần với điều kiện hợp lệ,Client có 50% khả năng trigger Drama Icon
+TC-115,Drama Icon,Multiple pairs,Có nhiều cặp Cat/Dog hợp lệ,1. Trigger Drama,Chỉ chọn 1 cặp Cat/Dog để chạy Drama
+TC-116,Drama Icon,One trigger per spin,Có điều kiện trigger,1. Spin,Drama chỉ xảy ra 1 lần mỗi spin
+TC-117,Drama Icon,Determine Winner,Drama được trigger,1. Kiểm tra Final Matrix Server2. Kiểm tra symbol thắng,Cat/Dog thắng được xác định dựa trên Final Matrix server; Symbol thắng là symbol thật của Server
+TC-118,Drama Icon,Losing Symbol,Drama được trigger,1. Quan sát symbol thua,Symbol thua là symbol giả do Client tạo ra
+TC-119,Drama Icon,Drama Animation,Drama được trigger,1. Quan sát animation,Hiển thị Drama animation cho cặp Cat/Dog được chọn
+TC-120,Drama Icon,Turbo / Autoplay,Drama được trigger,1. Bật Turbo hoặc Autoplay2. Trigger Drama,Turbo và Autoplay không được skip Drama animation
+TC-121,Drama Icon,Winning Symbol,Drama animation hoàn tất,1. Quan sát symbol thắng,Symbol thắng vẫn được giữ lại
+TC-122,Drama Icon,Losing Symbol & Refill,Có symbol thua,1. Drama hoàn tất2. Quan sát reels,Tất cả symbol cùng loại với symbol thua biến mất
+TC-123,Drama Icon,Collapse,Losing Symbol đã biến mất,1. Quan sát reels,Các symbol còn lại sập xuống
+TC-124,Drama Icon,Refill,Có vị trí trống sau collapse,1. Quan sát refill,Client refill vị trí trống bằng symbol từ Final Matrix Server
+TC-125,Drama Icon,Final Matrix,Refill hoàn tất,1. So sánh Matrix hiển thị với Final Matrix,Matrix sau refill giống chính xác Final Matrix Server
+TC-126,Drama Icon,No valid Cat/Dog pair,Không có Cat/Dog cạnh nhau theo chiều ngang,1. Spin,Không trigger Drama
+TC-127,Drama Icon,Cat/Dog vertical,Cat/Dog chỉ đứng trên/dưới nhau,1. Spin,Không trigger Drama
+TC-128,Drama Icon,50% No Trigger,Có cặp hợp lệ nhưng rơi vào 50% không trigger,1. Spin,Không chạy Drama
+TC-129,Drama Icon,No fake symbol / collapse / refill,Drama không trigger,1. Spin,"Không có fake symbol, collapse hoặc refill animation"
+TC-130,Drama Icon,Final Matrix direct display,Drama không trigger,1. Spin2. Quan sát result,Hiển thị trực tiếp Final Matrix Server trả về
+TC-131,Reel Glow,Trigger Reel Glow,Có 2 symbol cùng loại P1 hoặc Bonus trên 2 reels khác nhau,1. Spin2. Kiểm tra condition,Trigger Reel Glow khi đủ điều kiện
+TC-132,Reel Glow,Không mix P1 + Bonus,Có P1 và Bonus symbol,1. Spin2. Kiểm tra condition,Không trigger Reel Glow khi mix P1 + Bonus
+TC-133,Reel Glow,Winning / Feature Result,Có 2 symbol cùng loại trên reels khác nhau,1. Spin2. Kiểm tra symbol,Hai symbol vẫn còn khả năng tạo winning/feature result
+TC-134,Reel Glow,Glow trên Reel tiếp theo,Đủ điều kiện trigger,1. Spin2. Quan sát reel tiếp theo,Reel tiếp theo bắt đầu Reel Glow theo flow spin
+TC-135,Reel Glow,Glow Effect,Reel Glow đang chạy,1. Quan sát Reel đang Glow,Reel đang chạy Glow hiển thị Glow Effect
+TC-136,Reel Glow,Dark Overlay,Một số reels đã stop,1. Trigger Reel Glow2. Quan sát reels đã stop,Tất cả reels đã stop trước Reel Glow được apply Dark Overlay
+TC-137,Reel Glow,Update Glow / Dark Overlay,Reel Glow đang chạy,1. Quan sát từng reel khi spin,Glow/Dark Overlay update đúng theo từng reel
+TC-138,Reel Glow,Remove Effect,Reel Glow flow kết thúc,1. Chờ flow hoàn tất,Toàn bộ Glow và Dark Overlay được remove đúng theo result flow
+TC-139,Reel Glow,Spin / Skip / Sudden Stop,Reel Glow đang chạy,1. Click Spin / Skip / Sudden Stop theo flow,Lock/Unlock Spin và Skip/Sudden Stop đúng Design
+TC-140,Walking Wild,Trigger Walking Wild,Game đang ở Bonus/FS Mode,1. Trigger Bonus/FS2. Quan sát Wild,Walking Wild chỉ xuất hiện trong Bonus/FS Mode
+TC-141,Walking Wild,Wild position,Final Matrix có Wild,1. Kiểm tra Final Matrix2. Quan sát Walking Wild,Walking Wild chỉ xuất hiện tại vị trí có Wild trong Final Matrix
+TC-142,Walking Wild,Server Final Matrix,Có Final Matrix từ Server,1. Trigger Walking Wild2. So sánh Client/Server,Server quyết định Final Matrix và vị trí Wild; Client chỉ hiển thị animation
+TC-143,Walking Wild,Movement,Có Walking Wild,1. Quan sát khi reels spinning,Walking Wild di chuyển trong khi reels spinning và dừng đúng vị trí Wild trong Final Matrix
+TC-144,Walking Wild,Temporary Symbol,Walking Wild đang di chuyển,1. Quan sát symbol tại vị trí đích,Symbol tại vị trí Walking Wild đi tới là symbol giả do Client tạo
+TC-145,Walking Wild,Collision,Walking Wild đang di chuyển,1. Quan sát khi tới vị trí đích,Walking Wild va chạm với Temporary Symbol
+TC-146,Walking Wild,Temporary Symbol Fly Out,Walking Wild collision,1. Quan sát Temporary Symbol,Temporary Symbol bị đánh bật/fly out khỏi màn hình
+TC-147,Walking Wild,Final Wild,Walking Wild tới vị trí đích,1. Chờ animation hoàn tất,Walking Wild trở thành Wild thật theo Final Matrix Server
+TC-148,Walking Wild,Visual Symbol only,Walking Wild animation đang chạy,1. So sánh result trước/sau animation,"Temporary Symbol không ảnh hưởng RNG, Symbol Result, Winning Result, Wild Multiplier hoặc Payout"
+TC-149,Walking Wild,Final Matrix after animation,Animation hoàn tất,1. So sánh displayed matrix với Final Matrix,Displayed Matrix khớp chính xác Final Matrix Server
+TC-150,Walking Wild,Multiple Wild,Final Matrix có nhiều Wild,1. Trigger Walking Wild,Tất cả Walking Wild được xử lý đúng theo Final Matrix và animation chạy đồng thời
+TC-151,Walking Wild,Remove excess Wild,Spin tiếp theo cần ít Wild hơn,1. Spin tiếp theo2. Quan sát Wild dư,Wild dư di chuyển sang phải hướng Reel 5 rồi biến mất khỏi màn hình
+TC-152,Walking Wild,Update existing Wild,Spin tiếp theo thay đổi vị trí Wild,1. Spin tiếp theo2. Quan sát Wild,Wild còn lại di chuyển đến vị trí mới theo Final Matrix
+TC-153,Walking Wild,Add new Wild,Spin tiếp theo cần nhiều Wild hơn,1. Spin tiếp theo2. Quan sát Wild mới,Wild mới đi vào từ bên trái hướng Reel 1 rồi di chuyển đến vị trí tương ứng
+TC-154,Walking Wild,Turbo / Sudden Stop,Walking Wild animation đang chạy,1. Bật Turbo hoặc Sudden Stop,Walking Wild animation không được skip
+TC-155,Walking Wild,Animation timing,Turbo/Sudden Stop được kích hoạt,1. Trigger Walking Wild2. Bật Turbo/Sudden Stop3. Quan sát animation,"Animation vẫn chạy và hoàn tất bình thường, không sai timing/vị trí/mất animation/desync"
+TC-156,Walking Wild,Continue Bonus Flow,Walking Wild animation đang chạy,1. Chờ animation hoàn tất,Game chỉ tiếp tục Bonus Flow sau khi animation hoàn tất và Final Matrix hiển thị đúng
+TC-157,Shake / Swirl,Trigger Shake/Swirl,"Game đang Idle, platform hỗ trợ feature",1. Trigger Shake/Swirl,Feature được trigger và các symbol được rearrange theo animation Design
+TC-158,Shake / Swirl,Mobile Shake,Game Idle trên Mobile,1. Lắc điện thoại,Feature được trigger
+TC-159,Shake / Swirl,Mobile Swirl,Game Idle trên Mobile,1. Swirl bằng ngón tay trên màn hình,Feature được trigger
+TC-160,Shake / Swirl,PC/Web Swirl,Game Idle trên PC/Web,1. Swirl/gesture bằng chuột trên khu vực Game,Feature được trigger
+TC-161,Shake / Swirl,Không trigger khi Spin,Reels đang spinning,1. Shake/Swirl,Không trigger feature
+TC-162,Shake / Swirl,Không trigger khi Big Win,Đang show Big Win/Total Win,1. Shake/Swirl,Không trigger feature
+TC-163,Shake / Swirl,Trigger lại khi Idle,Game đã quay về Idle,1. Shake/Swirl,Feature có thể trigger lại
+TC-164,Shake / Swirl,Rearrange chỉ là Visual,Feature đang chạy,1. Trigger Rearrange2. Quan sát result,Rearrange chỉ là visual feature phía Client
+TC-165,Shake / Swirl,Symbol count,Feature đang chạy,1. Trigger Rearrange2. So sánh trước/sau,Không tạo thêm hoặc làm mất Symbol
+TC-166,Shake / Swirl,RNG / Result,Feature đang chạy,1. Trigger Rearrange2. Kiểm tra result,"Không ảnh hưởng RNG, Game Result, Payout hoặc Server Result"
+TC-167,Shake / Swirl,Trigger nhiều lần,Game Idle,1. Trigger Shake/Swirl nhiều lần,"Không gây lỗi, stuck animation hoặc symbol hiển thị sai"
+TC-168,Shake / Swirl,Reset khi Spin mới,Feature đã hoàn tất,1. Trigger Rearrange2. Bắt đầu Spin mới,Symbol/effect được reset đúng theo Game Flow

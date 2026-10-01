@@ -1,0 +1,676 @@
+# Joker: Where's My Banana — the three features this game has and Dragon does not:
+# EXPANDING WILDS and the FREE-SPIN MULTIPLIER (JK-60 … JK-62, JK-68, JK-69 — ONE run),
+# BUY BONUS + LUCKY SPIN (JK-37 … JK-39, JK-63 … JK-67).
+#
+# Run:  python scripts/run_scenario.py --game joker --env dev --suite games/joker/test-suites/jk-features.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game joker
+#
+# Everything else — boot, bets, balance, autoplay, history, tutorial, language, reconnect — is
+# Dragon's case list on mechanism-free scenarios and lives in jk-core.yml / jk-autoplay.yml,
+# jk-input-sound-reconnect.yml and jk-lastbet.yml. This file is only what is specific to Joker.
+#
+# FOUR RUNS, THIRTEEN CASES. Each run plays its feature ONCE and every case that grades a moment
+# of that recording takes its verdict from the run's `expected_by_case` (Rule 16). Two of the
+# four could not be merged into the others and say why where they sit: `level: 2` buys at a
+# different stake, `wheel: spin` takes the wheel's other one-shot branch.
+#
+# ── WHERE THE RULES COME FROM ──────────────────────────────────────────────────────────────
+# Not the marketing help. Three sources, in order of authority:
+#   1. `games/joker/docs/raw/paytable.json` — the server's own configuration (copied to
+#      `games/joker/paytables/base.json`, which every fixture here is derived from):
+#        BaseGame.EnableWildExpanding = false, FreeSpinGame.EnableWildExpanding = true
+#        ExcludedWildExpandingSymbols = ["FreeSpin!", "Power!"]   (the help's BONUS / BANANA)
+#        FreeSpins = 3/4/5 scatters -> 12/15/20 spins, all at Multiplier 3
+#        Packages[0] = { NoOfSpins: 20, BuyMultiplier: 100 }      (one package only)
+#        MultiplierLuckySpin = x1 (w 4950) · x3 (w 3950, IsDefault) · x12 (w 1100)
+#          THE DEFAULT IS x3, on both the bought and the natural path. `wheel: keep` keeps the
+#          multiplier the wheel opens on, and that is x3.
+#   2. `games/joker/bet-response.md` — the arithmetic, computed from real captures
+#   3. `games/joker/docs/raw/bridge-api.md` — the flows and control names
+#
+# ── THE ONE THING THAT MAKES THE WILD ASSERTABLE ───────────────────────────────────────────
+# Every response carries the reels TWICE: `rawViews` as they landed, `views` after expansion.
+# The diff IS the feature, and it is exact. The bridge's `isWildExpanding` / `busyOps:
+# wildExpanding` say the ANIMATION is running — good for waiting and for scoping a clip, never for
+# grading the result (`games/joker/expanding-wild.md` §2).
+#
+# ── ⚠ THE TRAP THAT HANGS THE GAME ─────────────────────────────────────────────────────────
+# A bought bonus raises the LUCKY SPIN wheel, and the bridge never answers it: `dismissPopups()`
+# deliberately never closes `luckySpin` (bridge §12.5). A run that buys and walks away leaves the
+# game waiting forever, and the NEXT run inherits it. That is why `buy-bonus` is not used here —
+# `buy-bonus-lucky-spin` clicks the choice — and why the buy runs declare `return-to-base`.
+
+runs:
+  # ── JK-60 … JK-62 + JK-68 + JK-69 : ONE natural bonus, five verdicts ──────────────
+  # These five were two identical runs until 2026-09-21 — same scenario, same fixture, same cap,
+  # same teardown — split only because the expanding wild and the multiplier "wanted their own
+  # assert sets". That is not a reason to play the bonus twice: Rule 16 says one clip goes to the AI
+  # ONCE and every case that grades a moment of it takes its verdict from `expected_by_case`. The
+  # asserts were always per-case; only the RUN was duplicated, and with it a second forced paytable
+  # push, a second bonus and a second AI call for the same footage.
+  #
+  # ⚠ FORCED, not hunted (Rule 17): the bonus is the precondition for all five, and unforced it is
+  # 1 in 236 base spins. `joker-fs-easy` raises `FreeSpin!` to 30% of base reels 1/2/3 and to ZERO
+  # on reels 4/5, so a bonus arrives in a median of 3 spins and always on exactly three reels — the
+  # shortest award the game has (Rule 6). `FreeSpinGame` is untouched, so the bonus cannot retrigger
+  # itself and `WILD!` keeps its real weights: a wild lands on an expanding reel in ~99.8% of FULL
+  # 12-spin bonuses, which is what JK-61/JK-62 grade — but only ~65% of 2-spin ones, which is why
+  # the cap's effect on LENGTH is guarded below.
+  # `games/joker/paytables/README.md` carries the derivation and the measured odds.
+  #
+  # `max_win_x: 20` is 20x the LIVE BASE BET, not 20 units of currency: the runner reads the stake
+  # off the open game and multiplies (`_resolve_max_payout` — a bare number and "20 * bet" are the
+  # same thing; an ABSOLUTE cap is a different key, `max_payout:`). It is the Rule 17 default, and
+  # the right one here. A LOOSE cap is for cases whose subject is the feature's SIZE — a max-win
+  # case, an award-value case, a Hold & Spin total. These are about RULES (`views` vs `rawViews`,
+  # the multiplier ladder), which one bonus proves as well as two. 20 also bounds the README's open
+  # question: if the award turns out to be multiplied by ways a trigger can owe 96+ spins, and the
+  # cap is the only thing between that and a clip nobody can grade.
+  #
+  # What the cap costs is LENGTH, so the cases GUARD the length instead of trusting it — `>= 2`
+  # where the case judges a RULE over whatever rounds ran, `>= 4` on JK-62 where the clip has to
+  # SHOW an expansion (the table on that case has the odds). Per Rule 17 a red on either is NOT a
+  # game defect — it says the cap is too tight for this award, and the fix is the multiple.
+  # ⚠ And nothing asserts `{facts.capped} == False`: at 20x the cap is EXPECTED to bite, so grading
+  # it would make the cap the thing under test, which Rule 17 forbids outright.
+  - run:
+      scenario: fs-complete
+      teardown: return-to-base
+      paytable: { ref: joker-fs-easy, max_win_x: 100 }
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. This clip plays a base spin
+          that triggers FREE SPINS, then the whole bonus. Two things happen during free spins that do
+          not happen in the base game: a WILD landing on certain reels EXPANDS to cover that whole
+          reel, and a MULTIPLIER is displayed directly above the reels for the duration of the bonus.
+          The ACTION TIMELINE marks the trigger and every free-spin round — use it rather than
+          guessing which round is on screen.
+
+          Judge ONLY the free-spin rounds unless a question says otherwise; the base game before the
+          trigger has no expansion and no multiplier, and is not the subject.
+
+          THE EXPANSION. (1) expansion_seen: during the free spins, does at least one reel visibly
+          fill with WILD symbols — an expansion animation covering the reel top to bottom?
+          (2) expansion_covers_whole_reel: where that happens, does the wild cover the FULL height of
+          the reel (all three cells), rather than one or two of them? If some cell visibly keeps a
+          different symbol, answer false and say which in `notes`.
+          (3) expansion_in_base_game: BEFORE the trigger, in the base game, does any reel expand to
+          wilds? This should NOT happen — answer true only if you actually see it.
+
+          THE MULTIPLIER. (4) multiplier_above_reels: during the free spins, is a multiplier value
+          displayed DIRECTLY ABOVE THE REELS — not in a corner, not only on the first spin?
+          (5) multiplier_same_throughout: does that value stay THE SAME for every free-spin round,
+          rather than changing part-way through? Compare the rounds against each other; do not try
+          to judge whether the number is the "right" one, which is not your question.
+          (6) multiplier_text: read the multiplier exactly as printed and report it as a string
+          (for example "x3"). If you cannot read it clearly, answer "unreadable".
+
+          THE AWARD. (7) award_announced: when the bonus starts, does the game announce how many
+          free spins were won — a number shown on an intro banner, a counter, or a message?
+          (8) announced_count_matches: is the number it announces {terminal.total_free_spin}?
+          (9) bonus_symbols_marked: on the triggering spin, are the symbols that caused the trigger
+          visibly marked — highlighted, animated or framed — rather than just sitting on the grid?
+          Do NOT count them; only say whether they are marked.
+
+          (10) ui_broken: during the bonus, is anything overlapping, cut off, placeholder or visibly
+          broken?
+
+          notes: one short sentence on anything you saw that the questions above do not cover.
+        output_schema:
+          expansion_seen: { type: boolean }
+          expansion_covers_whole_reel: { type: boolean }
+          expansion_in_base_game: { type: boolean }
+          multiplier_above_reels: { type: boolean }
+          multiplier_same_throughout: { type: boolean }
+          multiplier_text: { type: string }
+          award_announced: { type: boolean }
+          announced_count_matches: { type: boolean }
+          bonus_symbols_marked: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-60: { expansion_in_base_game: false, confidence: medium }
+          JK-61: { expansion_covers_whole_reel: true, confidence: medium }
+          JK-62: { expansion_seen: true, expansion_covers_whole_reel: true, expansion_in_base_game: false, ui_broken: false, confidence: medium }
+          # ⚠ `multiplier_text` is asked on every run and graded on NONE. It is a DISCOVERY field:
+          # the paytable says every natural trigger pays at Multiplier 3, and no capture of a
+          # natural trigger exists to confirm the client draws that (bet-response.md §7.1). Reading
+          # an absolute value off pixels is the flaky half of AI assertion and the half
+          # `freespin_multiplier_in_ladder` already owns exactly — so the clip is asked the two
+          # questions it CAN answer (is it shown, does it hold) and the number is recorded for the
+          # first person to read a green run. Promote it to `multiplier_text: "x3"` then.
+          JK-68: { multiplier_above_reels: true, multiplier_same_throughout: true, confidence: medium }
+          JK-69: { award_announced: true, announced_count_matches: true, confidence: medium }
+      cases:
+        - id: JK-60
+          title: "A wild expands only during free spins, never on a paid round"
+          assert:
+            # the bonus really ran, so "only in free spins" has both halves to judge
+            - stream: "{trigger.free_spins} > 0"
+            - stream: terminal_reached
+            - stream: stake_zero_in_freespins
+            # THE CASE: no paid round in this run's stream ever had its reels rewritten.
+            - stream: wild_expands_only_in_freespins
+            - stream: conservation
+
+        - id: JK-61
+          title: "An expanding wild fills its reel with one symbol, and only where a wild landed"
+          assert:
+            - stream: terminal_reached
+            # Rule 17: the cap can end the bonus on free spin 1, and a one-round bonus satisfies
+            # the rule below without ever expanding anything. A red here is the cap being too
+            # tight for this award, not a game defect.
+            - stream: "{facts.free_spins_played} >= 2"
+            # THE CASE: every reel whose `views` differ from `rawViews` was overwritten with a
+            # SINGLE symbol, and that symbol had actually landed on that reel.
+            - stream: wild_expansion_is_uniform
+            # ⚠ NOT asserted: that the cells left alone are FreeSpin! / Power!
+            # (`ExcludedWildExpandingSymbols`). That needs the symbol id map from
+            # `getGameInfo().paytable`, and no capture yet shows a blocked symbol sharing a reel
+            # with an expanding wild. `games/joker/expanding-wild.md` §5 tracks it as capture #3.
+            # The clip's `expansion_covers_whole_reel` is the visible half of the same rule.
+
+        - id: JK-62
+          title: "The expansion the player sees matches the reels the server sent"
+          assert:
+            - stream: terminal_reached
+            # Rule 17, the LENGTH this case needs — and it is longer than the `>= 2` the others
+            # take, because this one has to SEE an expansion rather than judge the rule behind it.
+            # A wild has to land on an expanding reel for the clip to show anything, and on the
+            # real `FreeSpinGame` weights (which the fixture leaves alone) that is a per-round
+            # coin flip, measured over 200k simulated bonuses:
+            #
+            #     free spins played | P(no wild on reels 2 & 4) | ...if only ONE reel expands
+            #            2          |           35%            |          55%
+            #            4          |           12%            |          31%
+            #           12          |          0.2%            |         2.9%
+            #
+            # So a 2-round bonus produces a clip with nothing in it a third of the time. `>= 4` is
+            # the compromise: it rules out the pathological truncation without being a hair
+            # trigger. A red here says the cap truncated too hard for this award — raise the
+            # multiple, do NOT file it as a game defect. (The full award is 12, and the cap only
+            # bites on a bonus that actually won 20x the bet, which is usually one that expanded.)
+            - stream: "{facts.free_spins_played} >= 4"
+            - stream: wild_expands_only_in_freespins
+
+        - id: JK-68
+          title: "A naturally triggered bonus plays every free spin at the configured multiplier"
+          assert:
+            - stream: "{trigger.free_spins} > 0"
+            - stream: terminal_reached
+            # Rule 17: "every round" needs more than one round to mean anything. `total_free_spin`
+            # is what was AWARDED; `free_spins_played` is what actually ran, and the cap moves
+            # only the second. Both, or the case passes on a bonus nobody saw.
+            - stream: "{terminal.total_free_spin} >= 12"     # the fixture pins the award at 3 reels -> 12
+            - stream: "{facts.free_spins_played} >= 2"
+            # THE CASE: every free spin reports a multiplier the game actually offers...
+            - stream: freespin_multiplier_in_ladder
+            - stream: stake_zero_in_freespins
+            # ...and the player was TOLD it — the half the response cannot answer. `luckyMultiplier`
+            # says what the server played each spin at; only the clip says whether that value was
+            # on screen, above the reels, for the whole bonus (`multiplier_above_reels` /
+            # `multiplier_same_throughout`). A build that pays at x3 and draws nothing passes every
+            # line above.
+
+        - id: JK-69
+          title: "The awarded free-spin count matches the number of scatters that triggered it"
+          assert:
+            - stream: "{trigger.free_spins} > 0"
+            # paytable FreeSpins: 3 -> 12, 4 -> 15, 5 -> 20. `joker-fs-easy` zeroes `FreeSpin!` on
+            # base reels 4 and 5, so the scatter can only ever reach THREE reels and the award is
+            # pinned to the 12 row — 15 and 20 are now unreachable, and either would be the game
+            # disagreeing with its own paytable.
+            #
+            # ⚠ Why not a flat `== 12`. Chaos ships the same paytable schema from the same server,
+            # and a captured Chaos payload proved its award is base x WAYS — the product of the
+            # per-reel scatter counts (`ChaosRunner.expected_fs_award`: counts [1,2,0,2,0] awarded
+            # 48, not 12). Joker is a 20-line game rather than a ways game and nothing captured on
+            # it settles the question (bet-response.md §7.1). These two hold under BOTH readings and
+            # still fail a wrong base; the first live run settles which, by recording the value
+            # against the trigger grid. See `games/joker/paytables/README.md`.
+            - stream: "{terminal.total_free_spin} >= 12"
+            - stream: "{terminal.total_free_spin} % 12 == 0"
+            - stream: terminal_reached
+            # THE VISIBLE HALF, and on this game it is not a luxury. The stream CANNOT count the
+            # scatters that triggered: the grid holds numeric symbol ids, `SYM_SCATTER` is the NAME
+            # "FreeSpin!", and the id map needs a capture nobody has taken (bet-response.md §4). So
+            # the asserts above describe the AWARD without ever seeing the cause, and what the clip
+            # adds is whether the player was told the right number — `announced_count_matches`,
+            # compared against `{terminal.total_free_spin}` which the framework owns exactly.
+            # ⚠ The clip is NOT asked to count the scatters. Counting on video is what an AI is
+            # worst at (docs/scenario-assert-authoring.md §2, the Mah_043 counting trap), so it is
+            # asked only whether the triggering symbols are visibly MARKED — presence, not a tally.
+            # Once the id map is captured, `{facts...}` can carry the count and this tightens to a
+            # 3-reels-award-12 assert.
+
+  # ── JK-39 + JK-63 … JK-67 : Buy Bonus, the reveal spin, and the Lucky Spin wheel ─────
+  # `buy-bonus-lucky-spin`, NOT `buy-bonus`: the purchase raises a wheel the bridge never answers,
+  # and `dismissPopups()` never closes it. `wheel: keep` takes the multiplier already shown.
+  #
+  # Packages[0] is the ONLY package: 20 spins at 100x the stake. There is no package index to pick,
+  # which is why no case here tries `buy_package:{i}` beyond 0.
+  #
+  # ── ⚠ THE PURCHASE DOES NOT JUMP STRAIGHT INTO FREE SPINS ────────────────────
+  # This is the shape of the flow, and getting it wrong is how a prompt ends up describing a
+  # screen the player never sees. Confirming the package sends a `buyfreespin` request; the
+  # response comes back TRIGGER-SHAPED, and the client then SPINS THE REELS and presents the
+  # result as an ordinary bet that triggered free spins. Only after that presentation does the
+  # game enter the bonus. So:
+  #
+  #   confirm -> BUY request -> trigger-shaped response -> A REEL SPIN, presented as a free-spin
+  #   TRIGGER (`busyOps: buyBonusReveal`) -> the LUCKY SPIN wheel -> the free spins, with the
+  #   chosen multiplier displayed DIRECTLY ABOVE THE REELS for the whole bonus
+  #
+  # The bridge calls that middle step a "fake 5-bonus spin" (§10, `buyBonusReveal_start/_end`;
+  # §12.5 step 5). FIVE IS NOT ARBITRARY — `BaseGame.FreeSpins` awards 20 spins for 5 occurrences,
+  # and `Packages[0].NoOfSpins` is 20. The reveal therefore shows the grid that would NATURALLY
+  # have awarded exactly what was bought, which is why it can be presented as a real trigger
+  # rather than as a cutscene.
+  #
+  # Two consequences for the cases below:
+  #   1. the purchase round is a TRIGGER round in the stream — `{trigger.free_spins} > 0` holds on
+  #      it, and JK-63 now asserts that rather than only reading `freeSpinPackage`;
+  #   2. ⚠ NOTHING ASSERTS THE REVEAL GRID, and the capture now says why it never can. On the
+  #      purchase round `rawViews` and `views` are BOTH all `-1` — five reels of `[-1,-1,-1]`
+  #      (`fixtures/bet-responses/buybonus-purchase.json`, captured 2026-09-21). The server sends
+  #      no grid at all; the "fake 5-bonus spin" is drawn entirely client-side. So the reveal is
+  #      graded on the CLIP and nowhere else, and `wild_expands_only_in_freespins` is safe on
+  #      this round for a reason worth knowing: `views == rawViews`, so it reports no expansion
+  #      rather than a spurious one on a paid round.
+  #
+  # ── ONE CLIP, FIVE VERDICTS (Rule 16) ───────────────────────────────────
+  # The `video:` is at RUN level, not on one case. Every one of these five claims is about a
+  # different moment of the SAME recording — the reveal, the wheel, the multiplier, the return to
+  # base, the expansion — so they share one AI call and take their verdicts from
+  # `expected_by_case`. It used to hang off JK-67 alone, which meant the reveal and the wheel were
+  # being graded under a case about expanding wilds.
+  #
+  # ── ⚠ THE CAP ON A BOUGHT BONUS IS NOT THE RULE 17 DEFAULT, AND MUST NOT BE ─────────
+  # A bought bonus IS free spins, it CAN retrigger, and Rule 17 names "a bought bonus" as one of the
+  # three shapes that must carry a cap. Measured on this game's real `FreeSpinGame` weights over
+  # 200 000 simulated bought bonuses:
+  #
+  #     retrigger chance per free spin   0.33%  (1 in 305)
+  #     P(any retrigger in the 20)       6.6%
+  #     rounds played  median 20 · p95 32 · p99 35 · longest seen 104
+  #     P(reaching the scenario's 120-round drain cap)   0 in 200 000
+  #
+  # So it is a long TAIL, not a runaway — the bonus can only feed itself at REAL weights, because
+  # nothing here forces `FreeSpinGame`. One run in fifteen plays 32+ rounds, which is the real cost:
+  # six cases share one clip, and a 32-round clip is much harder to grade than a 20-round one.
+  #
+  # ⚠ BUT `max_win_x: 20` WOULD BE WRONG HERE, AND WOULD FAIL A HEALTHY GAME. `max_win_x` multiplies
+  # the LIVE BASE BET, and a purchase costs 100x that bet. So 20 is **0.20x the price the player just
+  # paid** — at bet 0.6 the purchase is 60.00 and the cap would be 12.00. The bonus would truncate on
+  # essentially every run that won anything, JK-66 ("plays EVERY awarded spin") would go red on a
+  # correct build, and the shared clip would show a one-round bonus.
+  #
+  # `"5 * 100 * bet"` says what it is: FIVE TIMES THE PURCHASE PRICE (100x bet). It bounds the tail
+  # without coming near an ordinary outcome — a 100x purchase returns ~96x on average, so the cap
+  # sits five times above the mean and only bites a genuine runaway. Written as an expression rather
+  # than the equivalent `500` on purpose: the `100 *` is the package multiplier, and the `5 *` is the
+  # headroom, so changing either is a one-token edit with a visible reason.
+  #
+  # ⚠ `ref: base` IS NOT DECORATION. A `paytable:` block with only a cap and no `ref` does NOT push
+  # any weights: `ensure_paytable` is idempotent (no write when the paytable already exists) and
+  # `update_paytable` is skipped when there is no content — so the run would re-select the automation
+  # paytable holding WHATEVER THE LAST FORCED RUN LEFT IN IT. In this very file that is
+  # `joker-fs-easy`, pushed by the run above. It happens to be harmless for a BOUGHT bonus (the
+  # fixture only touches `BaseGame`, and the purchase does not use those weights to enter), but
+  # relying on that is luck. `ref: base` pushes this game's REAL paytable explicitly, so the buy runs
+  # are forced to the unforced weights rather than inheriting someone else's.
+  - run:
+      scenario: buy-bonus-lucky-spin
+      teardown: return-to-base
+      paytable: { ref: base, max_win_x: 100 }   # 5x the purchase price -- see above
+      params: { wheel: keep }
+      video:
+        at: [bought, terminal]
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot with 20 fixed paylines. In this clip the player
+          BUYS the bonus. The sequence is deliberate and each question below is about one step of
+          it — the ACTION TIMELINE marks the purchase, the wheel and every free-spin round, so use
+          it rather than guessing which step is on screen.
+
+          STEP 1: a Buy Bonus panel opens and the purchase is confirmed.
+
+          STEP 2: the game then SPINS THE REELS and presents the result as an ordinary spin that
+          has triggered free spins — bonus symbols landing, a trigger presentation. It does not
+          cut straight into the bonus. This step is expected; it is not a glitch, and it is not a
+          second paid spin.
+
+          STEP 3: a multiplier WHEEL is offered. The test keeps the multiplier already shown
+          rather than spinning it.
+
+          STEP 4: the free spins play out, with the chosen multiplier displayed DIRECTLY ABOVE
+          THE REELS. During free spins a WILD landing on certain reels expands to cover that
+          whole reel.
+
+          STEP 5: the bonus ends and the game returns to the base game.
+
+          Answer each independently:
+
+          (1) purchase_confirmed: does the clip show a Buy Bonus panel and a confirmation step?
+
+          (2) presented_as_trigger_spin: after the purchase is confirmed and BEFORE the free
+          spins begin, do the REELS VISIBLY SPIN and land a result presented as a free-spin
+          trigger? Answer false if the game jumps from the purchase straight into free spins with
+          no reel spin of its own in between.
+
+          (3) wheel_after_reveal: is the multiplier wheel offered AFTER that reel spin and BEFORE
+          the first free spin? Answer false if it appears before the reel spin, or not at all.
+
+          (4) multiplier_above_reels: once the free spins are running, is the multiplier value
+          displayed DIRECTLY ABOVE THE REELS — not in a corner, not only inside the wheel popup,
+          and not only on the first spin?
+
+          (5) multiplier_persists: does that multiplier stay on screen for the WHOLE bonus, with
+          the same value throughout, rather than appearing once and vanishing or changing?
+
+          (6) expansion_seen: during the free spins, does at least one reel visibly fill with
+          WILD symbols — an expansion covering the reel top to bottom?
+
+          (7) returns_to_base: when the bonus ends, does the game go back to the ordinary base
+          game, ready to spin?
+
+          (8) ui_broken: at any point, is anything overlapping, cut off, placeholder or visibly
+          broken — a multiplier label that never resolves, a wheel left stuck on screen?
+        output_schema:
+          purchase_confirmed: { type: boolean }
+          presented_as_trigger_spin: { type: boolean }
+          wheel_after_reveal: { type: boolean }
+          multiplier_above_reels: { type: boolean }
+          multiplier_persists: { type: boolean }
+          expansion_seen: { type: boolean }
+          returns_to_base: { type: boolean }
+          ui_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-39: { purchase_confirmed: true, presented_as_trigger_spin: true, ui_broken: false, confidence: medium }
+          JK-64: { wheel_after_reveal: true, confidence: medium }
+          JK-65: { multiplier_above_reels: true, multiplier_persists: true, confidence: medium }
+          JK-66: { returns_to_base: true, ui_broken: false, confidence: medium }
+          JK-67: { expansion_seen: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: JK-63
+          title: "Buying the bonus costs 100x the selected bet and awards 20 free spins"
+          assert:
+            # the panel really opened and the purchase really went through
+            - stream: "{facts.price} > 0"
+            - stream: "{facts.bet} > 0"
+            # THE CASE, both halves from the paytable: Packages[0].BuyMultiplier / NoOfSpins
+            # ⚠ TWO DIFFERENT THINGS ARE CALLED "price" HERE, and the capture settles which is
+            # which. `{facts.price}` is `buyBonusSelectedPrice` — MONEY, the amount charged (400
+            # at a bet of 4.00). `freeSpinPackage.price` in the response is **100**, the
+            # MULTIPLIER, matching `Packages[0].BuyMultiplier` — not a currency amount at all.
+            # Asserting `paid_stake == freeSpinPackage.price` would compare 400 against 100 and
+            # read as a game defect. `price_ratio` (money / bet) is the one that equals 100.
+            - stream: "{facts.price_ratio} == 100"
+            - stream: "{facts.paid_stake} == {facts.price}"
+            - stream: "{facts.package_spins} == 20"
+            # …and the server AWARDED what the package advertised. `package_spins` is read off
+            # `freeSpinPackage` — the panel's own claim, echoed back — while `awarded` is what the
+            # round actually granted. A build that quotes 20 and grants 12 passes the line above
+            # and fails this one, which is the whole difference between a label and a payout.
+            # ⚠ This failed as `0 == 20` on the first live run, and the FRAMEWORK was at fault,
+            # not the game: a purchase round omits `totalFreeSpin` entirely and carries its award
+            # in `freeSpins` (captured 2026-09-21). `JokerBanana.free_spins()` now folds that in,
+            # gated on `freeSpinPackage` so a mid-bonus round's REMAINING count can never be
+            # mistaken for an award. The same bug made `is_trigger()` answer False on the one
+            # round that unarguably awards the bonus.
+            - stream: "{facts.awarded} == {facts.package_spins}"
+            # …and the purchase round really came back TRIGGER-SHAPED. `{trigger.*}` binds to the
+            # bought round (it is `rounds[0]` of this scenario), and bridge §12.5 step 5 says its
+            # `freeSpins` IS the award. This is the stream half of JK-39's claim: a build that
+            # awarded the spins through some side channel instead of on the round would pass every
+            # line above and fail here.
+            - stream: "{trigger.free_spins} > 0"
+            - stream: conservation
+
+        - id: JK-39
+          title: "A bought bonus is presented as a trigger spin before the free spins begin"
+          assert:
+            # the purchase went through and the round carries the award (see JK-63's note)
+            - stream: "{trigger.free_spins} > 0"
+            - stream: "{facts.awarded} > 0"
+            - stream: "{facts.paid_stake} > 0"          # it was a PAID round, not a free one
+            # THE CASE IS THE CLIP. Nothing in the response distinguishes "the client spun the
+            # reels and showed a trigger" from "the client cut straight to the bonus" — both send
+            # the same payload. That is exactly Rule 10's division: the stream says the round was
+            # trigger-shaped, and only the recording says the player was SHOWN a trigger.
+            # Graded through the run-level video as `presented_as_trigger_spin`.
+
+        - id: JK-64
+          title: "A bought bonus offers the Lucky Spin wheel after the reveal spin, before the first free spin"
+          assert:
+            # THE GATE and the case in one: the wheel appeared, and the choice was made by the test.
+            - stream: "{facts.wheel_shown} == True"
+            # ⚠ WHERE the wheel sits in the sequence is the clip's half, not the stream's: the
+            # scenario waits for the `luckySpin` popup AFTER consuming the purchase response, so a
+            # True here means "it arrived by then", not "it arrived after the reveal finished".
+            # `wheel_after_reveal` in the run-level prompt is what actually orders the two.
+            #
+            # AND WHAT IT OFFERS: `wheel: keep` takes the multiplier the wheel opens on, and the
+            # default is x3 (`MultiplierLuckySpin`, IsDefault; `LUCKY_MULTIPLIER_DEFAULT`).
+            # ⚠ A LIVE RUN ON 2026-09-21 KEPT THE WHEEL AND GOT x12. The framework clicked the
+            # right control — `lucky_keep` resolves to `luckySpin:keep` (bridge §7.2), and a
+            # name that did not resolve would raise `Unreached`, never fall through to `spin`.
+            # So this assert is what turns that into a verdict, and a red has two candidates:
+            #   1. the paytable pushed to BO still carries `IsDefault: true` on the x12 entry
+            #      as well as x3 (it does, as of this writing — check `MultiplierLuckySpin` in
+            #      `games/joker/paytables/base.json`, which IS the file these runs push). Then
+            #      the config is wrong and the client is innocent;
+            #   2. the config is right and the client opens the wheel on a weighted draw
+            #      rather than on the default. Then it is a client defect.
+            # `{facts.lucky_multiplier}` records what each run actually got, so a handful of
+            # runs tells the two apart: a weighted draw would show x1 about half the time.
+            - stream: "{facts.lucky_multiplier} == 3"
+            # ⚠ If this is False the game is left WAITING on a choice nobody made, and the next run
+            # inherits it. The scenario raises rather than continuing, so a red here is a real
+            # blocker, not a cosmetic one.
+
+        - id: JK-65
+          title: "The multiplier chosen at the wheel is the one every bought free spin plays at"
+          assert:
+            - stream: "{facts.wheel_shown} == True"
+            - stream: "{facts.fs_rounds} >= 2"          # "every spin" needs more than one
+            # the chosen multiplier is on the wheel's ladder (MultiplierLuckySpin: 1, 3, 12)...
+            # The LADDER, not `== 3`, on purpose: this case's claim is that whatever the wheel
+            # settled on is what every spin then played at. Which VALUE `keep` should give is
+            # JK-64's claim, asserted there.
+            - stream: freespin_multiplier_in_ladder
+            # ...and it did not change part-way through the bonus
+            - stream: "{facts.multiplier_constant} == True"
+            # The visible half (Rule 10): the value is displayed DIRECTLY ABOVE THE REELS and stays
+            # there for the whole bonus. `luckyMultiplier` on each response says what the server
+            # played the spin at; only the clip says whether the player was told. Graded through
+            # the run-level video as `multiplier_above_reels` / `multiplier_persists`.
+
+        - id: JK-66
+          title: "A bought bonus plays out and returns to the base game"
+          assert:
+            - stream: "{facts.fs_rounds} >= 2"
+            # ⚠ `{facts.capped} == False` WAS ASSERTED HERE AND IS WRONG. It went red on a live run
+            # (2026-09-21) and the game was right: reaching the max-win ceiling is a LEGITIMATE
+            # END to a bonus, not a failure to play the spins. Rule 9 — the server truncates,
+            # sets `hasReachedMaxWin`, and the framework already treats that as terminal, so the
+            # counter clears and the round ends cleanly. The case's claim is that the bonus RAN
+            # and CAME BACK, and both halves are true of a capped bonus.
+            # This is also Rule 17's ⚠ in practice: "a cap is never the thing under test". The
+            # fact stays PUBLISHED, so a reader can see a run was truncated — it is just not a
+            # verdict. The old title said "plays EVERY awarded spin", which is the phrasing that
+            # smuggled the cap in as a claim; it now says what is actually being checked.
+            - stream: terminal_reached
+            - stream: stake_zero_in_freespins          # the spins were bought, so they cost nothing
+            - stream: "{facts.returned_to_base} == True"
+            - stream: conservation
+
+        - id: JK-67
+          title: "Wilds expand during a bought bonus exactly as during a natural one"
+          assert:
+            - stream: "{facts.fs_rounds} >= 2"
+            # the same two rules as JK-60/61, on the bought path
+            - stream: wild_expands_only_in_freespins
+            - stream: wild_expansion_is_uniform
+            # ⚠ STILL NOT asserted: `{facts.expanded_rounds} >= 1`. Measured on the real
+            # `FreeSpinGame` weights, a 20-spin bought bonus lands a wild on reels 2 and 4 in
+            # 99.995% of runs — but only ~99.0% if it turns out that just ONE of them expands,
+            # which no capture settles (`WILD_EXPAND_REELS` is unconfirmed). A 1-in-100 red on a
+            # correct game is not worth the cover, so the fact stays published and ungraded: a run
+            # that saw no expansion is visible rather than silently vacuous. Assert it once a
+            # capture confirms both reels expand. The run's CLIP still asks (`expansion_seen`),
+            # where a miss is orange rather than red — the right weight for a ~1-in-100 doubt.
+
+  # ── JK-37 : the 100x price follows the STAKE, at a different stake level ──────────
+  # JK-63 proves the ratio at whatever stake the panel opened on. This proves it is a RATIO and not
+  # a fixed number, by buying at a different one — `params: { level: 2 }` clicks
+  # `buyBonus:level:2`, one of the 0..2 stake shortcuts the panel carries (bridge §7.2).
+  #
+  # The claim comes from the game's own snapshot field: §5 defines `buyBonusSelectedPrice` as
+  # "Price the open Buy panel would charge (**stake x package price**)". So moving the stake must
+  # move the price with it, and `price_ratio` must still read 100 (Packages[0].BuyMultiplier).
+  #
+  # ⚠ WHAT A RED HERE MEANS, and it is not "the price is wrong". `price_ratio` is computed from
+  # `buyBonusSelectedPrice / betAmount` read AFTER the level click. A ratio that is no longer 100
+  # says the two moved apart — either the shortcut changed the quoted price without changing the
+  # stake it is quoted against, or it changed the stake and the price did not follow. Dragon VIP hit
+  # the same class of defect from the other side (DV/DR-40), which is why this is worth its own run
+  # rather than a second assert on JK-63.
+  #
+  # ⚠ `level: 2` is the TOP shortcut, so this run costs 100x the largest of the three stakes it
+  # offers. That is the point — a ratio is only shown to be a ratio by moving it — but it is also
+  # why `conservation` is asserted: the wallet has to come back exactly right at a price that large.
+  # If the build has fewer than three levels, `buy_level` resolves to `null`, the scenario carries on
+  # at the panel's own stake, and `{facts.bet}` will simply match JK-63's — which the gate below
+  # catches rather than passing as a second copy of JK-63.
+  - run:
+      scenario: buy-bonus-lucky-spin
+      teardown: return-to-base
+      # Same cap, and here the price is the LARGEST of the three stake shortcuts -- so the cap
+      # scales with it automatically, which a bare number could not do.
+      paytable: { ref: base, max_win_x: 100 }
+      params: { wheel: keep, level: 2 }
+      cases:
+        - id: JK-37
+          title: "Buying at a different stake level still costs 100x that stake, not a fixed price"
+          assert:
+            - stream: "{facts.price} > 0"
+            - stream: "{facts.bet} > 0"
+            # THE CASE: the multiplier is a ratio against the SELECTED stake.
+            - stream: "{facts.price_ratio} == 100"
+            - stream: "{facts.paid_stake} == {facts.price}"
+            # ...and the package is the same one either way — there is only one (Packages[0]).
+            - stream: "{facts.package_spins} == 20"
+            - stream: "{facts.awarded} == {facts.package_spins}"
+            # the money came back exactly right at the larger price
+            - stream: conservation
+            # the wheel still has to be answered on this path, or the game is left waiting
+            - stream: "{facts.wheel_shown} == True"
+            # No AI assert. Every figure here is a number the server or the panel states, and the
+            # panel itself is already filmed by JK-67's clip on the same flow (Rule 10: a case with
+            # no AI assert says why, and the reason is that there is nothing to SEE that JK-63 …
+            # JK-67 do not already show).
+
+  # ── JK-38 : SPINNING the Lucky Spin wheel instead of keeping what it offers ───────
+  # The wheel's other branch. JK-64/65 take `wheel: keep` — the multiplier already shown, which
+  # the paytable says is x3 by default (`MultiplierLuckySpin`, IsDefault). This spins it:
+  # `luckySpin:spin` (bridge §12.5 step 7), which runs the `luckyWheel` animation and lands a new
+  # pick in `getBetLog().side`.
+  #
+  # ⚠ WHY THIS IS A CASE AND NOT JUST A PARAMETER. The suite footer used to park it as "one line,
+  # but it needs a claim worth grading", because JK-65's ladder assert accepts any of x1/x3/x12 on
+  # either branch. The claim that IS worth grading is the one the branches do not share: whatever
+  # the wheel lands on, **every free spin of the bought bonus must then play at that value** —
+  # `multiplier_constant`, over a multiplier the test did not choose. On the `keep` branch that is
+  # nearly tautological, since the value never moved; here the wheel picked it, and a client that
+  # animates a new multiplier but pays the old one fails exactly here and nowhere else.
+  #
+  # ⚠ BOTH BRANCHES MUST BE COVERED FOR A HARDER REASON. Bridge §7.2: "Both go dead as soon as
+  # either is clicked", and §4: `canDo('luckySpin')` answers `lucky_spin_choice_made` once one has
+  # been. So `keep` and `spin` are mutually exclusive, one-shot paths through the same popup — a
+  # build could wire one correctly and leave the other dead, and the `keep` run would never notice.
+  # If `luckySpin:spin` does not resolve, the scenario raises rather than continuing, and the run
+  # reports unreached — not a false green.
+  - run:
+      scenario: auto-until-empty
+      teardown: restore-balance   # put the wallet back exactly as it was
+      video:
+        timestamp: true
+        prompt: >-
+          Joker: Where's My Banana is a 5x3 slot. In this clip the wallet was funded with
+          {facts.funded_balance} — about {facts.fund_spins} spins at a stake of {facts.bet} — and
+          auto-play was started with an unlimited count, so only running out of money can stop it.
+          It played {facts.spins_played} round(s) and the balance ended at {facts.final_balance},
+          below one bet. The clip then deliberately continues for about {facts.stop_watch_s} seconds
+          and holds still. The ACTION TIMELINE marks the moment the balance fell below one bet.
+          Answer each independently: (1) auto_ran: was auto-play visibly running — spins starting on
+          their own? (2) out_of_money_popup: does a popup or message appear telling the player they
+          do not have enough balance? (3) auto_stopped_on_screen: during the still tail at the end,
+          has auto-play stopped — no further spin starts by itself and no reels turn? A clip that
+          simply ends is not evidence; judge the tail.
+        output_schema:
+          auto_ran: { type: boolean }
+          out_of_money_popup: { type: boolean }
+          auto_stopped_on_screen: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          JK-08: { out_of_money_popup: true, auto_stopped_on_screen: true, confidence: medium }
+          JK-16: { auto_ran: true, auto_stopped_on_screen: true, confidence: medium }
+      cases:
+        - id: JK-08
+          title: "Running out of balance during autoplay stops it and warns the player"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"   # the stop really was about MONEY
+            - stream: "{facts.extra_round_after_stop} == False"
+        - id: JK-16
+          title: "Autoplay stops when the balance reaches zero"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"
+            - stream: "{facts.spins_played} >= 1"
+            - stream: "{facts.final_balance} < {facts.bet}"
+            - stream: "{facts.extra_round_after_stop} == False"
+
+# ── NOT AUTOMATED YET, AND WHAT EACH NEEDS ─────────────────────────────────────────────────
+# THE BUY BONUS PATHS THAT STILL HAVE NO CASE — all four are documented behaviours, and none of
+#         them is reachable with `buy-bonus-lucky-spin` as it stands:
+#
+#   1. CANCELLING the purchase. `buyBonus:cancel` is the confirm sheet's "No" (and the panel
+#         close when no sheet is up, §7.2). The claim is that nothing is charged and no bonus is
+#         awarded — a real risk, since the sheet is the last point before a 100x debit. The
+#         scenario always clicks `buy_confirm`; this needs a `confirm: false` path that asserts
+#         the balance is UNCHANGED and no `freeSpinPackage` round entered the stream.
+#
+#   2. BUYING WITH TOO LITTLE BALANCE. §12.5 step 4 states it outright: "not enough balance →
+#         'message' opens instead, no request sent". JK-07 covers the same refusal on a PLAIN
+#         SPIN; this is the 100x-price version of it, and the more likely one to be hit. Needs
+#         the wallet drained to between one stake and the purchase price — `insufficient-balance`
+#         does the draining, but drives a spin rather than the Buy panel.
+#         ⚠ Rule 7: whichever way it is written, it MOVES THE MONEY — `teardown: restore-balance`.
+#
+#   3. THE BUY BUTTON DURING FREE SPINS. §7.1: `buyBonus` is "Hidden during free spins", and
+#         `null` when compliance says `bonusBuyAllowed=false`. The claim is that a bonus cannot
+#         be bought from inside a bonus. `getButtonRect('buyBonus')` answering `null` mid-bonus
+#         is the whole test, so it is an `on_round=` read on an existing drain rather than a new
+#         run — cheap, and it belongs on one of the fs-complete runs above.
+#
+#   4. REOPENING AFTER A BOUGHT BONUS (CR_094). See jk-lastbet.yml's footer: JK-55 covers the
+#         TRIGGERED route, and the bought one is not interchangeable with it because the record
+#         should carry the PRICE (100x) rather than the base stake.
+#
+# The blocked symbols (FreeSpin! / Power! surviving an expansion) — needs the symbol id map from
+#         `getGameInfo().paytable` plus a capture where one shares a reel with an expanding wild.
+#         `wild_expansion_is_uniform` covers the structural half today.
+#
+# Which reels may expand (the help says 2 and 4) — `JokerBanana.WILD_EXPAND_REELS` records it but
+#         NOTHING asserts it: the single capture expanded reel id 4, which fits both a 1-based and
+#         an off-by-one reading. Capture an expansion on the other reel first.
+#
+# How the multiplier enters a WINNING free spin's payout — the only captured free spin paid 0, so
+#         `payout = Σ rate × line_bet × luckyMultiplier` is a guess. Capture a paying free spin
+#         before writing that invariant (bet-response.md §7).

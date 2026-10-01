@@ -1,0 +1,103 @@
+{
+  "status": 1,
+  "code": 0,
+  "msg": "",
+  "timestamp": 1787569124344,
+  "result": {
+    "result": {
+      "rawViews": null,
+      "views": [
+        {
+          "id": 1,
+          "value": [
+            11,
+            1,
+            2
+          ]
+        },
+        {
+          "id": 2,
+          "value": [
+            4,
+            1,
+            1
+          ]
+        },
+        {
+          "id": 3,
+          "value": [
+            8,
+            1,
+            6
+          ]
+        },
+        {
+          "id": 4,
+          "value": [
+            11,
+            2,
+            1
+          ]
+        },
+        {
+          "id": 5,
+          "value": [
+            4,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "freeSpins": 0,
+    "totalFreeSpin": 0,
+    "totalFreeSpinPayout": 0,
+    "randomMultiplier": 1,
+    "scatterMultiplier": 0,
+    "anteMultiplier": 0,
+    "paylines": [
+      {
+        "symbols": [
+          1,
+          1,
+          1,
+          2,
+          1
+        ],
+        "payline": 1,
+        "payoutRate": 10,
+        "winType": "A-A-A-J-A"
+      },
+      {
+        "symbols": [
+          1,
+          1,
+          1,
+          11,
+          1
+        ],
+        "payline": 10,
+        "payoutRate": 10,
+        "winType": "A-A-A-FreeSpin!-A"
+      }
+    ],
+    "baseStake": 0.6,
+    "stake": 0.6,
+    "rawPayout": 0.6,
+    "payout": 0.6,
+    "accumulatedWinAmount": 0.6,
+    "winlose": 0,
+    "betLines": 20,
+    "jackpot": 0,
+    "balance": 9833.79,
+    "hasReachedMaxWin": false,
+    "maxWin": 600,
+    "gameState": 1,
+    "promoResult": null,
+    "id": "922246283794579457",
+    "roundId": "922246283802968065",
+    "betTime": 1787569124282,
+    "processedTime": 1787569124283,
+    "settledTime": 1787569124283
+  }
+}

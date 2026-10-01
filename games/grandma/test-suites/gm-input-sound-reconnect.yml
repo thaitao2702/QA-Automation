@@ -1,0 +1,470 @@
+# Grandma Pets — SPIN INPUT, TURBO and RECONNECT.
+# TC-032 … TC-049 (minus the sound rows TC-037/038/039, TC-045 and TC-050, see
+# docs/grandma-coverage.md).
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-input-sound-reconnect.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# All mechanism-free. No paytable anywhere, so only run 1 loads the page at PREPARE.
+
+runs:
+
+  # TC-032 + TC-033 + TC-035 + TC-036
+  # HOW: one recording, in this order.
+  #  - click spin once at NORMAL speed and let the round finish (playing out a bonus if it starts
+  #    one) — the reference the turbo spin is compared with
+  #  - click the turbo button ON, wait 2 s (if it never becomes clickable, carry on without it)
+  #  - click spin once and let the round finish (playing out a bonus if it starts one)
+  #  - click the turbo button OFF, wait 2 s
+  #  - wait until the spin button can be pressed, then press and HOLD the mouse on it for 1.5 s,
+  #    release, wait 2 s, then wait for the reels to stop and the spin button to come back
+  #  - press and HOLD the Space key for 1.5 s, release, wait 2 s, then wait for the reels to stop
+  #    (a bonus started by either hold is NOT played out here — the teardown does that)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (turbo-modes):
+  #  - baseline_spin: True (default) — play the first normal-speed spin before turbo is switched
+  #    on; off, the clip opens straight on the turbo button
+  # TC-035 (hold for turbo, the game supports it): holding the spin control plays spin after spin
+  # at turbo speed until the mouse is released. The matrix: while held the Turbo control is lit and
+  # Stop Now is active; on release Turbo goes off and the game is back to normal.
+  - run:
+      scenario: turbo-modes
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        high_fps: true                     # 16fps effective — the hold, its spins and the release are sub-second
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip shows four things in order, marked on the
+          ACTION TIMELINE: a spin with turbo off; the TURBO control is switched on and a spin is
+          played; then the mouse is pressed and HELD on the spin control; then the SPACE key is
+          pressed and held.
+
+          (1) turbo_faster: compared with the first spin (turbo off), do the reels of the spin
+          played after the TURBO control is switched on settle noticeably faster?
+          (2) turbo_indicator: is the turbo control visibly lit or marked as active while it is on?
+          (3) About the MOUSE hold only, from the moment the mouse is pressed on the spin control
+          until it is released:
+            (a) hold_mouse_turbo_lit: during the hold, is the turbo control lit or marked as active?
+            (b) hold_mouse_spin_count: how many separate spins START during the hold? A number; 0
+            if none.
+            (c) hold_mouse_speed: compared with the turbo spin in part one, how fast do the reels
+            run during the hold? One of: same, slower, faster, no_spin.
+            (d) hold_mouse_stop_now: while the reels are turning during the hold, does the spin
+            control show a stop / "stop now" state instead of its normal spin face?
+            (e) release_turbo_lit: right after the mouse is released, is the turbo control lit or
+            marked as active?
+          (4) hold_space_turbo: the same as (3) while the SPACE key is held — is it in turbo while
+          held and back to normal when released?
+          (5) hold_breaks_turbo_toggle: when the hold is released, does the turbo TOGGLE from part
+          one get switched off as a side effect?
+          (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          turbo_faster: { type: boolean }
+          turbo_indicator: { type: boolean }
+          hold_mouse_turbo_lit: { type: boolean }
+          hold_mouse_spin_count: { type: integer }
+          hold_mouse_speed: { type: string, enum: [same, slower, faster, no_spin] }
+          hold_mouse_stop_now: { type: boolean }
+          release_turbo_lit: { type: boolean }
+          hold_space_turbo: { type: boolean }
+          hold_breaks_turbo_toggle: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-032: { turbo_faster: true, turbo_indicator: true, ui_broken: false, confidence: medium }
+          TC-033: { hold_breaks_turbo_toggle: false, confidence: medium }
+          # `hold_mouse_spin_count` is DISCOVERY: a 1.5 s hold may fit only one turbo spin, so the
+          # number says how long the hold needs to be before "keeps spinning" can be graded on it.
+          TC-035: { hold_mouse_turbo_lit: true, hold_mouse_speed: same, hold_mouse_stop_now: true,
+                    release_turbo_lit: false, confidence: medium }
+          TC-036: { hold_space_turbo: true, confidence: medium }
+      cases:
+        - id: TC-032
+          title: "Turbo makes the reels resolve faster"
+          assert:
+            # EXACT: the client's own speed mode, read around the toggle — not the AI's impression
+            - stream: "{facts.has_speed_getter} == True"
+            - stream: "{facts.speed_toggled} == True"
+            - stream: "{facts.speed_on} == 'TURBO'"
+            # the reference spin really was NOT turbo, or the AI compares turbo with turbo
+            - stream: "{facts.baseline_not_turbo} == True"
+
+        - id: TC-033
+          title: "Holding the mouse does not disturb the turbo toggle"
+          assert:
+            - stream: "{facts.mouse_hold_done} == True"
+            # the toggle came back to where it started, so the hold left no residue
+            - stream: "{facts.speed_off} == {facts.speed_before}"
+
+        - id: TC-035
+          title: "Press and hold the spin control gives turbo while held"
+          assert:
+            - stream: "{facts.turbo_control_present} == True"
+            - stream: "{facts.mouse_hold_done} == True"
+
+        - id: TC-036
+          title: "Press and hold SPACE gives turbo while held"
+          assert:
+            - stream: "{facts.key_hold_done} == True"
+
+  # TC-034
+  # HOW: no bet is placed.
+  #  - click the turbo button (waiting up to 15 s for it to become clickable), then wait 2 s so
+  #    the "turbo on" notification sits in frame
+  #  - click the turbo button a second time, wait 2 s
+  #  - if the turbo button never became clickable, the second click is skipped and the run is
+  #    reported as not reached
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (toggle-turbo):
+  #  - dwell_ms: 2000 (default) — how long the screen is left alone after each turbo click, in ms
+  - run:
+      scenario: toggle-turbo
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the turbo control is clicked, and then
+          clicked again.
+
+          (1) enable_message: when turbo is switched on, does a short message or toast appear
+          saying so?
+          (2) enable_text: read it exactly as printed, as a string; "none" if there is none.
+          (3) disable_message: when it is switched off, does a message appear saying that?
+          (4) disable_text: read it exactly as printed, as a string; "none" if there is none.
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          enable_message: { type: boolean }
+          enable_text: { type: string }
+          disable_message: { type: boolean }
+          disable_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # ⚠ The two readings are DISCOVERY. The matrix quotes "Turbo Enable/Disable", but that is
+          # one language of several and the wording belongs to localisation; the case is that the
+          # game SAYS something each way. A green run puts the real strings on file.
+          TC-034: { enable_message: true, disable_message: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-034
+          title: "Switching turbo on and off tells the player it happened"
+          assert:
+            - stream: "{facts.speed_changed_on} == True"
+            - stream: "{facts.toggled_off} == True"
+            # it really came back to where it started, so the second message is about a real change.
+            # `speed_restored_off` IS that comparison (speed_after_off == speed_before), computed in
+            # the scenario — compare it to True, never to a speed name.
+            - stream: "{facts.speed_restored_off} == True"
+
+  # TC-046 + TC-047 + TC-048 + TC-049
+  # HOW: four ways to ask for a spin, one recording, each marked on the timeline.
+  #  - click the spin button and let the round finish (playing out a bonus if it starts one)
+  #  - press the Space key once and let the round it starts finish (playing out a bonus if any)
+  #  - press and HOLD the spin button for 3 s, then release; every spin that starts while it is
+  #    held is counted, then watch 3 s more for any spin that starts after the release
+  #    (if the hold started a bonus, it is played out before going on)
+  #  - click spin; while the reels are turning, HOLD the stop button for 0.2 s, then let the
+  #    round finish (playing out a bonus if it starts one)
+  #  - click spin; while the reels are turning, DOUBLE-CLICK the stop button, let the round
+  #    finish, then watch 2 s for an extra spin the double-click may have started (finished too)
+  #    (if the stop button cannot be pressed within 5 s — the reels already stopped — the
+  #    gesture is skipped and reported as not done)
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (spin-inputs):
+  #  - hold_ms: 3000 (set here) — how long the spin button is held for the hold-to-spin part
+  - run:
+      scenario: spin-inputs
+      params: { hold_ms: 3000 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip shows these inputs, in the order marked
+          on the ACTION TIMELINE: a CLICK on the spin control; the SPACE key; a press-and-HOLD of
+          the spin control, then its release; a short hold of the stop control during a spin; and
+          a DOUBLE-CLICK of the stop control during a spin.
+
+          (1) click_spins: does the click start a spin?
+          (2) space_spins: does the SPACE key start a spin?
+          (3) several_spins_while_held: while the spin control is held down, does more than one
+          spin start?
+          (4) spins_after_release: after the spin control is released, do new spins keep starting?
+          (5) reels_on_double_click: when the stop control is double-clicked during the spin, what
+          do the reels do? One of: stop_at_once, run_full_length, no_spin_running.
+          (6) result_intact_after_stop: after that double-click, does the grid show a complete
+          result with its win presentation, or a half-finished animation? One of: complete,
+          half_finished.
+          (7) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          click_spins: { type: boolean }
+          space_spins: { type: boolean }
+          several_spins_while_held: { type: boolean }
+          spins_after_release: { type: boolean }
+          reels_on_double_click: { type: string, enum: [stop_at_once, run_full_length, no_spin_running] }
+          result_intact_after_stop: { type: string, enum: [complete, half_finished] }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-046: { click_spins: true, confidence: medium }
+          TC-047: { space_spins: true, confidence: medium }
+          TC-048: { several_spins_while_held: true, spins_after_release: false, confidence: medium }
+          TC-049: { reels_on_double_click: stop_at_once, result_intact_after_stop: complete,
+                    ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-046
+          title: "Clicking the spin control places one bet"
+          assert:
+            # one gesture, one round — a drained bonus must not inflate the count
+            - stream: "{facts.click_rounds} == 1"
+
+        - id: TC-047
+          title: "The SPACE key places one bet"
+          assert:
+            - stream: "{facts.key_rounds} == 1"
+
+        - id: TC-048
+          title: "Holding the spin control runs spins until it is released"
+          assert:
+            - stream: "{facts.hold_done} == True"
+            # THE CASE, counted: more than one paid spin started while held...
+            - stream: "{facts.hold_rounds} >= 2"
+            # ...and none after the release
+            - stream: "{facts.spins_after_release} == 0"
+            # the sudden-stop half: the 0.2 s hold really landed on the stop control mid-spin
+            - stream: "{facts.sudden_hold_done} == True"
+
+        - id: TC-049
+          title: "A double-click stops the reels and the result still shows in full"
+          assert:
+            # the double-click really landed on the stop control while the reels turned
+            - stream: "{facts.dblclick_done} == True"
+            # one gesture, one round: the second click did not start another spin
+            - stream: "{facts.extra_spin_after_dblclick} == False"
+            - stream: conservation
+
+  # TC-040
+  # HOW:
+  #  - click spin once and wait for the reels to stop (a bonus it starts is NOT played out first)
+  #  - cut the network
+  #  - wait 6 s — short, still under the reconnect threshold
+  #  - put the network back
+  #  - wait 4 s for the game to reconnect
+  #  - wait up to 60 s for the spin button to become usable again
+  #  - if it did, click spin ONE more time and let the round finish (playing out a bonus if it
+  #    starts one) to prove the game is genuinely playable again; if it never did, nothing more
+  #    is played
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (reconnect-brief):
+  #  - off_s: 6.0 (set here) — how long the network stays cut, in seconds
+  - run:
+      scenario: reconnect-brief
+      params: { off_s: 6.0 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. The network is cut for about {facts.offline_s}
+          seconds in the middle of this clip and then restored.
+
+          (1) tells_the_player: while the connection is down, does the game say something about
+          reconnecting — a message, a spinner, an overlay?
+          (2) recovers: does the game come back by itself, without the player reloading?
+          (3) playable_after: is a spin played successfully after it recovers?
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          tells_the_player: { type: boolean }
+          recovers: { type: boolean }
+          playable_after: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-040: { tells_the_player: true, recovers: true, playable_after: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-040
+          title: "A short disconnection reconnects and play continues"
+          assert:
+            - stream: "{facts.recovered} == True"
+            - stream: "{facts.played_after_reconnect} == True"
+            - stream: conservation
+
+  # TC-041 + TC-042
+  # HOW:
+  #  - click spin once and let the round finish, playing out a bonus first if it starts one, so
+  #    the outage cannot land in the middle of one
+  #  - cut the network
+  #  - wait 25 s — long, PAST the reconnect threshold
+  #  - put the network back
+  #  - wait 6 s for the disconnect popup or the redirect home to appear (the clip ends here)
+  #  - re-enter the game on a fresh session, so the next run does not start on the dead one
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (reconnect-long):
+  #  - off_s: 25.0 (set here) — how long the network stays cut, in seconds
+  # One run covers both rows: the matrix lists them as different CAUSES (time, changing Wi-Fi)
+  # but the client cannot tell them apart — what it sees is a socket that has been gone too long,
+  # and the claim is what it does then. (TC-045, a tab hidden for 30-45 min, is NOT the same:
+  # the browser throttles a hidden tab, which a network cut does not reproduce. Not covered.)
+  - run:
+      scenario: reconnect-long
+      params: { off_s: 25.0 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. The network is cut for about {facts.offline_s}
+          seconds in the middle of this clip and then restored.
+
+          (1) popup_shown: does a popup appear telling the player the session has ended or that they
+          are being returned to the lobby?
+          (2) popup_text: read its main line exactly as printed, as a string; "none" if there is no
+          popup.
+          (3) keeps_retrying_silently: does the game just sit there with no message?
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          popup_shown: { type: boolean }
+          popup_text: { type: string }
+          keeps_retrying_silently: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `popup_text` is DISCOVERY — the wording is localisation's, and the claim is that the
+          # player is told at all.
+          TC-041: { popup_shown: true, keeps_retrying_silently: false, ui_broken: false, confidence: medium }
+          TC-042: { popup_shown: true, confidence: medium }
+      cases:
+        # Graded on the clip only (the run's `video:` above). There is no exact check to make: the
+        # outage length is the run's own setting (25 s), so asserting it proved nothing.
+        - id: TC-041
+          title: "A disconnection longer than the grace period ends the session"
+
+        - id: TC-042
+          # the same evidence: to the client a changed network IS a socket that went away
+          title: "Changing network mid-session ends it the same way"
+
+  # TC-044
+  # HOW:
+  #  - click the auto button
+  #  - click the 10-spins option
+  #  - click the confirm button
+  #  - wait for the first auto spin to land (up to 90 s), so a run is genuinely going; if none
+  #    comes, carry on anyway
+  #  - cut the network
+  #  - wait 6 s
+  #  - put the network back
+  #  - watch up to 30 s for auto to carry on with another spin; if it does, watch one more auto
+  #    spin (up to 90 s) so 2 rounds after the reconnect are on record
+  #  - if no auto spin came in those 30 s, wait up to 60 s for the spin button to become usable
+  #    instead (auto stopped)
+  #    (either behaviour — auto carries on, or auto stops and the player can spin — is allowed)
+  #  - click the auto button on the main screen (it stops a running auto) so the game is not
+  #    left betting on its own; skipped if it cannot be clicked within 5 s
+  #  - afterwards: the game is brought back to the base game
+  # PARAMS (reconnect-during-auto):
+  #  - count: 10 (set here) — which auto-spin count is picked in the auto panel: 10/20/30/50 pick
+  #    the 1st/2nd/3rd/4th option; any other number picks the 1st
+  #  - off_s: 6.0 (set here) — how long the network stays cut, in seconds
+  #  - resume_wait_s: 30.0 (default) — how long to wait, after the network is back, for auto to
+  #    carry on before deciding it stopped
+  #  - rounds_after: 2 (default) — how many auto spins after the reconnect are watched and recorded
+  - run:
+      scenario: reconnect-during-auto
+      params: { count: 10, off_s: 6.0 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Auto-play is running when the network is cut for
+          about {facts.offline_s} seconds, then restored.
+
+          (1) recovers: does the game come back by itself?
+          (2) no_double_spin: when it returns, does it carry on cleanly — no spin played twice, no
+          two results shown for one round?
+          (3) balance_consistent: does the balance look consistent afterwards, rather than jumping
+          in a way the spins do not explain?
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          recovers: { type: boolean }
+          no_double_spin: { type: boolean }
+          balance_consistent: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-044: { recovers: true, no_double_spin: true, balance_consistent: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-044
+          title: "A disconnection during a run recovers without losing or repeating a spin"
+          assert:
+            - stream: "{facts.recovered} == True"
+            # THE CASE, exactly: every round in the stream debits once and credits once. A spin
+            # replayed on reconnect breaks this arithmetic even when the screen looks right.
+            - stream: conservation
+            - stream: ways_payout_matches
+
+  # TC-043
+  # HOW:
+  #  - click spin once and let the round finish, playing out a bonus first if it starts one —
+  #    otherwise the takeover lands mid-bonus and those free-spin rounds are never collected
+  #  - open the game a SECOND time in a fresh browser session on the same account
+  #    (if the second session cannot be opened, the run stops here)
+  #  - wait 6 s for the server to kick the first one out (the clip ends here)
+  #  - close the second session
+  #  - re-enter the game in the first tab on a fresh session, so the next run does not start on
+  #    the takeover popup
+  #  - afterwards: the game is brought back to the base game
+  #    (the recording is the FIRST tab, which is where the takeover message appears)
+  # PARAMS (multi-tab-session): none
+  - run:
+      scenario: multi-tab-session
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player plays one spin; then the
+          same player opens the game a SECOND time, in another browser session (marked on the
+          ACTION TIMELINE). This clip shows only the FIRST session, and continues for about
+          {facts.wait_s} seconds after the second one opens.
+
+          (1) first_tab_interrupted: after the second session opens, does this tab stop working —
+          a popup, a disconnect message, or the game returning to a lobby?
+          (2) popup_text: read the message exactly as printed, as a string; "none" if there is none.
+          (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          first_tab_interrupted: { type: boolean }
+          popup_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-043: { first_tab_interrupted: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-043
+          title: "Opening the same game twice ends the first session"
+          assert:
+            # the premise: a second session really was opened (the 6 s wait after it is the
+            # scenario's own setting, so it is not asserted)
+            - stream: "{facts.second_opened} == True"

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Replay Viewer</title>
+<style>
+:root{color-scheme:light;--ink:#435677;--muted:#71809a;--line:#e3e8f1;--blue:#0865cc;--canvas:#edf0f5}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}:focus-visible{outline:3px solid #6aa9ef;outline-offset:3px}[hidden]{display:none!important}.brand{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase}.brand svg{width:28px;height:28px;color:#0865cc;flex-shrink:0}.badge,.verdict-badge{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;padding:3px 9px;border-radius:5px;background:#e5eaf2;color:#4c607e;font-size:12px;font-weight:600;line-height:1.6;white-space:nowrap;text-transform:capitalize}.badge.green,.verdict-green{background:#aaebce;color:#245d4f}.badge.red,.badge.error,.verdict-red,.verdict-error{background:#ffb0bf;color:#78273c}.badge.orange,.verdict-orange{background:#ffd0a8;color:#8f3f08}.badge.inconclusive,.verdict-inconclusive{background:#e3d5fa;color:#624a89}
+body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}.workspace{flex:1;min-height:0;display:flex;flex-direction:column;padding:26px 36px 28px}#header{display:flex;align-items:center;gap:18px;flex-shrink:0;margin-bottom:18px}.heading{min-width:0;flex:1}.eyebrow{font-size:12px;color:#788ca9;letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px}#test-title{font-size:17px;font-weight:600;letter-spacing:-.2px;line-height:1.4;overflow-wrap:anywhere;margin:0}.meta{font-size:12px;color:var(--muted);margin-top:5px}#main{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(310px,1fr);flex:1;min-height:0;gap:18px}#video-panel,#events-panel{display:flex;flex-direction:column;min-width:0;min-height:0;background:white;border:1px solid #e0e6f0;border-radius:5px;overflow:hidden;box-shadow:0 2px 6px #1e3b6406}.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 20px 0;flex-shrink:0}.panel-heading h2{font-size:14px;font-weight:500;color:#ab6b00;margin:0;border-bottom:2px solid #ffa216;padding-bottom:12px}.panel-heading>span{font-size:12px;color:var(--muted)}#video-wrap{flex:1;min-height:0;position:relative;margin:0 16px;background:#101b2e;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:3px}#video-wrap video{width:100%;height:100%;object-fit:contain;display:block}#video-message{position:absolute;inset:0;display:grid;align-content:center;gap:8px;padding:20px;text-align:center;background:#101b2e;color:#d6e2f3}#video-message small{font-size:12px;color:#a3b5d0}#video-controls{padding:16px;flex-shrink:0}.seek-line{display:flex;align-items:center;gap:15px;margin-bottom:12px}#seek-bar{appearance:none;flex:1;min-width:40px;height:3px;border-radius:2px;cursor:pointer;background:linear-gradient(to right,#0865cc var(--progress,0%),#e0e8f3 var(--progress,0%))}#seek-bar::-webkit-slider-thumb{appearance:none;width:10px;height:10px;border-radius:50%;background:#0865cc}#seek-bar::-moz-range-thumb{width:10px;height:10px;border:0;border-radius:50%;background:#0865cc}#time-display{font:12px/1.4 ui-monospace,Consolas,monospace;color:#6b7f9e;white-space:nowrap}.transport{display:flex;align-items:center;justify-content:space-between;gap:10px}.transport-group,.speed-group{display:flex;align-items:center;gap:6px}#video-controls button{display:inline-grid;place-items:center;border:1px solid #dfe7f3;border-radius:4px;background:#fff;color:#4476b5;padding:4px 9px;font-size:12px;height:30px}#video-controls button:hover{background:#edf4fe}#video-controls #btn-play{background:#0865cc;color:white;border-color:#0865cc;width:38px}#video-controls button.active{background:#e4effd;color:#075bb7;border-color:#b8d6f9}.speed-group{gap:0}.transport-hint{font-size:12px;color:var(--muted);margin-left:6px}#timeline{border-top:1px solid var(--line);padding:13px 16px;background:#fbfcfe;flex-shrink:0}.timeline-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.timeline-label{font-size:12px;font-weight:600}.timeline-heading small{font-size:12px;color:var(--muted)}#timeline-bar{display:flex;gap:6px;overflow-x:auto;padding:2px 1px 5px;scrollbar-width:thin;scrollbar-color:#c3d5ec transparent}.step-segment{flex:1 0 110px;max-width:170px;text-align:left;padding:8px 10px;border-radius:3px;border:1px solid #e0e7f1;background:#f0f4fa;color:#536b90}.step-segment:hover{background:#eaf2fd}.step-segment.active{background:#e1edfc;color:#075bb7;border-color:#a9cdf8;box-shadow:none}.step-name{display:block;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:4px 0}.inspector-hint{color:var(--muted);font-size:12px;padding:10px 20px;margin:0}.event-search-wrap{padding:0 16px 12px}#event-search{width:100%;font-size:12px;padding:8px 10px;border:1px solid #d8e1ef;border-radius:5px;background:#fff;color:var(--ink)}#event-count{padding:3px 8px;background:#edf3fc;border-radius:4px;color:#4774b0}#filter-bar{display:flex;gap:5px;flex-wrap:wrap;padding:0 16px 12px;border-bottom:1px solid var(--line);flex-shrink:0}.filter-btn{font-size:11px;padding:3px 7px;border:1px solid transparent;border-radius:12px}.filter-btn.on{border-color:currentColor}.filter-btn:hover{filter:brightness(.97)}#show-future-btn{margin-left:auto;background:#f0f5fc;color:#5077a9;border:1px solid #dce6f4;border-radius:12px;font-size:11px;padding:3px 7px}#show-future-btn.on{background:#dfedff;border-color:#99c3f6;color:#075bb7}#events-log{flex:1;overflow-y:auto;min-height:0;padding:4px 8px;scrollbar-width:thin;scrollbar-color:#c3d5ec transparent}.event-row{width:100%;text-align:left;font:inherit;border:0;background:#fff;display:grid;grid-template-columns:50px minmax(0,1fr);gap:4px 10px;align-items:start;padding:10px;border-radius:2px;cursor:pointer}.event-row:hover{background:#edf3fd}.event-row.future{opacity:.6}.event-row.future.hide-future{display:none}.event-row.current{background:#e4eefb}.event-time{grid-row:1/3;font:12px/1.6 ui-monospace,Consolas,monospace;color:#7186a7}.event-badge{justify-self:start;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}.event-data{grid-column:2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:12px;color:#586f93}.empty-state{padding:30px 16px;text-align:center;color:var(--muted);font-size:12px}.inspector-footer{padding:11px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}#event-popup-overlay{display:none;position:fixed;inset:0;background:#152c5666;backdrop-filter:blur(3px);z-index:100;align-items:center;justify-content:center}#event-popup-overlay.open{display:flex}#event-popup{background:#fff;border:1px solid #dbe4f1;border-radius:7px;max-width:660px;width:92%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 70px #16315a44}#event-popup-header{display:flex;align-items:center;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line)}.popup-title{flex:1;font-size:14px;font-weight:600;overflow-wrap:anywhere}.popup-time{font:12px/1.5 ui-monospace,Consolas,monospace;color:var(--muted)}#popup-close-btn{background:#edf3fb;color:#5581b9;border:0;border-radius:4px;font-size:20px;padding:0 8px}#event-popup-body{padding:20px;overflow-y:auto;min-height:0;background:#f8fafd}#event-popup-body pre{font:12px/1.8 ui-monospace,Consolas,monospace;color:#4f6587;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}#event-popup-actions{display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}#event-popup-actions button{background:#fff;border:1px solid #dfe7f3;border-radius:4px;color:#0865cc;padding:7px 11px;font-size:12px}#event-popup-actions button:hover{background:#edf4fe}#event-popup-actions .popup-seek-btn{background:#0865cc;color:white;margin-left:auto;border-color:#0865cc}#event-popup-actions button.copied{background:#aaebce;color:#245d4f}
+@media(max-width:1100px){#main{grid-template-columns:minmax(0,1.3fr) minmax(260px,1fr);gap:12px}.transport-hint{display:none}.panel-heading{padding:14px 16px 0}}
+@media(max-width:850px){body{height:auto;min-height:100dvh;overflow:auto}#main{display:flex;flex-direction:column}#video-wrap{flex:none;height:48vh;min-height:220px}#events-log{max-height:420px;min-height:180px}#header{margin-bottom:14px}.transport{flex-wrap:wrap}#test-title{font-size:16px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important}}
+
+#header{gap:28px;margin-bottom:24px}.brand{flex-direction:column;padding-right:28px;border-right:1px solid #d9e3f1;gap:8px;font-size:11px;letter-spacing:1.8px;flex-shrink:0}.brand svg{width:38px;height:38px}.heading{flex:1;min-width:0}#test-title{font-size:clamp(19px,2.3vw,30px);line-height:1.3;letter-spacing:-.9px}.eyebrow{font-size:12px;letter-spacing:2px;margin-bottom:5px}.meta{font-size:12px;margin-top:8px}#video-panel,#events-panel{border-radius:12px}#main{gap:20px}.event-row{border-bottom:1px solid #edf0f6;border-radius:5px}#events-log{padding:8px 12px}.panel-heading h2{color:#435677;border-bottom:0;padding-bottom:14px}.step-segment{border-radius:5px}
+@media(max-width:950px){.workspace{padding:20px}#header{gap:18px}.brand{padding-right:18px}#main{gap:14px;grid-template-columns:minmax(0,1.4fr) minmax(290px,1fr)}}
+@media(max-width:740px){.workspace{padding:18px 14px}#header{flex-wrap:wrap;gap:12px}.brand{width:100%;flex-direction:row;border:0;padding:0}.brand svg{width:26px;height:26px}#test-title{font-size:19px}}
+
+/* Joined playback workspace with more room for the recording. */
+.workspace{padding:18px 22px 20px}
+#header{margin-bottom:16px}
+#main{grid-template-columns:minmax(0,1fr) clamp(300px,30vw,420px);gap:0;background:#fff;border:1px solid #e0e6f0;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px #1e3b6408}
+#video-panel,#events-panel{border:0;border-radius:0;box-shadow:none;background:transparent}
+#events-panel{border-left:1px solid var(--line)}
+.panel-heading{padding:12px 16px 0}
+.panel-heading h2{font-size:15px;padding-bottom:10px}
+#video-wrap{margin:0 10px;border-radius:3px}
+#video-controls{padding:10px 12px}
+.seek-line{margin-bottom:8px}
+#timeline{display:flex;align-items:center;gap:10px;padding:7px 12px;min-height:44px}
+.timeline-heading{margin:0;flex-shrink:0}
+.timeline-label{font-size:12px}
+#step-count{display:none}
+#timeline-bar{flex:1;min-width:0;gap:5px;padding:2px 1px;align-items:center}
+.step-segment{flex:0 0 auto;max-width:220px;padding:5px 9px;border-radius:4px;line-height:1.4}
+.step-name{font-size:12px;margin:0;font-weight:500}
+.event-row{grid-template-columns:58px minmax(0,1fr)}
+.event-data{font-size:13px}
+#event-search{font-size:13px}
+#event-popup-body pre{font-size:13px}
+@media(max-width:950px){.workspace{padding:16px}#header{gap:18px}#main{gap:0}}
+@media(max-width:850px){#main{display:flex;flex-direction:column;gap:0}#events-panel{border-left:0;border-top:1px solid var(--line)}#video-wrap{height:60vh;min-height:260px}#events-log{max-height:440px}}
+@media(max-width:740px){.workspace{padding:14px 10px}#timeline{padding:7px 10px}.step-segment{max-width:180px}}
+
+/* Both footer cells occupy the same grid row, even when the help text wraps. */
+#main{grid-template-rows:minmax(0,1fr) auto}
+#video-panel{grid-column:1;grid-row:1}
+#events-panel{grid-column:2;grid-row:1}
+#timeline{grid-column:1;grid-row:2}
+.inspector-footer{grid-column:2;grid-row:2;border-left:1px solid var(--line)}
+#timeline,.inspector-footer{align-self:stretch;display:flex;align-items:center;min-height:52px;padding:9px 14px;margin:0;border-top:1px solid var(--line);background:#fbfcfe;line-height:20px;flex-shrink:0}
+/* Compact primary and secondary actions. */
+#video-controls button,#event-popup-actions button,#show-future-btn,#popup-close-btn,.step-segment{border-radius:3px;border:1px solid #dce6f1;background:#e7eff6;color:#436ba5;box-shadow:0 1px 2px #28477212;font-weight:500}
+#video-controls button,#event-popup-actions button{min-height:32px;padding:5px 12px}
+#video-controls button:hover,#event-popup-actions button:hover,#show-future-btn:hover,#popup-close-btn:hover,.step-segment:hover{background:#dbe8f5;color:#30598f;border-color:#c5d8ee}
+#video-controls #btn-play,#video-controls button.active,#event-popup-actions .popup-seek-btn,#show-future-btn.on{background:#1764c7;border-color:#1764c7;color:#fff}
+#video-controls #btn-play:hover,#video-controls button.active:hover,#event-popup-actions .popup-seek-btn:hover,#show-future-btn.on:hover{background:#1155ae;border-color:#1155ae;color:#fff}
+#video-controls :is(#btn-back,#btn-play,#btn-forward){width:44px;height:32px;padding:0;flex:0 0 44px}
+.speed-group{gap:6px}
+#video-controls .speed-btn{width:44px;height:32px;padding:0;border-radius:3px}
+.step-segment{min-height:30px}
+.step-segment.active{background:#d7e8fb;border-color:#8fb8e8;color:#164f98;box-shadow:none}
+#event-popup-actions button.copied{background:#e0f1e7;border-color:#c4e1cf;color:#276441}
+/* Suite chapters on the seek bar (YouTube-style): one segment per run, gaps between them. */
+#seek-track{position:relative;flex:1;min-width:40px;display:flex;align-items:center;height:18px}
+#seek-track #seek-bar{width:100%;position:relative;z-index:2}
+#chapters{position:absolute;left:0;right:0;top:50%;height:5px;transform:translateY(-50%);z-index:1;pointer-events:none}
+#seek-track.has-chapters #seek-bar{background:transparent;height:18px}
+.chapter{position:absolute;top:0;bottom:0;background:#dbe4f0;border-radius:1px;overflow:hidden;transition:transform .12s}
+.chapter.hover{transform:scaleY(1.7)}
+.chapter.own{background:#b7cbe6}
+.chapter-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:#0865cc}
+.chapter-mark{position:absolute;top:10px;height:2px;border-radius:1px}
+.chapter-mark.green{background:#2e9e6a}.chapter-mark.orange{background:#ef6c00}.chapter-mark.red,.chapter-mark.error{background:#c62828}.chapter-mark.inconclusive{background:#8e63c9}.chapter-mark.pending{background:#8a99ad}
+#chapters{overflow:visible}
+#chapter-tip{position:absolute;bottom:22px;transform:translateX(-50%);z-index:3;background:#16294a;color:#fff;font-size:12px;line-height:1.4;padding:4px 8px;border-radius:4px;white-space:nowrap;pointer-events:none}
+#chapter-tip small{color:#b9c8dd;margin-left:6px;font-family:ui-monospace,Consolas,monospace}
+#chapter-now{font-size:12px;color:var(--muted);margin:-4px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#chapter-now b{color:var(--ink);font-weight:600}
+#chapter-now .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
+.dot.green{background:#2e9e6a}.dot.orange{background:#ef6c00}.dot.red,.dot.error{background:#c62828}.dot.inconclusive{background:#8e63c9}.dot.pending{background:#8a99ad}
+@media(max-width:850px){#video-panel{order:1}#timeline{order:2}#events-panel{order:3}.inspector-footer{order:4;border-left:0}#timeline,.inspector-footer{min-height:48px}}
+</style>
+</head>
+<body><div class="workspace">
+
+<div id="header"><div class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 4h8v7H3zM14 4h7v7h-7zM3 14h8v7H3z" fill="currentColor"/><path d="m15 15 2 3 4-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="brand-text">Game QA</span></div>
+  <div class="heading"><div class="eyebrow">Replay studio / Session review</div><h1 id="test-title">Loading…</h1>
+  <div class="meta" id="test-meta"></div></div>
+  <span class="verdict-badge" id="verdict-badge"></span>
+</div>
+
+<div id="main">
+
+  <section id="video-panel" aria-label="Session recording">
+    <div class="panel-heading"><h2>Session recording</h2><span class="recorded-indicator">Recorded session</span></div>
+    <div id="video-wrap">
+      <video id="player" preload="auto" playsinline></video>
+      <div id="video-message" hidden>Recording unavailable<small>The video could not be loaded. You can still inspect the events and steps.</small></div>
+    </div>
+    <div id="video-controls">
+      <div class="seek-line"><div id="seek-track"><div id="chapters" aria-hidden="true"></div><input aria-label="Seek recording" id="seek-bar" type="range" min="0" max="1000" value="0" step="1"><div id="chapter-tip" hidden></div></div><span id="time-display">0:00 / 0:00</span></div>
+      <div id="chapter-now" hidden></div>
+      <div class="transport">
+        <div class="transport-group"><button id="btn-back" aria-label="Back 5 seconds" title="Back 5 seconds">−5s</button><button id="btn-play" aria-label="Play recording">▶</button><button id="btn-forward" aria-label="Forward 5 seconds" title="Forward 5 seconds">+5s</button><span class="transport-hint">Review every moment</span></div>
+        <div class="speed-group" role="group" aria-label="Playback speed"><button id="btn-05" class="speed-btn" data-speed="0.5" aria-pressed="false">0.5×</button><button id="btn-1" class="speed-btn active" data-speed="1" aria-pressed="true">1×</button><button id="btn-2" class="speed-btn" data-speed="2" aria-pressed="false">2×</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="events-panel" aria-label="Recorded events">
+    <div class="panel-heading"><h2>Event inspector</h2><span id="event-count"></span></div>
+    <p class="inspector-hint">The details behind every frame.</p>
+    <div class="event-search-wrap"><input id="event-search" type="search" aria-label="Search events" placeholder="Search events, actions, or values…"></div>
+    <div id="filter-bar">
+      <!-- Populated dynamically -->
+      <button id="show-future-btn" aria-pressed="false">Show future</button>
+    </div>
+    <div id="events-log"></div>
+  </section>
+
+  <div id="timeline"><div class="timeline-heading"><span class="timeline-label">Steps</span><small id="step-count"></small></div><div id="timeline-bar" aria-label="Recorded steps"></div></div>
+  <div class="inspector-footer">Select an event to inspect its data or jump to that moment.</div>
+</div>
+
+</div><div id="event-popup-overlay">
+  <div id="event-popup" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+    <div id="event-popup-header">
+      <span class="event-badge" id="popup-badge"></span>
+      <span class="popup-title" id="popup-title"></span>
+      <span class="popup-time" id="popup-time"></span>
+      <button id="popup-close-btn" aria-label="Close event details">&times;</button>
+    </div>
+    <div id="event-popup-body">
+      <pre id="popup-json"></pre>
+    </div>
+    <div id="event-popup-actions">
+      <button id="popup-copy-json">Copy JSON</button>
+      <button id="popup-copy-data">Copy Data Only</button>
+      <button class="popup-seek-btn" id="popup-seek">Seek to Event</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Inline data injected by reporter.py ──────────────────────────────
+  const DATA = {"test_id": "paytable-bet-scaling", "title": "paytable-bet-scaling scenario", "final_verdict": "orange", "bridge_result": "orange", "ai_result": "pending", "duration_ms": 34091, "error": null, "video_file": "../session.webm", "video_event_offset": 0, "steps": [{"id": "mark-0", "action": "mark", "description": "BET LEVEL A = 0.1", "start_ms": 338498, "end_ms": 338498, "result": null}, {"id": "click-1", "action": "click", "description": "click stakeIncrease", "start_ms": 338501, "end_ms": 340821, "result": {"button": "stakeIncrease"}}, {"id": "scroll-2", "action": "scroll", "description": "scroll bet row 0 into view", "start_ms": 340823, "end_ms": 340828, "result": {"row": 0}}, {"id": "click-3", "action": "click", "description": "click bet:close", "start_ms": 355834, "end_ms": 358149, "result": {"button": "bet:close"}}, {"id": "click-4", "action": "click", "description": "open settings to reach settings:info", "start_ms": 358160, "end_ms": 358481, "result": {"button": "settings", "to_reach": "settings:info"}}, {"id": "click-5", "action": "click", "description": "click settings:info", "start_ms": 358156, "end_ms": 361815, "result": {"button": "settings:info"}}, {"id": "shot-6", "action": "shot", "description": "screenshot: paytable-bet-a", "start_ms": 361816, "end_ms": 361895, "result": {"label": "paytable-bet-a", "file": "00-paytable-bet-a.png"}}, {"id": "mark-7", "action": "mark", "description": "BET LEVEL B = 7", "start_ms": 361898, "end_ms": 361898, "result": null}, {"id": "click-8", "action": "click", "description": "click stakeIncrease", "start_ms": 361900, "end_ms": 364222, "result": {"button": "stakeIncrease"}}, {"id": "scroll-9", "action": "scroll", "description": "scroll bet row 3 into view", "start_ms": 364228, "end_ms": 364231, "result": {"row": 3}}, {"id": "click-10", "action": "click", "description": "click bet:row:3", "start_ms": 364231, "end_ms": 366560, "result": {"button": "bet:row:3"}}, {"id": "click-11", "action": "click", "description": "click bet:close", "start_ms": 366563, "end_ms": 368883, "result": {"button": "bet:close"}}, {"id": "click-12", "action": "click", "description": "open settings to reach settings:info", "start_ms": 368893, "end_ms": 369200, "result": {"button": "settings", "to_reach": "settings:info"}}, {"id": "click-13", "action": "click", "description": "click settings:info", "start_ms": 368890, "end_ms": 372518, "result": {"button": "settings:info"}}, {"id": "shot-14", "action": "shot", "description": "screenshot: paytable-bet-b", "start_ms": 372518, "end_ms": 372585, "result": {"label": "paytable-bet-b", "file": "01-paytable-bet-b.png"}}], "events": [{"t": 7.511, "type": "game_info", "data": {"when": "prepare load", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15233.836, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949662978083389441", "roundId": "949662978083389441", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": null, "wildMultipliers": null, "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [6, 1, 1, 7]}, {"index": 1, "value": [1, 1, 1, 4]}, {"index": 2, "value": [2, 6, 11, 2]}, {"index": 3, "value": [1, 7, 6, 6]}, {"index": 4, "value": [6, 7, 3, 19]}], "view": [{"index": 0, "value": [6, 1, 1, 7]}, {"index": 1, "value": [1, 1, 1, 4]}, {"index": 2, "value": [2, 6, 11, 2]}, {"index": 3, "value": [1, 7, 6, 6]}, {"index": 4, "value": [6, 7, 3, 19]}], "totalWays": 0, "wayDetails": [], "rawPayout": 0, "payout": 0, "winlose": -0.1, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0, "balance": 15233.836, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 0, "betTime": 1790837448930, "processedTime": 1790837448994, "settledTime": 1790837448994, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "boot-base"}}, {"t": 147.468, "type": "game_info", "data": {"when": "reload", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 0.44, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 7, "gameState": 1, "currentAccumulatedWinAmount": 5.6, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949685914517372929", "roundId": "949685914517372929", "stake": 7, "baseStake": 7, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "view": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 4, "wayCount": 2, "winPositions": [{"index": 0, "value": [0]}, {"index": 1, "value": [1]}, {"index": 2, "value": [0]}, {"index": 3, "value": [0, 1]}, {"index": 4, "value": [1]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 4, "value": [1]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.4, "totalMultiplier": 0.4, "payout": 5.6}], "rawPayout": 5.6, "payout": 5.6, "winlose": -1.4, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 5.6, "balance": 15141.436, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840183166, "processedTime": 1790840183195, "settledTime": 1790840183195, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "insufficient-balance"}}, {"t": 161.991, "type": "game_info", "data": {"when": "reload", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15141.436, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 7, "gameState": 1, "currentAccumulatedWinAmount": 5.6, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949685914517372929", "roundId": "949685914517372929", "stake": 7, "baseStake": 7, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "view": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 4, "wayCount": 2, "winPositions": [{"index": 0, "value": [0]}, {"index": 1, "value": [1]}, {"index": 2, "value": [0]}, {"index": 3, "value": [0, 1]}, {"index": 4, "value": [1]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 4, "value": [1]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.4, "totalMultiplier": 0.4, "payout": 5.6}], "rawPayout": 5.6, "payout": 5.6, "winlose": -1.4, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 5.6, "balance": 15141.436, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840183166, "processedTime": 1790840183195, "settledTime": 1790840183195, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "insufficient-balance"}}, {"t": 169.13, "type": "game_info", "data": {"when": "prepare load", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15141.436, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 7, "gameState": 1, "currentAccumulatedWinAmount": 5.6, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949685914517372929", "roundId": "949685914517372929", "stake": 7, "baseStake": 7, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "view": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 4, "wayCount": 2, "winPositions": [{"index": 0, "value": [0]}, {"index": 1, "value": [1]}, {"index": 2, "value": [0]}, {"index": 3, "value": [0, 1]}, {"index": 4, "value": [1]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 4, "value": [1]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.4, "totalMultiplier": 0.4, "payout": 5.6}], "rawPayout": 5.6, "payout": 5.6, "winlose": -1.4, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 5.6, "balance": 15141.436, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840183166, "processedTime": 1790840183195, "settledTime": 1790840183195, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "freespin-zero-balance"}}, {"t": 174.209, "type": "game_info", "data": {"when": "reload", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 0.1, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 7, "gameState": 1, "currentAccumulatedWinAmount": 5.6, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949685914517372929", "roundId": "949685914517372929", "stake": 7, "baseStake": 7, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "view": [{"index": 0, "value": [4, 5, 1, 18]}, {"index": 1, "value": [2, 4, 2, 3]}, {"index": 2, "value": [4, 5, 1, 1]}, {"index": 3, "value": [4, 4, 5, 5]}, {"index": 4, "value": [18, 19, 5, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 4, "wayCount": 2, "winPositions": [{"index": 0, "value": [0]}, {"index": 1, "value": [1]}, {"index": 2, "value": [0]}, {"index": 3, "value": [0, 1]}, {"index": 4, "value": [1]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 4, "value": [1]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.4, "totalMultiplier": 0.4, "payout": 5.6}], "rawPayout": 5.6, "payout": 5.6, "winlose": -1.4, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 5.6, "balance": 15141.436, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840183166, "processedTime": 1790840183195, "settledTime": 1790840183195, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "freespin-zero-balance"}}, {"t": 195.019, "type": "game_info", "data": {"when": "reload", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 0.1, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 5, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 5, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949686316616908801", "roundId": "949686316616908801", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": null, "wildMultipliers": null, "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [4, 5, 6, 6]}, {"index": 1, "value": [5, 4, 4, 4]}, {"index": 2, "value": [8, 3, 7, 3]}, {"index": 3, "value": [6, 4, 4, 7]}, {"index": 4, "value": [7, 11, 6, 3]}], "view": [{"index": 0, "value": [4, 5, 6, 6]}, {"index": 1, "value": [5, 4, 4, 4]}, {"index": 2, "value": [8, 3, 7, 3]}, {"index": 3, "value": [6, 4, 4, 7]}, {"index": 4, "value": [7, 11, 6, 3]}], "totalWays": 0, "wayDetails": [], "rawPayout": 0, "payout": 0, "winlose": -0.1, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0, "balance": 0, "hasReachedMaxWin": false, "maxWin": 5, "winType": 0, "betTime": 1790840231100, "processedTime": 1790840231124, "settledTime": 1790840231124, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "freespin-zero-balance"}}, {"t": 283.42, "type": "game_info", "data": {"when": "reload", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15141.436, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 5, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 5, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687028130250753", "roundId": "949686491594883073", "stake": 0, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": null, "wildMultipliers": null, "expandedReels": null, "betType": 1, "subType": 0, "miscType": "NA", "state": 2, "nextState": 2, "package": null, "rawView": [{"index": 0, "value": [4, 2, 6, 8]}, {"index": 1, "value": [2, 2, 2, 4]}, {"index": 2, "value": [3, 1, 1, 1]}, {"index": 3, "value": [1, 6, 3, 7]}, {"index": 4, "value": [2, 2, 2, 1]}], "view": [{"index": 0, "value": [4, 2, 6, 8]}, {"index": 1, "value": [2, 2, 2, 4]}, {"index": 2, "value": [3, 1, 1, 1]}, {"index": 3, "value": [1, 6, 3, 7]}, {"index": 4, "value": [2, 2, 2, 1]}], "totalWays": 0, "wayDetails": [], "rawPayout": 0, "payout": 0, "winlose": 0, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 8, "totalFreeSpinPayout": 0.54, "accumulatedWinAmount": 0.54, "balance": 0.54, "hasReachedMaxWin": false, "maxWin": 5, "winType": 0, "betTime": 1790840315919, "processedTime": 1790840315947, "settledTime": 1790840315947, "canBuyExtension": true, "currentRoundType": "freespin", "extensionPhase": 0, "originalTotalFreeSpins": 8, "originalTotalFreeSpinsPayout": 0.54, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "freespin-zero-balance"}}, {"t": 288.44, "type": "game_info", "data": {"when": "prepare load", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15141.436, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687028130250753", "roundId": "949686491594883073", "stake": 0, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": null, "wildMultipliers": null, "expandedReels": null, "betType": 1, "subType": 0, "miscType": "NA", "state": 2, "nextState": 2, "package": null, "rawView": [{"index": 0, "value": [4, 2, 6, 8]}, {"index": 1, "value": [2, 2, 2, 4]}, {"index": 2, "value": [3, 1, 1, 1]}, {"index": 3, "value": [1, 6, 3, 7]}, {"index": 4, "value": [2, 2, 2, 1]}], "view": [{"index": 0, "value": [4, 2, 6, 8]}, {"index": 1, "value": [2, 2, 2, 4]}, {"index": 2, "value": [3, 1, 1, 1]}, {"index": 3, "value": [1, 6, 3, 7]}, {"index": 4, "value": [2, 2, 2, 1]}], "totalWays": 0, "wayDetails": [], "rawPayout": 0, "payout": 0, "winlose": 0, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 8, "totalFreeSpinPayout": 0.54, "accumulatedWinAmount": 0.54, "balance": 0.54, "hasReachedMaxWin": false, "maxWin": 5, "winType": 0, "betTime": 1790840315919, "processedTime": 1790840315947, "settledTime": 1790840315947, "canBuyExtension": true, "currentRoundType": "freespin", "extensionPhase": 0, "originalTotalFreeSpins": 8, "originalTotalFreeSpinsPayout": 0.54, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "spin-then-history"}}, {"t": 406.739, "type": "game_info", "data": {"when": "relaunch (en)", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15140.866, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0.03, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687500115279873", "roundId": "949687500115279873", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "view": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 1, "wayCount": 2, "winPositions": [{"index": 0, "value": [1]}, {"index": 1, "value": [0, 3]}, {"index": 2, "value": [2]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 2, "value": [2]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.15, "totalMultiplier": 0.15, "payout": 0.03}], "rawPayout": 0.03, "payout": 0.03, "winlose": -0.07, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0.03, "balance": 15140.866, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840372184, "processedTime": 1790840372206, "settledTime": 1790840372206, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "language-tour"}}, {"t": 434.247, "type": "game_info", "data": {"when": "relaunch (my)", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15140.866, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0.03, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687500115279873", "roundId": "949687500115279873", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "view": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 1, "wayCount": 2, "winPositions": [{"index": 0, "value": [1]}, {"index": 1, "value": [0, 3]}, {"index": 2, "value": [2]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 2, "value": [2]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.15, "totalMultiplier": 0.15, "payout": 0.03}], "rawPayout": 0.03, "payout": 0.03, "winlose": -0.07, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0.03, "balance": 15140.866, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840372184, "processedTime": 1790840372206, "settledTime": 1790840372206, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "language-tour"}}, {"t": 461.811, "type": "game_info", "data": {"when": "relaunch (zh)", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15140.866, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0.03, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687500115279873", "roundId": "949687500115279873", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "view": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 1, "wayCount": 2, "winPositions": [{"index": 0, "value": [1]}, {"index": 1, "value": [0, 3]}, {"index": 2, "value": [2]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 2, "value": [2]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.15, "totalMultiplier": 0.15, "payout": 0.03}], "rawPayout": 0.03, "payout": 0.03, "winlose": -0.07, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0.03, "balance": 15140.866, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840372184, "processedTime": 1790840372206, "settledTime": 1790840372206, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "language-tour"}}, {"t": 489.508, "type": "game_info", "data": {"when": "relaunch (ru)", "gameInfo": {"username": "automationtest", "currency": "TKN", "balance": 15140.866, "betlines": 1, "settings": {"general": {"minBet": 0.1, "maxBet": 35, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 1, "maxPayout": 100000, "maxMultiplier": 0, "sessionTimeOut": 600, "anteBetEnabled": false, "anteBetMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}], "compliance": {"autoPlay": true, "minSpinDurationSec": null, "turboMode": true, "oneClickPerSpin": false, "realityCheckEnabled": false, "realityCheckIntervalMin": null, "maxSessionTimeMin": null, "bonusBuyAllowed": true}, "freespinExtension": true}, "gameModeSetting": {"baseGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "freeSpinGame": {"symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}, "anteBetBaseGame": null, "anteBetFreeSpinGame": null, "packages": [{"id": 1, "name": "packagea", "buyMultiplier": 75, "freeSpins": 15, "luckySpin": null, "symbolMultipliers": [{"symbolId": 5, "pays": [0, 0, 0.5, 1.25, 2.5]}, {"symbolId": 6, "pays": [0, 0, 0.4, 1, 2]}, {"symbolId": 7, "pays": [0, 0, 0.3, 0.75, 1.5]}, {"symbolId": 8, "pays": [0, 0, 0.25, 0.5, 1]}, {"symbolId": 18, "pays": [0, 0, 0.2, 0.35, 0.75]}, {"symbolId": 1, "pays": [0, 0, 0.15, 0.2, 0.5]}, {"symbolId": 4, "pays": [0, 0, 0.1, 0.15, 0.4]}, {"symbolId": 3, "pays": [0, 0, 0.05, 0.1, 0.3]}, {"symbolId": 2, "pays": [0, 0, 0.05, 0.08, 0.2]}, {"symbolId": 15, "pays": [0, 0, 0, 0, 0]}, {"symbolId": 14, "pays": [0, 0, 0, 0, 0]}], "expandingWild": null, "randomWinMultipliers": null, "stackingFixedWildMultiplier": null, "nonStackingRandomWildMultiplier": {"wilds": [{"symbolId": 19, "multiplierList": [1, 2, 3, 5, 8, 10, 15, 30, 40]}]}}]}, "denominations": [0.1, 3, 5, 7, 10, 15, 20, 30, 35], "defaultBetLevel": 0, "minBet": 0.1, "maxBet": 35, "maxPayout": 100000, "maxMultiplier": 0, "winFormula": [{"name": "SLIM", "min": 0, "max": 1}, {"name": "SMALL", "min": 1, "max": 2.5}, {"name": "MEDIUM", "min": 2.5, "max": 6}, {"name": "BIG", "min": 6, "max": 15}, {"name": "MEGA", "min": 15, "max": 40}, {"name": "ULTRA", "min": 40, "max": null}]}, "pending": {"freeSpins": 0, "stake": 0.1, "gameState": 1, "currentAccumulatedWinAmount": 0.03, "anteMultiplier": 0, "canBuyExtension": false, "currentRoundType": null}, "lastBet": {"id": "949687500115279873", "roundId": "949687500115279873", "stake": 0.1, "baseStake": 0.1, "anteMultiplier": null, "actualAnteMultiplier": null, "winRandomMultiplier": null, "luckyMultiplier": null, "wildType": {"type": "NonStacking", "calculationType": null}, "wildMultipliers": [{"symbolId": 19, "multiplierValue": 1}], "expandedReels": null, "betType": 2, "subType": 0, "miscType": "NA", "state": 1, "nextState": 1, "package": null, "rawView": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "view": [{"index": 0, "value": [2, 1, 2, 3]}, {"index": 1, "value": [1, 6, 4, 1]}, {"index": 2, "value": [3, 5, 19, 2]}, {"index": 3, "value": [6, 18, 6, 6]}, {"index": 4, "value": [6, 2, 7, 8]}], "totalWays": 2, "wayDetails": [{"winType": "Ways", "symbolId": 1, "wayCount": 2, "winPositions": [{"index": 0, "value": [1]}, {"index": 1, "value": [0, 3]}, {"index": 2, "value": [2]}], "wildPositions": [{"symbolId": 19, "positions": [{"index": 2, "value": [2]}], "multiplierValue": 1}], "totalWildMultiplier": 1, "symbolMultiplier": 0.15, "totalMultiplier": 0.15, "payout": 0.03}], "rawPayout": 0.03, "payout": 0.03, "winlose": -0.07, "wonFreeSpins": 0, "freeSpins": 0, "totalFreeSpin": 0, "totalFreeSpinPayout": 0, "accumulatedWinAmount": 0.03, "balance": 15140.866, "hasReachedMaxWin": false, "maxWin": 100000, "winType": 1, "betTime": 1790840372184, "processedTime": 1790840372206, "settledTime": 1790840372206, "canBuyExtension": false, "currentRoundType": null, "extensionPhase": 0, "originalTotalFreeSpins": 0, "originalTotalFreeSpinsPayout": 0, "extensionTotalFreeSpins": 0, "extensionTotalFreeSpinsPayout": 0, "promoResult": null}, "needToStartPromo": false, "promo": null, "extensionPackages": [{"extType": "freespin", "id": 2, "name": "extfreespin", "freeSpins": 3, "price": 14}, {"extType": "bonus", "id": 3, "name": "extbonusa", "freeSpins": 3, "price": 15}], "multiplierLevel": {"baseGame": [1, 2, 3, 5, 8, 10, 15, 30, 40], "freeGame": [1, 2, 3, 5, 8, 10, 15, 30, 40]}}, "run": "language-tour"}}], "sections": [{"name": "boot-base", "start_s": 0.0, "end_s": 11.69, "verdict": "green"}, {"name": "browse-denominations", "start_s": 11.69, "end_s": 21.45, "verdict": "green"}, {"name": "change-bet", "start_s": 21.45, "end_s": 29.47, "verdict": "green"}, {"name": "base-win", "start_s": 29.47, "end_s": 141.65, "verdict": "green"}, {"name": "insufficient-balance", "start_s": 141.65, "end_s": 162.87, "verdict": "green"}, {"name": "freespin-zero-balance", "start_s": 162.87, "end_s": 284.31, "verdict": "green"}, {"name": "spin-then-history", "start_s": 284.31, "end_s": 338.49, "verdict": "orange"}, {"name": "paytable-bet-scaling", "start_s": 338.49, "end_s": 372.6, "verdict": "orange"}, {"name": "open-tutorial", "start_s": 372.6, "end_s": 400.59, "verdict": "green"}, {"name": "language-tour", "start_s": 400.59, "end_s": 510.76, "verdict": "orange"}], "current_section": 7};
+
+  // ── Constants ─────────────────────────────────────────────────────────
+  const EVENT_BADGES = {
+    step:             "STEP",
+    state_change:     "STATE",
+    spin_request:     "SPIN",
+    spin_result:      "RESULT",
+    balance_change:   "BAL",
+    socket_send:      "SOCKET↑",
+    socket_recv:      "SOCKET↓",
+    button_state:     "BTN",
+    free_spin:        "FREE",
+    bonus_transition: "BONUS",
+    popup:            "POPUP",
+    bet_response:      "BET RAW",
+    freespin_response: "FS RAW",
+    game_info:         "GAME INFO",
+    error:            "ERROR",
+  };
+
+  // ── DOM references ────────────────────────────────────────────────────
+  const player       = document.getElementById("player");
+  const seekBar      = document.getElementById("seek-bar");
+  const timeDisplay  = document.getElementById("time-display");
+  const btnPlay      = document.getElementById("btn-play");
+  const eventsLog    = document.getElementById("events-log");
+  const filterBar    = document.getElementById("filter-bar");
+  const timelineBar  = document.getElementById("timeline-bar");
+  const showFutureBtn = document.getElementById("show-future-btn");
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let activeFilters  = new Set();  // types currently shown; empty = show all
+  let allTypes       = new Set();
+  let showFuture     = false;
+  let videoDuration  = 0;
+  // video_event_offset: seconds between video start and event collection start
+  const videoEventOffset = DATA.video_event_offset || 0;
+
+  // ── Init header ───────────────────────────────────────────────────────
+  document.getElementById("test-title").textContent =
+    DATA.title || DATA.test_id || "Session replay";
+
+  const badge = document.getElementById("verdict-badge");
+  const v = (DATA.final_verdict || "pending").toLowerCase();
+  badge.textContent = ({green: "Passed", orange: "Partly Failed", red: "Failed", pending: "Pending", skip: "Skipped", inconclusive: "Inconclusive", error: "Error"})[v] || v;
+  badge.className = "verdict-badge verdict-" + v;
+
+  const durationS = (DATA.duration_ms || 0) / 1000;
+  document.getElementById("test-meta").textContent =
+    (DATA.test_id || "Session") + "  ·  Bridge: " + (DATA.bridge_result || "—") + "  ·  AI: " + (DATA.ai_result || "—") + "  ·  " + fmtTime(durationS);
+
+  // ── Video setup ───────────────────────────────────────────────────────
+  player.src = DATA.video_file || "session.webm";
+
+  player.addEventListener("loadedmetadata", function () {
+    videoDuration = player.duration;
+    seekBar.max = Math.round(videoDuration * 100);
+    renderChapters();
+    // A suite replay plays the WHOLE session video: open on this run's own chapter.
+    const own = sections[ownIdx];
+    if (own && player.currentTime < 0.01) player.currentTime = own.start_s;
+    updateTimeDisplay();
+    renderStepTimeline();
+  });
+
+  player.addEventListener("timeupdate", function () {
+    seekBar.value = Math.round(player.currentTime * 100);
+    updateTimeDisplay();
+    syncEventLog();
+    updateActiveStep();
+  });
+
+  player.addEventListener("error", function () {
+    document.getElementById("video-message").hidden = false;
+  });
+  player.addEventListener("play", function () {
+    btnPlay.textContent = "⏸";
+    btnPlay.setAttribute("aria-label", "Pause recording");
+  });
+  player.addEventListener("pause", function () {
+    btnPlay.textContent = "▶";
+    btnPlay.setAttribute("aria-label", "Play recording");
+  });
+
+  player.addEventListener("ended", function () {
+    btnPlay.textContent = "▶";
+  });
+
+  // Play / pause
+  btnPlay.addEventListener("click", function () {
+    if (player.paused) { player.play().catch(function () { btnPlay.textContent = "▶"; }); }
+    else               { player.pause(); }
+  });
+
+  function seekBy(seconds) {
+    if (!Number.isFinite(player.duration)) return;
+    player.currentTime = Math.max(0, Math.min(player.duration, player.currentTime + seconds));
+    syncEventLog();
+    updateActiveStep();
+  }
+  document.getElementById("btn-back").addEventListener("click", function () { seekBy(-5); });
+  document.getElementById("btn-forward").addEventListener("click", function () { seekBy(5); });
+
+  // Seek bar
+  seekBar.addEventListener("input", function () {
+    player.currentTime = seekBar.value / 100;
+    syncEventLog();
+    updateActiveStep();
+  });
+
+  // Speed buttons
+  document.querySelectorAll(".speed-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".speed-btn").forEach(function (b) {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-pressed", "true");
+      player.playbackRate = parseFloat(btn.dataset.speed);
+    });
+  });
+
+  // ── Event log rendering ────────────────────────────────────────────────
+  const eventSearch = document.getElementById("event-search");
+  const events = DATA.events || [];
+  document.getElementById("event-count").textContent = events.length + " events";
+
+  // Collect all event types
+  events.forEach(function (ev) { allTypes.add(ev.type); });
+
+  // Render filter buttons
+  function buildFilterBar() {
+    // Remove old filter buttons (keep show-future)
+    filterBar.querySelectorAll(".filter-btn").forEach(function (b) { b.remove(); });
+    const sorted = Array.from(allTypes).sort();
+    sorted.forEach(function (type) {
+      const btn = document.createElement("button");
+      btn.className = "filter-btn " + (activeFilters.has(type) ? "on" : "");
+      const label = EVENT_BADGES[type] || type.toUpperCase().replace(/_/g, "-");
+      btn.textContent = label;
+      btn.setAttribute("aria-pressed", String(activeFilters.has(type)));
+      const typeClass = "badge-" + type;
+      btn.style.cssText =
+        "background:" + (getBadgeColor(type).bg) + ";color:" + (getBadgeColor(type).fg) + ";";
+      btn.addEventListener("click", function () {
+        if (activeFilters.has(type)) {
+          activeFilters.delete(type);
+          btn.classList.remove("on");
+        } else {
+          activeFilters.add(type);
+          btn.classList.add("on");
+        }
+        btn.setAttribute("aria-pressed", String(activeFilters.has(type)));
+        renderEventRows();
+      });
+      filterBar.insertBefore(btn, showFutureBtn);
+    });
+  }
+
+  function getStepActionColor(action) {
+    var map = {
+      navigate:       { bg: "#e4effd", fg: "#365e93", accent: "#3b82f6" },
+      wait_for_state: { bg: "#ffdfa2", fg: "#75501d", accent: "#eab308" },
+      bridge_action:  { bg: "#aaebce", fg: "#245d4f", accent: "#10b981" },
+      bridge_assert:  { bg: "#e3d5fa", fg: "#624a89", accent: "#a855f7" },
+      capture:        { bg: "#dcf1f7", fg: "#366b7a", accent: "#06b6d4" },
+      assert:         { bg: "#ffb0bf", fg: "#78273c", accent: "#f43f5e" },
+      script:         { bg: "#ffdfa2", fg: "#75501d", accent: "#f59e0b" },
+      click:          { bg: "#aaebce", fg: "#245d4f", accent: "#10b981" },
+      wait_ms:        { bg: "#e9eef6", fg: "#536b90", accent: "#64748b" },
+    };
+    return map[action] || { bg: "#e4effd", fg: "#365e93", accent: "#60a5fa" };
+  }
+
+  function getBadgeColor(type) {
+    const colorMap = {
+      step:             { bg: "#e4effd", fg: "#365e93" },
+      state_change:     { bg: "#ffdfa2", fg: "#75501d" },
+      spin_request:     { bg: "#e4effd", fg: "#365e93" },
+      spin_result:      { bg: "#aaebce", fg: "#245d4f" },
+      balance_change:   { bg: "#dcf1f7", fg: "#366b7a" },
+      socket_send:      { bg: "#e9eef6", fg: "#536b90" },
+      socket_recv:      { bg: "#e9eef6", fg: "#536b90" },
+      button_state:     { bg: "#e3d5fa", fg: "#624a89" },
+      free_spin:        { bg: "#ffdfa2", fg: "#75501d" },
+      bonus_transition: { bg: "#f8ddea", fg: "#875472" },
+      popup:            { bg: "#ffdfa2", fg: "#75501d" },
+      error:            { bg: "#ffb0bf", fg: "#78273c" },
+      bet_response:      { bg: "#cfe3fb", fg: "#1d4f8f" },
+      freespin_response: { bg: "#ffe3b8", fg: "#7a4a0c" },
+      game_info:         { bg: "#d9f2e4", fg: "#23613f" },
+    };
+    return colorMap[type] || { bg: "#e9eef6", fg: "#536b90" };
+  }
+
+  // Render event rows into the DOM
+  const eventRowEls = [];
+
+  function renderEventRows() {
+    eventsLog.innerHTML = "";
+    eventRowEls.length = 0;
+
+    const query = eventSearch.value.trim().toLowerCase();
+    events.forEach(function (ev, idx) {
+      if (query && !(ev.type + " " + formatEventData(ev)).toLowerCase().includes(query)) return;
+      if (activeFilters.size > 0 && !activeFilters.has(ev.type)) return;
+
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "event-row";
+      row.dataset.t = ev.t;
+      row.dataset.idx = idx;
+
+      // For step events, use action-specific badge and colors
+      var badgeText, badgeColor;
+      if (ev.type === "step" && ev.data) {
+        var action = ev.data.action || "step";
+        badgeText = action.toUpperCase();
+        badgeColor = getStepActionColor(action);
+        // Style the whole row for step events
+        row.style.borderLeft = "3px solid " + badgeColor.accent;
+        row.style.paddingLeft = "8px";
+        if (!ev.data.success) {
+          row.style.background = "#fff2f5";
+        }
+      } else {
+        badgeText = EVENT_BADGES[ev.type] || ev.type;
+        badgeColor = getBadgeColor(ev.type);
+      }
+
+      const badge = document.createElement("span");
+      badge.className = "event-badge";
+      badge.style.background = badgeColor.bg;
+      badge.style.color = badgeColor.fg;
+      badge.textContent = badgeText;
+
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "event-time";
+      timeSpan.textContent = fmtTime(ev.t);
+
+      const dataSpan = document.createElement("span");
+      dataSpan.className = "event-data";
+      if (ev.type === "step" && ev.data && !ev.data.success) {
+        dataSpan.style.color = "#78273c";
+      }
+      dataSpan.textContent = formatEventData(ev);
+
+      row.appendChild(timeSpan);
+      row.appendChild(badge);
+      row.appendChild(dataSpan);
+
+      // Click event row -> open detail popup
+      row.addEventListener("click", function () {
+        openEventPopup(ev);
+      });
+
+      eventsLog.appendChild(row);
+      eventRowEls.push({ el: row, t: ev.t });
+    });
+
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = !events.length ? "No events were recorded for this session." :
+      !eventRowEls.length ? "No events match your search and filters." :
+      "No events at this moment. Play the recording or select Show future to explore ahead.";
+    eventsLog.appendChild(empty);
+    syncEventLog();
+  }
+
+  function formatEventData(ev) {
+    var data = ev.data;
+    if (!data) return "";
+
+    // Format step events as readable action lines
+    if (ev.type === "step") {
+      var icon = data.success ? "\u2713" : "\u2717";
+      var line = icon + " " + (data.action || "") + " " + (data.description || "");
+      if (data.detail) line += "  " + data.detail;
+      if (data.error) line += "  ERR: " + data.error;
+      if (data.duration_ms != null) line += "  (" + data.duration_ms + "ms)";
+      return line;
+    }
+
+    const parts = [];
+    for (const [k, v] of Object.entries(data)) {
+      parts.push(k + "=" + JSON.stringify(v));
+    }
+    return parts.join("  ");
+  }
+
+  // Sync event row visibility with current video time
+  function syncEventLog() {
+    const videoT = player.currentTime;
+    // Event timestamp relative to collection start; video time includes offset
+    const currentEventT = videoT - videoEventOffset;
+
+    let lastVisible = null;
+    eventRowEls.forEach(function (item) {
+      const evT = parseFloat(item.el.dataset.t);
+      const isFuture = evT > currentEventT;
+      item.el.classList.remove("future", "current");
+      if (isFuture) {
+        item.el.classList.add("future");
+        if (showFuture) {
+          item.el.classList.remove("hide-future");
+          item.el.classList.add("show-future");
+        } else {
+          item.el.classList.remove("show-future");
+          item.el.classList.add("hide-future");
+        }
+      } else {
+        lastVisible = item.el;
+      }
+    });
+
+    const empty = eventsLog.querySelector(".empty-state");
+    if (empty) empty.hidden = !!lastVisible || (showFuture && eventRowEls.length > 0);
+
+    // Scroll to latest visible event
+    if (lastVisible) {
+      lastVisible.classList.add("current");
+      lastVisible.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  eventSearch.addEventListener("input", renderEventRows);
+
+  // ── Show future toggle ─────────────────────────────────────────────────
+  showFutureBtn.addEventListener("click", function () {
+    showFuture = !showFuture;
+    showFutureBtn.classList.toggle("on", showFuture);
+    showFutureBtn.setAttribute("aria-pressed", String(showFuture));
+    syncEventLog();
+  });
+
+  // ── Step timeline ──────────────────────────────────────────────────────
+  const steps = DATA.steps || [];
+  const stepSegments = [];
+
+  function renderStepTimeline() {
+    // Remove old segments (keep label)
+    timelineBar.querySelectorAll(".step-segment").forEach(function (s) { s.remove(); });
+    stepSegments.length = 0;
+
+    document.getElementById("step-count").textContent = steps.length ? steps.length + " steps · click to seek" : "No steps recorded";
+    document.getElementById("step-count").style.display = steps.length ? "none" : "inline";
+    steps.forEach(function (step) {
+      const seg = document.createElement("button");
+      seg.className = "step-segment";
+      const name = document.createElement("span");
+      name.className = "step-name";
+      name.textContent = step.id || step.action || "Step";
+      seg.appendChild(name);
+      seg.title = step.id + " (" + step.action + ")" +
+        (step.description ? "\n" + step.description : "") +
+        "\n" + fmtTime(step.start_ms / 1000) + " – " + fmtTime(step.end_ms / 1000);
+
+      // Click step -> seek video to step start
+      seg.addEventListener("click", function () {
+        // step.start_ms is relative to test start; convert to video time
+        const stepStartS = step.start_ms / 1000 + videoEventOffset;
+        player.currentTime = Math.max(0, stepStartS);
+        syncEventLog();
+        updateActiveStep();
+      });
+
+      timelineBar.appendChild(seg);
+      stepSegments.push({ el: seg, step: step });
+    });
+  }
+
+  function updateActiveStep() {
+    const videoT = player.currentTime;
+    const eventT = (videoT - videoEventOffset) * 1000; // ms
+
+    stepSegments.forEach(function (item) {
+      const s = item.step;
+      const active = eventT >= s.start_ms && eventT <= s.end_ms;
+      item.el.classList.toggle("active", active);
+    });
+  }
+
+  function updateTimeDisplay() {
+    const cur = player.currentTime || 0;
+    const dur = videoDuration || 0;
+    seekBar.style.setProperty("--progress", (dur > 0 ? Math.min(100, cur / dur * 100) : 0) + "%");
+    timeDisplay.textContent = fmtTime(cur) + " / " + fmtTime(dur);
+    updateChapters(cur);
+  }
+
+  // ── Suite chapters on the seek bar ────────────────────────────────────
+  // DATA.sections = every run of the suite as {name, start_s, end_s, verdict} in session-video
+  // seconds; DATA.current_section = index of this replay's own run. Absent -> plain seek bar.
+  const sections = (DATA.sections || []).filter(function (s) { return s && s.end_s > s.start_s; });
+  const seekTrack   = document.getElementById("seek-track");
+  const chaptersEl  = document.getElementById("chapters");
+  const chapterTip  = document.getElementById("chapter-tip");
+  const chapterNow  = document.getElementById("chapter-now");
+  const chapterEls  = [];
+  const ownIdx = sections.indexOf((DATA.sections || [])[DATA.current_section]);   // -1 = none
+  const VERDICT_LABEL = {green: "Passed", orange: "Partly failed", red: "Failed", pending: "Pending",
+                         inconclusive: "Inconclusive", error: "Error"};
+
+  // m:ss (h:mm:ss past an hour); `ms` adds milliseconds for the event popup.
+  function fmtTime(s, ms) {
+    if (!Number.isFinite(s)) return "--:--";
+    s = Math.max(0, s);
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = Math.floor(s % 60);
+    const pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    let out = (h ? h + ":" + pad(m) : m) + ":" + pad(r);
+    if (ms) out += "." + String(Math.floor(s % 1 * 1000)).padStart(3, "0");
+    return out;
+  }
+
+  function chapterLabel(i) {
+    return (i + 1) + ". " + sections[i].name;
+  }
+
+  function chapterAt(t) {
+    for (let i = sections.length - 1; i >= 0; i--) {
+      if (t >= sections[i].start_s) return t <= sections[i].end_s + 0.5 ? i : -1;
+    }
+    return -1;
+  }
+
+  function renderChapters() {
+    chaptersEl.innerHTML = "";
+    chapterEls.length = 0;
+    const dur = Number.isFinite(videoDuration) && videoDuration > 0 ? videoDuration
+      : (sections.length ? sections[sections.length - 1].end_s : 0);
+    if (sections.length < 2 || !(dur > 0)) return;     // one run = nothing to divide
+    seekTrack.classList.add("has-chapters");
+    const GAP = 0.25;                                  // % of the bar left empty between chapters
+    sections.forEach(function (s, i) {
+      const left = Math.min(100, s.start_s / dur * 100);
+      const right = Math.min(100, s.end_s / dur * 100);
+      const width = Math.max(0.2, right - left - (i < sections.length - 1 ? GAP : 0));
+      const seg = document.createElement("div");
+      seg.className = "chapter" + (i === ownIdx ? " own" : "");
+      seg.style.left = left + "%";
+      seg.style.width = width + "%";
+      const fill = document.createElement("div");
+      fill.className = "chapter-fill";
+      seg.appendChild(fill);
+      const mark = document.createElement("div");
+      mark.className = "chapter-mark " + (s.verdict || "pending");
+      mark.style.left = left + "%";
+      mark.style.width = width + "%";
+      chaptersEl.appendChild(seg);
+      chaptersEl.appendChild(mark);
+      chapterEls.push({ seg: seg, fill: fill, s: s });
+    });
+    updateChapters(player.currentTime || 0);
+  }
+
+  function updateChapters(cur) {
+    if (!chapterEls.length) return;
+    chapterEls.forEach(function (c) {
+      const frac = (cur - c.s.start_s) / (c.s.end_s - c.s.start_s);
+      c.fill.style.width = Math.max(0, Math.min(1, frac)) * 100 + "%";
+    });
+    const i = chapterAt(cur);
+    chapterNow.hidden = false;
+    chapterNow.innerHTML = "";
+    if (i < 0) { chapterNow.textContent = "Between runs"; return; }
+    const dot = document.createElement("span");
+    dot.className = "dot " + (sections[i].verdict || "pending");
+    const b = document.createElement("b");
+    b.textContent = chapterLabel(i);
+    chapterNow.appendChild(dot);
+    chapterNow.appendChild(b);
+    chapterNow.appendChild(document.createTextNode(
+      "  ·  " + (VERDICT_LABEL[sections[i].verdict] || sections[i].verdict || "") +
+      (i === ownIdx ? "  ·  this replay's run" : "") +
+      "  ·  run " + (i + 1) + " of " + sections.length));
+  }
+
+  seekTrack.addEventListener("mousemove", function (e) {
+    if (!chapterEls.length) return;
+    const rect = seekTrack.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    const dur = videoDuration || sections[sections.length - 1].end_s;
+    const t = x / rect.width * dur;
+    const i = chapterAt(t);
+    chapterEls.forEach(function (c, j) { c.seg.classList.toggle("hover", j === i); });
+    chapterTip.textContent = i < 0 ? "Between runs" : chapterLabel(i);
+    const time = document.createElement("small");
+    time.textContent = fmtTime(t);
+    chapterTip.appendChild(time);
+    chapterTip.hidden = false;
+    const half = chapterTip.offsetWidth / 2;
+    chapterTip.style.left = Math.max(half, Math.min(rect.width - half, x)) + "px";
+  });
+  seekTrack.addEventListener("mouseleave", function () {
+    chapterTip.hidden = true;
+    chapterEls.forEach(function (c) { c.seg.classList.remove("hover"); });
+  });
+
+  // ── Event detail popup ─────────────────────────────────────────────
+  const popupOverlay  = document.getElementById("event-popup-overlay");
+  const popupBadge    = document.getElementById("popup-badge");
+  const popupTitle    = document.getElementById("popup-title");
+  const popupTime     = document.getElementById("popup-time");
+  const popupJson     = document.getElementById("popup-json");
+  const popupCloseBtn = document.getElementById("popup-close-btn");
+  const popupCopyJson = document.getElementById("popup-copy-json");
+  const popupCopyData = document.getElementById("popup-copy-data");
+  const popupSeek     = document.getElementById("popup-seek");
+  let currentPopupEvent = null;
+  let popupTrigger = null;
+
+  function openEventPopup(ev) {
+    popupTrigger = document.activeElement;
+    currentPopupEvent = ev;
+
+    // Badge
+    var badgeText, badgeColor;
+    if (ev.type === "step" && ev.data) {
+      badgeText = (ev.data.action || "step").toUpperCase();
+      badgeColor = getStepActionColor(ev.data.action || "step");
+    } else {
+      badgeText = EVENT_BADGES[ev.type] || ev.type;
+      badgeColor = getBadgeColor(ev.type);
+    }
+    popupBadge.textContent = badgeText;
+    popupBadge.style.background = badgeColor.bg;
+    popupBadge.style.color = badgeColor.fg;
+
+    // Title
+    if (ev.type === "step" && ev.data) {
+      popupTitle.textContent = (ev.data.id || "") + " — " + (ev.data.description || ev.data.action || "");
+    } else {
+      popupTitle.textContent = ev.type.replace(/_/g, " ");
+    }
+
+    // Time
+    popupTime.textContent = fmtTime(ev.t, true);
+
+    // JSON body — formatted
+    popupJson.textContent = JSON.stringify(ev, null, 2);
+
+    popupOverlay.classList.add("open");
+    popupCloseBtn.focus();
+  }
+
+  function closeEventPopup() {
+    popupOverlay.classList.remove("open");
+    currentPopupEvent = null;
+    popupCopyJson.textContent = "Copy JSON";
+    popupCopyJson.classList.remove("copied");
+    popupCopyData.textContent = "Copy Data Only";
+    popupCopyData.classList.remove("copied");
+    if (popupTrigger && popupTrigger.isConnected) popupTrigger.focus();
+  }
+
+  popupCloseBtn.addEventListener("click", closeEventPopup);
+
+  // Close on overlay click (outside popup)
+  popupOverlay.addEventListener("click", function (e) {
+    if (e.target === popupOverlay) closeEventPopup();
+  });
+
+  // Close on Escape
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Tab" && popupOverlay.classList.contains("open")) {
+      if (e.shiftKey && document.activeElement === popupCloseBtn) {
+        e.preventDefault();
+        popupSeek.focus();
+      } else if (!e.shiftKey && document.activeElement === popupSeek) {
+        e.preventDefault();
+        popupCloseBtn.focus();
+      }
+    }
+    if (e.key === "Escape" && popupOverlay.classList.contains("open")) {
+      closeEventPopup();
+    }
+  });
+
+  // Copy full event JSON
+  popupCopyJson.addEventListener("click", function () {
+    if (!currentPopupEvent) return;
+    var text = JSON.stringify(currentPopupEvent, null, 2);
+    navigator.clipboard.writeText(text).then(function () {
+      popupCopyJson.textContent = "Copied!";
+      popupCopyJson.classList.add("copied");
+      setTimeout(function () {
+        popupCopyJson.textContent = "Copy JSON";
+        popupCopyJson.classList.remove("copied");
+      }, 1500);
+    });
+  });
+
+  // Copy data only
+  popupCopyData.addEventListener("click", function () {
+    if (!currentPopupEvent || !currentPopupEvent.data) return;
+    var text = JSON.stringify(currentPopupEvent.data, null, 2);
+    navigator.clipboard.writeText(text).then(function () {
+      popupCopyData.textContent = "Copied!";
+      popupCopyData.classList.add("copied");
+      setTimeout(function () {
+        popupCopyData.textContent = "Copy Data Only";
+        popupCopyData.classList.remove("copied");
+      }, 1500);
+    });
+  });
+
+  // Seek to event time
+  popupSeek.addEventListener("click", function () {
+    if (!currentPopupEvent) return;
+    var videoT = currentPopupEvent.t + videoEventOffset;
+    player.currentTime = Math.max(0, videoT);
+    syncEventLog();
+    updateActiveStep();
+    closeEventPopup();
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  buildFilterBar();
+  renderEventRows();
+  renderStepTimeline();
+
+})();
+</script>
+</body>
+</html>

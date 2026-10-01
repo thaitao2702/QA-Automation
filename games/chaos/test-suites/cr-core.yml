@@ -1,0 +1,497 @@
+# Chaos Runner — boot, bet/denomination, balance, history, paytable
+# (CR_001 … CR_017) from test-case-chaos.csv.
+#
+# Run:  python scripts/run_scenario.py --game chaos --env dev --suite games/chaos/test-suites/cr-core.yml
+#
+# RUN LIFECYCLE (docs/run-lifecycle.md). A clean base is the FRAMEWORK's invariant now, not this
+# file's: PREPARE runs `return-to-base` + `waitForSpinClickable` before every run and CLEANUP does
+# the same after, falling back to a reload. So no run below declares `teardown: return-to-base` —
+# declared teardowns are for EXTRAS only, like topping the wallet back up after a drain.
+#
+# Scenarios here follow docs/scenario-authoring-rules.md: every spin goes through
+# `spin_and_finish()` so a free-spin trigger is played out inside the loop body (Rule 1); bonus
+# drains end on `is_terminal()` (Rule 2); every "…and then it stops" claim goes through
+# `confirm_stopped()` — watched, then held (Rule 4); controls are addressed by ROLE.
+#
+# IMAGE vs VIDEO (follow the Mystic convention — it is ~97% video). Default to `video:`. Reach for
+# `image:` ONLY when ONE still answers the question AND the detail is too fine for a montage —
+# text, glyphs, diacritics, clipping, small payout digits, image sharpness. A video assert grades a
+# DOWNSAMPLED composite, so a missing Burmese mark or a two-pixel clip is simply not in those
+# pixels; conversely anything that CHANGES over time (a popup opening and closing, an animation, a
+# counter ticking, "and then it stopped") cannot be shown by a still at all.
+#
+# An `image:` assert also needs its scenario to CAPTURE stills and RETURN them
+# (`ScenarioResult(..., shots=ctx.shots)`). Miss either and the assert sits at `pending` forever —
+# it reads as "the AI never ran" rather than "there was nothing to grade".
+# tests/chaos/validate_suites.py now fails the suite for both mistakes.
+#
+# THE POINT OF THIS SUITE: none of it is Chaos-specific. Money, bets, denominations and history are
+# mechanism-free, so every run here reuses a shared scenario unchanged — the dialect translation in
+# the profile is what points `stakeIncrease` at this build's `betPlus` and `bet:close` at
+# `denomination:close`. If a case here fails, suspect the bridge or the profile before the game.
+#
+# The Chaos-specific part is the payout arithmetic, which real payloads have now made EXACT:
+#
+#     lineWin    = randomMultiplier x SUM(payoutRate) x baseStake / betLines      (betLines = 20)
+#     scatterWin = scatterMultiplier x baseStake        <- a scatter has NO /betLines divisor
+#     payout     = min(lineWin + scatterWin, maxWin)    <- maxWin really truncates
+#
+# So the balance cases below are no longer "conservation and hope": the credited amount is derived
+# from the server's own paylines and checked against the BO paytable. The design doc's `/5` worked
+# examples are wrong (game-knowledge.md §5 item 4) — its "3 of Kind P2 pays $40" does not hold, and
+# nor does its "Icon Multi P2 : 200" (the export says P2 x3 = 40).
+
+runs:
+  # ── CR_003 / 004 / 006 : the game boots into a usable base screen ──────────────────
+  - run:
+      scenario: boot-base
+      params: { dwell_s: 3 }
+      cases:
+        - id: CR_003
+          title: "Game reaches the main screen with every UI element present"
+          assert:
+            # startGame() resolving at all is the hard proof the client booted: the bridge waits for
+            # READY, clicks Start and drives to a clean idle before this scenario gets control.
+            - stream: "{facts.balance} >= 0"
+            - stream: "{facts.denom_count} >= 1"
+            - image:
+                prompt: >-
+                  This is the Chaos Runner base game (a 5x3 slot) sitting idle after loading.
+                  Answer: (1) is the 5-reel game grid visible (reels_visible)? (2) is a balance
+                  displayed (balance_visible)? (3) is a bet amount displayed (bet_visible)? (4) is
+                  the spin button visible (spin_visible)? (5) is any part of the screen blank,
+                  white, or showing an error (error_or_blank)?
+                output_schema:
+                  reels_visible: { type: boolean }
+                  balance_visible: { type: boolean }
+                  bet_visible: { type: boolean }
+                  spin_visible: { type: boolean }
+                  error_or_blank: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  reels_visible: true
+                  balance_visible: true
+                  bet_visible: true
+                  spin_visible: true
+                  error_or_blank: false
+                  confidence: high
+
+        # CR_006 (default bet level) is NOT here: boot-base no longer probes for a default stake, so
+        # there is nothing to compare the opening bet against. facts.bet_amount / facts.bet_index
+        # still record what the game opened on.
+
+  # ── CR_004 / 005 : the denomination list ───────────────────────────────────────────
+  - run:
+      scenario: browse-denominations
+      cases:
+        - id: CR_004
+          title: "Denomination list matches the BO configuration, in order and complete"
+          assert:
+            - stream: "{facts.denom_count} >= 2"
+            - stream: "{facts.min_bet} < {facts.max_bet}"
+            # The list must CLOSE on its own control. If this fails the run still recovers (the
+            # scenario falls back to dismissPopups) but it is a real bridge defect: a control that
+            # resolves while inert is the case docs/game-bridge-contract.md §8 singles out as the
+            # worst for a suite — the click lands, nothing happens, and the cost shows up as a
+            # 60s waitForSpinClickable timeout in the NEXT step rather than here.
+            - stream: "{facts.closed} == True"
+            - stream: "{facts.close_button_worked} == True"
+            - stream: "{facts.needed_dismiss} == False"
+            - video:
+                prompt: >-
+                  Chaos Runner's bet / denomination list, scrolled to its highest option and then
+                  its lowest. The configured list has {facts.denom_count} entries running from
+                  {facts.min_bet} to {facts.max_bet}. Answer: (1) is the bet list visible
+                  (list_visible)? (2) are the values in a consistent ascending or descending order
+                  with no value out of sequence (order_consistent)? (3) read the highest value shown
+                  (highest_text). (4) read the lowest value shown (lowest_text).
+                output_schema:
+                  list_visible: { type: boolean }
+                  order_consistent: { type: boolean }
+                  highest_text: { type: string }
+                  lowest_text: { type: string }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  list_visible: true
+                  order_consistent: true
+                  confidence: medium
+
+  - run:
+      scenario: change-bet
+      cases:
+        - id: CR_005
+          title: "Increasing / decreasing the bet moves through the denomination list within min and max"
+          assert:
+            - stream: "{facts.picked_bet} >= {facts.min_bet}"
+            - stream: "{facts.picked_bet} <= {facts.max_bet}"
+            - stream: "{facts.picked_index} != {facts.prev_index}"    # the bet really changed
+            - video:
+                read: "the bet amount displayed on the main screen after the bet list closes"
+                equals: "{facts.picked_bet}"
+
+  # ── CR_007 / 008 : balance debit and credit ────────────────────────────────────────
+  # ONE play, both verdicts. A winning round is debited too (balance == previous - stake + payout),
+  # so the debit case does not need a spin of its own — running it here costs nothing and saves a
+  # whole page load plus a second spin sequence.
+  #
+  # The scenario is `base-win`, NOT `base-spin`. `base-spin` is "one spin of ANY outcome", which is
+  # fine for the debit half but leaves the credit half vacuous on a loss: `payout_matches_paylines`
+  # and `max_win_cap_applied` hold trivially at payout 0, `win_tier_bands` has no tier to check, and
+  # the video would be asked to read a win amount that is not on screen. `base-win` spins until a
+  # round actually pays and exposes THAT round as `res`, so both halves are exact — and losing spins
+  # along the way are still in the stream, so `conservation` is checked over them as well.
+  - run:
+      scenario: base-win
+      cases:
+        - id: CR_007
+          title: "Balance is debited by the bet amount when a spin is placed"
+          assert:
+            # The server balance is authoritative; conservation is exactly
+            # balance == previous - stake + payout, so it covers debit and credit as one identity —
+            # and it runs over EVERY round base-win played, losses included, not just the winner.
+            - stream: conservation
+            - stream: winlose_consistent           # winlose == payout - stake, corroborating stake
+            - stream: "{res.stake} > 0"
+        - id: CR_008
+          title: "A winning spin credits the balance by the payout after the reels stop"
+          assert:
+            # The precondition, proven from the numbers rather than assumed: this really was a win.
+            - stream: "{facts.win_payout} > 0"
+            - stream: conservation
+            # The credited amount is fully derivable from the response itself, so this is exact
+            # rather than an identity any pair of numbers could satisfy.
+            # NOTE: deliberately does NOT check each payoutRate against the BO paytable
+            # (`payline_rate_matches_paytable`). The paytable changes and is not maintained against
+            # the suite, so that assert would go red on a config change rather than on a defect.
+            # Everything below is derived from the server's OWN reported numbers, so it stays true
+            # whatever the paytable says.
+            - stream: payout_matches_paylines        # credited == lines + scatter, then capped
+            - stream: max_win_cap_applied            # ...and the cap was applied, and flagged, honestly
+            # Win tier bands (Features §8). Measured against baseStake — safe here because this run
+            # never enables ante. ⚠ On an ANTE round the reference base is still an open question
+            # (bet-response.md §9): the captured ante win is 7.5x baseStake but 2.5x the stake, which
+            # are different tiers. Do not add this to an ante case until that is settled.
+            - stream: win_tier_bands
+            - video:
+                # Scoped to the winning round. Without `at:` the clip would span every hunting spin
+                # (base-win took 7 on the first live run), and the AI would be reading a balance from
+                # the wrong round.
+                at: win
+                read: "the balance shown after the win animation finishes"
+                near: { value: "{res.balance}", tol: 0.01 }
+
+  # ── CR_009 : insufficient balance ──────────────────────────────────────────────────
+  # Drains the wallet on purpose, so it tops back up afterwards — otherwise every later run in the
+  # session starts broke and reports a false failure.
+  - run:
+      scenario: insufficient-balance
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: CR_009
+          title: "With balance below the bet, the game blocks the spin and warns instead of betting"
+          assert:
+            # "the wallet really was below the bet" — the precondition, proven from the numbers.
+            - stream: "{facts.spin_balance} < {facts.chosen_bet}"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. The player's balance has been set below the minimum bet and a spin
+                  was attempted. Answer: (1) does a message or popup appear telling the player they
+                  have insufficient funds (insufficient_popup)? (2) do the reels spin anyway
+                  (reels_spun)?
+                output_schema:
+                  insufficient_popup: { type: boolean }
+                  reels_spun: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  insufficient_popup: true
+                  reels_spun: false
+                  confidence: medium
+
+  # ── CR_011 : running out of balance mid-feature ────────────────────────────────────
+  # The rule under test is that a free-spin round does NOT check the wallet: it costs nothing, so it
+  # must play to the end and only then hand back to a base game that can complain.
+  - run:
+      scenario: freespin-zero-balance
+      # Free spins are a ~1-in-thousands event on the real reels (FreeSpin! is 2-4% per reel and
+      # needs 3 of 5 distinct reels), so an unforced run would spin for ages and usually give up.
+      # This paytable raises FreeSpin! to 30% of BASE reels 0/1/2 (--probability 0.30), leaving the
+      # other symbols in place: it triggers on ~37% of spins, about 1 in 2.7.
+      #
+      # 30%, NOT a forced 100%. Chaos awards free spins as base(reels) x WAYS, and ways is the
+      # product of how many FreeSpin! land per reel — so filling three reels with them (the old
+      # 91% version) meant ~27 ways and a bonus of hundreds of spins on EVERY run. At 30% a reel
+      # usually contributes one symbol: ways averages ~2.5, so the award stays near the 12-spin
+      # minimum. The same reasoning applies to any game whose award scales with the symbol COUNT
+      # rather than just the trigger — see scenario-authoring-rules Rule 6.
+      #
+      # The FreeSpinGame section is deliberately UNTOUCHED, so the bonus does not retrigger and ends.
+      # max_win_x is the backstop for the tail of that distribution: it caps the payout at 10x the
+      # bet (reference_bet 0.6 -> 6.0, written to BO's Max Payout). A rare high-ways award still
+      # terminates, because the server truncates at the cap and sets hasReachedMaxWin, which
+      # is_terminal already accepts. Cleared by the paytable teardown, so it cannot leak into the
+      # next run.
+      # 500 IS DELIBERATE HERE, where other runs cap at 10x. CR_011's claim is that the bonus
+      # "plays to the END" on a zero balance -- so the bonus has to end because it RAN OUT of
+      # spins, not because the cap stopped it. A capped round ends cleanly and clears the counter
+      # (backend fix 2026-09-05, Rule 9), so `{terminal.free_spins} == 0` would still pass while
+      # the thing under test never happened. High cap = the award plays itself out, and only a
+      # genuine runaway is caught.
+      paytable: { ref: chaos-fs-easy, max_win_x: 20 }
+      teardown: restore-balance   # put the wallet back exactly as it was
+      cases:
+        - id: CR_011
+          title: "A free-spin round with zero balance plays to the end without an insufficient-funds popup"
+          assert:
+            - stream: stake_zero_in_freespins      # which is WHY it can keep playing
+            - stream: terminal_reached
+            - stream: "{terminal.free_spins} == 0"
+            # The player really was broke when the bonus BEGAN. The scenario spends the last stake
+            # into the trigger rather than draining the wallet mid-bonus (the server refuses a
+            # withdrawal while a bonus is open), so this proves the precondition actually held
+            # instead of trusting the scenario's name. Judged on the triggering spin, not on the
+            # reload: free spins pay in, so `balance_at_reload` legitimately climbs above a stake
+            # as soon as the bonus wins anything -- it is recorded, but it is not the criterion.
+            - stream: "{facts.broke_at_trigger} == True"
+            # The bonus really did continue AFTER the wallet hit zero — the whole point of the case.
+            # Without this a run whose bonus ended before the reload would still satisfy the three
+            # asserts above, because a finished bonus is trivially "terminal with 0 spins left".
+            - stream: "{facts.played_after_zero} == True"
+            - stream: "{facts.first_fs_capped} == False"
+            - video:
+                # ONLY the trigger through the end of the FIRST free spin. The scenario holds on that
+                # round (observe_ms) so the award and the result are actually watchable; the rest of
+                # the bonus is graded from the response stream by the asserts above. Sending every
+                # free spin to the AI costs tokens per round and shows the same thing each time.
+                at: [trigger, first_fs]
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. The player's balance is zero and the free-spin feature has just been
+                  awarded. This clip covers the triggering spin and the FIRST free spin only — the
+                  remaining free spins continue after it and are checked separately, so do NOT
+                  expect the feature to finish inside this clip. Answer: (1) is a free-spin round
+                  awarded and does the first free spin play normally (round_plays)? (2) does an
+                  insufficient-funds popup appear at any point (popup_during_feature)?
+                output_schema:
+                  round_plays: { type: boolean }
+                  popup_during_feature: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  round_plays: true
+                  popup_during_feature: false
+                  confidence: medium
+
+  # ── CR_012 : in-game bet history, for BOTH outcome shapes ──────────────────────────
+  # ONE run, two cases. `spin-then-history` spins until it has seen each outcome still outstanding
+  # and inspects THAT round the moment it happens: open History, open the newest row's detail, then
+  # close up and keep hunting. One spin sequence covers both, so this costs far fewer spins than two
+  # separate runs. Each inspection is MARKED, and each case targets its own clip with `at:`.
+  #
+  # ONLY TWO OUTCOMES HERE, and that is automatic. The scenario's third shape — `cascade_win`, two or
+  # more paying steps in one round — cannot happen on a single-grid game, so it is dropped when
+  # `GAME.mechanism != "cascade"` (Chaos is `line`). `win_steps()` makes the same split: on a cascade
+  # game it counts winning cascade steps, on every other mechanism a round is 1 paying step if it
+  # paid and 0 if it did not. Without that split a cascade-phrased hunt evaluates to 0 on every
+  # payline round and burns the whole budget without a single match — which is what it did on Zeus.
+  # To narrow a run by hand: `params: { outcomes: [normal_win] }`.
+  #
+  # Bonus rounds are drained and skipped: a free-spin ticket holds one sub-ticket per free spin,
+  # a different shape from a plain bet. facts.bonuses_drained counts them.
+  #
+  # ⚠ A red `<outcome>_found` means the outcome never OCCURRED inside the spin budget (80), not that
+  #   the game is broken. Raise it with `params: { max_spins: 150 }`.
+  - run:
+      scenario: spin-then-history
+      teardown: return-to-base
+      # The detail is scrolled ONE PAGE PER PAYING STEP by default — a cascade idea, where each step
+      # is its own grid and its own page. Chaos reports a single grid per round, so the detail's
+      # first page already shows everything and scrolling would overshoot. 0 = open it and hold it in
+      # frame. If this build's detail turns out to page (e.g. a payline breakdown below the fold),
+      # raise it and assert facts.<outcome>_scrolls.
+      params: { detail_scroll_steps: 0 }
+      cases:
+        - id: CR_012a
+          title: "History and bet detail are correct for a LOSING round"
+          assert:
+            - stream: "{facts.no_win_found} == True"          # the outcome occurred within the budget
+            # The list is VIRTUALIZED — only rendered rows exist — so prove rows rendered before
+            # letting the AI read them. An empty panel would otherwise grade as a clean pass.
+            - stream: "{facts.no_win_history_rows} >= 1"
+            - stream: "{facts.no_win_detail_opened} == True"
+            # EXACT: the panel's newest row is the round just played, matched by round id. This is
+            # the half of the case a getter can answer, so the AI is not asked to.
+            - stream: "{facts.no_win_round_id_match} == True"
+            - stream: "{facts.no_win_payout} == 0"            # it really was a losing round
+            - video:
+                at: no_win                    # this round's spin -> History -> detail
+                timestamp: true
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row slot paying on fixed paylines. This clip shows ONE
+                  base round and how it appears in History. The round LOST — no payline paid: stake
+                  {facts.no_win_stake}, win {facts.no_win_payout}. After the round the clip opens the
+                  in-game History panel and clicks the NEWEST (top) row to open that bet's detail. It
+                  is not scrolled, because a round with no win has nothing below the fold. The ACTION
+                  TIMELINE gives the exact time of each action — line it up with the burned-in
+                  timestamps. Answer: (1) does the History panel open and render as a proper list,
+                  not blank or an error (history_opened)? (2) is its top entry this round — stake
+                  {facts.no_win_stake} and win {facts.no_win_payout} (top_row_matches)? (3) does
+                  clicking it open a bet DETAIL view (detail_opened)? (4) does the detail show this
+                  round's result grid with NO win — no win amount, no highlighted payline
+                  (detail_content_correct)? (5) is anything visibly broken — missing values,
+                  placeholder text, overlapping or cut-off layout (display_broken)?
+                output_schema:
+                  history_opened: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_content_correct: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_content_correct: true
+                  display_broken: false
+                  confidence: medium
+
+        - id: CR_012b
+          title: "History and bet detail are correct for a WINNING round"
+          assert:
+            - stream: "{facts.normal_win_found} == True"
+            - stream: "{facts.normal_win_history_rows} >= 1"
+            - stream: "{facts.normal_win_detail_opened} == True"
+            - stream: "{facts.normal_win_round_id_match} == True"
+            - stream: "{facts.normal_win_payout} > 0"         # it really was a paying round
+            - video:
+                at: normal_win
+                timestamp: true
+                prompt: >-
+                  Chaos Runner is a 5-reel, 3-row slot paying on fixed paylines. This clip shows ONE
+                  base round and how it appears in History. The round WON: stake
+                  {facts.normal_win_stake}, win {facts.normal_win_payout}. After the round the clip
+                  opens the in-game History panel and clicks the NEWEST (top) row to open that bet's
+                  detail. The ACTION TIMELINE gives the exact time of each action — line it up with
+                  the burned-in timestamps. Answer: (1) does the History panel open and render as a
+                  proper list, not blank or an error (history_opened)? (2) is its top entry this
+                  round — stake {facts.normal_win_stake} and win {facts.normal_win_payout}
+                  (top_row_matches)? (3) does clicking it open a bet DETAIL view (detail_opened)?
+                  (4) does the detail show this round's result grid WITH the win — a win amount
+                  matching {facts.normal_win_payout} and the winning payline(s) marked
+                  (detail_content_correct)? (5) is anything visibly broken — missing values,
+                  placeholder text, overlapping or cut-off layout (display_broken)?
+                output_schema:
+                  history_opened: { type: boolean }
+                  top_row_matches: { type: boolean }
+                  detail_opened: { type: boolean }
+                  detail_content_correct: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  history_opened: true
+                  top_row_matches: true
+                  detail_opened: true
+                  detail_content_correct: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── CR_014 / 015 / 016 / 017 / 070 : the paytable popup and its bet scaling ────────
+  # Shoots the SAME table at two bet levels. Two full-resolution stills is what an image assert
+  # needs to judge that the printed payouts really moved with the bet — a video assert grades a
+  # downsampled montage, where small paytable digits simply are not in the pixels.
+  - run:
+      scenario: paytable-bet-scaling
+      params: { index_a: 0, index_b: 3 }
+      cases:
+        - id: CR_014
+          title: "Paytable popup opens, renders per design, and closes"
+          assert:
+            - stream: "{facts.bet_a} > 0"
+            # VIDEO, not image: the case is "can it be OPENED and CLOSED normally" — a transition
+            # over time, which no single still can show. The run opens and closes the paytable
+            # twice (once per bet level), so the clip covers both. The static half of the question
+            # (is the layout broken?) is graded at full resolution by CR_015/CR_016 instead.
+            - video:
+                timestamp: true
+                prompt: >-
+                  Chaos Runner. In this clip the paytable / info screen is opened and closed twice,
+                  once at bet {facts.bet_a} and once at bet {facts.bet_b}. Answer: (1) does the
+                  paytable open when the info control is used (opens)? (2) does it close again
+                  cleanly, returning to the base game (closes)? (3) does it open showing symbols and
+                  payout values rather than a blank or half-drawn panel (renders_content)?
+                output_schema:
+                  opens: { type: boolean }
+                  closes: { type: boolean }
+                  renders_content: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  opens: true
+                  closes: true
+                  renders_content: true
+                  confidence: medium
+
+        - id: CR_015
+          title: "Paytable payouts scale with the bet: payout = total bet / 20 x symbol multiplier"
+          assert:
+            # Hard companion: two DIFFERENT bet levels were really captured. Without it, two shots
+            # of the same bet would grade as "the values matched" and pass vacuously.
+            - stream: "{facts.bet_a} != {facts.bet_b}"
+            - stream: "{facts.divisor} == 20"
+            - image:
+                at: paytable-bet-
+                prompt: >-
+                  A Chaos Runner paytable screen. Chaos is a 5x3 slot whose per-line payout is
+                  (total bet / 20) x the symbol's multiplier. Two captures exist: one at bet
+                  {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet {facts.bet_b}
+                  (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the bet or total
+                  bet value shown (bet_text). (2) read the payout printed for the highest-paying
+                  symbol's 5-of-a-kind row (top_payout_text). (3) are payout values shown as
+                  currency amounts rather than bare multipliers (shows_currency)?
+                output_schema:
+                  bet_text: { type: string }
+                  top_payout_text: { type: string }
+                  shows_currency: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  shows_currency: true
+                  confidence: low
+
+        - id: CR_016
+          title: "Every symbol is listed with the right art, name and payout"
+          assert:
+            - stream: "{facts.bet_a} > 0"
+            - image:
+                at: paytable-bet-a
+                prompt: >-
+                  The Chaos Runner paytable. This game has exactly 10 symbols: Wild, Bonus (the free
+                  spin scatter), Fuel (P1), a can (P2), a mask (P3), a cog (P4), and the card ranks
+                  A, K, Q and J. Answer: (1) how many distinct symbols are listed (symbol_count)?
+                  (2) does every listed symbol show a payout value (all_have_payouts)? (3) is any
+                  symbol's artwork missing, blank or broken (broken_art)?
+                output_schema:
+                  symbol_count: { type: integer }
+                  all_have_payouts: { type: boolean }
+                  broken_art: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  symbol_count: 10
+                  all_have_payouts: true
+                  broken_art: false
+                  confidence: low
+
+        - id: CR_017
+          title: "Reopening the paytable after several bet changes shows values for the current bet"
+          assert:
+            - stream: "{facts.bet_a} != {facts.bet_b}"
+            # The B capture was taken after closing, changing bet, and REOPENING — which is exactly
+            # the sequence CR_017 describes.
+            - stream: "{facts.line_bet_b} == {facts.bet_b} / 20"
+
+# ── NOT AUTOMATED in this suite ────────────────────────────────────────────────────────
+# CR_001 / CR_002  Loading-bar behaviour (1%->30%, stalling at 30% until Game Info arrives, and the
+#                  >10s variant). The bridge is only constructed AFTER `GlobalContext.boot()`
+#                  resolves, so nothing can observe the loading bar from inside the game — by the
+#                  time `window.__gameTestBridge` exists, loading is over. Verify manually, or add a
+#                  network-throttled Playwright capture outside the scenario engine for CR_002.
+# CR_010 / CR_021  Auto Play stopping on an empty balance — covered in cr-auto-turbo.yml, which
+#                  owns the auto-play scenarios.
+# CR_013           Bet history on the BO. Requires BO access; compare against CR_012's rows.

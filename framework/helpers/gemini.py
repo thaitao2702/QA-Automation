@@ -38,11 +38,16 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# AI calls run on a thread pool (scripts/ai_video.run_ai); `x += n` on an attribute is not
+# atomic, so the call/token counters the cost summary reads are updated under this lock.
+_COUNTER_LOCK = threading.Lock()
 
 from framework.helpers.gemini_pricing import get_pricing
 
@@ -163,7 +168,8 @@ class GeminiImageHelper:
             Always returns a result — never raises. On API failure or invalid
             JSON, ``success`` is ``False`` and ``reason`` describes the problem.
         """
-        self._call_count += 1
+        with _COUNTER_LOCK:
+            self._call_count += 1
 
         try:
             response = self._call_api(
@@ -309,8 +315,9 @@ class GeminiImageHelper:
         except AttributeError:
             logger.debug("Token usage metadata not available in response")
 
-        self._total_input_tokens += input_tokens
-        self._total_output_tokens += output_tokens
+        with _COUNTER_LOCK:
+            self._total_input_tokens += input_tokens
+            self._total_output_tokens += output_tokens
 
         raw_text = getattr(response, "text", None) or ""
 

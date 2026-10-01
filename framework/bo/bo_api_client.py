@@ -17,7 +17,10 @@ Requirements: pip install requests
 """
 
 import logging
+import base64
+import json
 import threading
+import time
 import uuid
 
 import requests
@@ -30,6 +33,13 @@ API_BASE = "https://staging-boapi.royaledge.io/sas-web/api/v1"
 TOKEN_EXPIRED = "TOKEN_EXPIRED"
 UNAUTHORIZED = "UNAUTHORIZED_USER"
 SUCCESS_STATUSES = ("success", "SC_OK")
+
+# The access token lives 20 minutes; the refresh token lives 7 days. Crucially,
+# `auth/refresh-token` requires a VALID access token in the authorization header --
+# refreshing an already-expired token is rejected as UNAUTHORIZED_USER, and sending no
+# header at all is UNKNOWN_ERROR. So the token must be renewed BEFORE it lapses.
+# Verified live against dev 2026-09-03.
+REFRESH_SKEW_S = 120
 
 
 class AuthError(Exception):
@@ -48,7 +58,7 @@ class BoApiClient:
         client = BoApiClient(token="<ctoken>", refresh_token="<rtoken>")
         data = client.post("game/view", {"gameId": 123, "sasEntityId": 1})
 
-    Pass `on_token_refresh(new_token)` to persist the rotated token
+    Pass `on_token_refresh(new_token, new_refresh_token)` to persist the rotated token
     (e.g. write it back to a file / DB) so it survives across runs.
     """
 
@@ -107,14 +117,56 @@ class BoApiClient:
                 f"Token refresh failed: {result.get('message')} "
                 f"({result.get('messageCode')})"
             )
-        new_token = (result.get("data") or {}).get("token")
+        data = result.get("data") or {}
+        new_token = data.get("token")
         if not new_token:
             raise AuthError("Token refresh response missing data.token.")
         self.token = new_token
+        # dev returns the SAME refreshToken today, but honour a rotated one if it ever
+        # starts sending a new one -- otherwise the next refresh would present a dead token.
+        new_refresh = data.get("refreshToken")
+        if new_refresh:
+            self.refresh_token = new_refresh
         if self.on_token_refresh:
-            self.on_token_refresh(new_token)
-        logger.info("Access token refreshed.")
+            self.on_token_refresh(new_token, self.refresh_token)
+        logger.info("Access token refreshed (valid %.0fs).",
+                    (self._token_expiry() or 0) - time.time())
         return new_token
+
+    # ---- proactive expiry handling ---------------------------------------
+    def _token_expiry(self):
+        """`exp` (epoch seconds) from the access-token JWT, or None if it is not readable.
+
+        None means "cannot know", and every caller treats that as "do not refresh
+        proactively" -- an opaque token then falls back to the reactive path below.
+        """
+        tok = self.token or ""
+        parts = tok.split(".")
+        if len(parts) != 3:
+            return None
+        try:
+            pad = parts[1] + "=" * (-len(parts[1]) % 4)
+            return float(json.loads(base64.urlsafe_b64decode(pad))["exp"])
+        except Exception:  # noqa: BLE001 -- an unreadable token is simply not refreshable early
+            return None
+
+    def _ensure_fresh_token(self):
+        """Refresh while the current token is still VALID, which is the only time it works.
+
+        Without this the client only ever refreshed reactively, on a TOKEN_EXPIRED reply --
+        by which point the access token had already lapsed and `auth/refresh-token` refused
+        it. The refresh path could therefore never succeed, and every run longer than the
+        20-minute token lifetime died mid-suite needing a hand-pasted token.
+        """
+        exp = self._token_expiry()
+        if exp is None or time.time() < exp - REFRESH_SKEW_S:
+            return
+        with self._refresh_lock:
+            exp = self._token_expiry()          # another thread may have just renewed it
+            if exp is not None and time.time() >= exp - REFRESH_SKEW_S:
+                logger.info("Access token expires in %.0fs; refreshing ahead of use.",
+                            exp - time.time())
+                self._refresh()
 
     # ---- public API ------------------------------------------------------
     def post(self, endpoint, body=None):
@@ -125,6 +177,7 @@ class BoApiClient:
         and retries the original request. Raises ApiError on any other
         non-success status, AuthError when the session can't be recovered.
         """
+        self._ensure_fresh_token()
         result = self._raw_post(endpoint, body)
 
         if result.get("messageCode") == TOKEN_EXPIRED:
@@ -143,8 +196,13 @@ class BoApiClient:
             raise AuthError("Unauthorized — re-login required.")
 
         if result.get("status") not in SUCCESS_STATUSES:
+            # The summary alone ("One or more validation errors occurred.") does not say WHICH
+            # field failed, so carry whatever else the server sent -- that is where the detail is.
+            detail = {k: v for k, v in result.items()
+                      if k not in ("status", "message", "messageCode", "traceId") and v}
             raise ApiError(
                 f"{endpoint} failed: {result.get('message')} ({message_code})"
+                + (f" -- {json.dumps(detail, ensure_ascii=False)[:2000]}" if detail else "")
             )
         return result
 
@@ -155,7 +213,7 @@ if __name__ == "__main__":
     client = BoApiClient(
         token="<paste access token (ctoken)>",
         refresh_token="<paste refresh token (rtoken)>",
-        on_token_refresh=lambda t: logger.info("New token: %s...", t[:12]),
+        on_token_refresh=lambda t, rt: logger.info("New token: %s...", t[:12]),
     )
 
     game = client.post("game/view", {"gameId": 12345, "sasEntityId": 1})

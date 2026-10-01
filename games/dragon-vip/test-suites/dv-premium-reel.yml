@@ -1,0 +1,263 @@
+# Treasures of the Dragon VIP — Premium Reel (DV-59 … DV-65). NEW: plain Dragon has no Premium Reel.
+#
+# Run:  python scripts/run_scenario.py --game dragon-vip --env dev --suite games/dragon-vip/test-suites/dv-premium-reel.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon-vip
+#
+# Sources: games/dragon-vip/docs/raw/client-integration.vi.md (the server contract, GDP-2770);
+# games/dragon-vip/game-bridge-api.md §5, §6.3, §7 (`getPremiumReelOptions`), §9 recipes;
+# docs/raw/paytable.json `PremiumReel_Setting.Options`: reelId 2 x1.5 · reelId 3 x1.5 · reelId 23 x2.2.
+#
+# WHAT A PREMIUM REEL IS. The player pays extra to spin one or more reels on a richer distribution for
+# that round. The contract, and the case that pins each part:
+#
+#   §4  stake = baseStake x premiumReelMultiplier; paylines pay on baseStake       DV-60  premium_reel_stake
+#   §4  the round echoes premiumReelId / premiumReelMultiplier; 0 on a plain spin  DV-60 / DV-61
+#   §4  winlose = payout - stake (the DEDUCTED stake)                              DV-60  winlose_consistent
+#   §6 rule 3  the package may change between base spins                           DV-63
+#   §6 rule 4  inside a bonus the package is LOCKED to the one that opened it      DV-64  premium_reel_frozen_in_freespins
+#   §6 rule 5  Premium Reel excludes Ante Bet and Buy Bonus                        DV-62
+#   §6 rule 7  a bought bonus never inherits a package                             DV-66 (dv-holdspin.yml)
+#
+# Every package is read from gameInfo (`getPremiumReelOptions()`), never hardcoded (§6 rule 1): the
+# three above are what the paytable ships today, and the run tests whatever the session offers.
+# `reelId` is opaque — `23` is a package, not "reels 2 and 3" (§1).
+#
+# HOW IT IS REACHED. `switch_feature` drives bridge §9's recipe: `buyBonus` opens the feature panel ->
+# the package's ACTIVATE row (`buyBonus:premiumReels:<reelId>`) -> `buyBonus:confirm`. One click on
+# the main button (`premiumReels:off`) switches it off again.
+#
+# NOT AUTOMATED, and why (docs/dragon-vip-coverage.md):
+#   * the -111 … -116 rejections — they need a hand-built bet request, which the client never sends;
+#   * reload during a Premium Reel bonus resuming with `pending.premiumReel` — no Hold & Spin scenario
+#     reloads mid-feature yet.
+#
+# ⚠ UNVERIFIED FIELD NAMES. No BET response has been captured from this build; `premiumReelId` /
+# `premiumReelMultiplier` / `baseStake` / `winlose` are the client doc's §4 names. Capture one premium
+# round before reading a red on them as a game defect.
+#
+# ⚠ THE DEV SESSION DOES NOT OFFER THE FEATURE YET (measured 2026-09-16). `getGameInfo()` comes back
+# with `settings.anteMultiplier: 1.5` but `settings.premiumReel: null`, so the client hides the
+# feature (`premiumReelAvailable` false, `getPremiumReelOptions()` []) and the server would reject a
+# premium bet with -112 (client doc §2.1, §5). Until BO enables Premium Reel for the test player and
+# currency, every run below reports UNREACHED — "no Premium Reel package to test (offered [])" — and
+# its cases are inconclusive rather than red. That is the honest outcome for a feature the session
+# does not ship; it is not something to work around in the suite.
+
+runs:
+  # ── DV-59 / 60 / 61 / 62 / 63 : every package, one play ──────────────────────────────────────
+  # `premium-reel-spin`: a plain baseline spin, then for EACH configured package — switch on from the
+  # panel, probe the exclusions, spin, switch off with one click — then a final plain spin. So the
+  # stream holds plain and premium rounds at the same bet level, which is what lets
+  # `premium_reel_stake` prove the base did not move. Spins go through `spin_and_finish` (Rule 1).
+  - run:
+      scenario: premium-reel-spin
+      teardown: return-to-base
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with a Premium Reel feature: before a spin the
+          player can buy a package that upgrades one or more reels for that spin, at a multiple of
+          the stake. This ONE clip shows, in order: a plain spin at a stake of {facts.plain_stake};
+          then, for each of the packages {facts.reel_ids_tested} (stake multipliers
+          {facts.multipliers_tested}) — the feature panel is opened from the Buy Bonus button, that
+          package's ACTIVATE row is pressed and a confirmation sheet accepted, one spin is played
+          (charged, in order, {facts.stakes}), and a single tap on the main button switches the
+          package off; and finally one more plain spin at {facts.after_stake}. The ACTION TIMELINE
+          names every step and package. Answer each independently:
+
+          (1) panel_lists_packages: does the feature panel list Premium Reel rows, each with its
+          own multiplier and activate control?
+
+          (2) confirm_sheet_shown: after a package's activate control is pressed, does a
+          confirmation sheet appear before it takes effect?
+
+          (3) active_package_visible: while a package is on, does the screen show it — the upgraded
+          reel(s) highlighted, or a Premium Reel indicator?
+
+          (4) cost_shows_multiplier: while a package is on, does the bet / spin-cost readout show the
+          stake multiplied by that package's multiplier, rather than the plain stake?
+
+          (5) package_changes_between_spins: from one package's spin to the next, does the screen
+          show a DIFFERENT package active (different reels upgraded or a different multiplier)?
+
+          (6) buy_button_repurposed: while a package is on, is the main Buy Bonus button shown as
+          the control that switches the package off, rather than as a way to buy the bonus?
+
+          (7) off_in_one_tap: does ONE tap on that button switch the package off, without opening a
+          panel or confirmation?
+
+          (8) cost_back_to_plain: during the final spin, does the bet readout read
+          {facts.after_stake} again, with no reel shown as upgraded?
+
+          (9) display_broken: anywhere in the clip, is anything visibly broken — clipped or
+          overlapping text in the panel, a stuck sheet, placeholder values?
+        output_schema:
+          panel_lists_packages: { type: boolean }
+          confirm_sheet_shown: { type: boolean }
+          active_package_visible: { type: boolean }
+          cost_shows_multiplier: { type: boolean }
+          package_changes_between_spins: { type: boolean }
+          buy_button_repurposed: { type: boolean }
+          off_in_one_tap: { type: boolean }
+          cost_back_to_plain: { type: boolean }
+          display_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-59: { panel_lists_packages: true, confirm_sheet_shown: true, active_package_visible: true, display_broken: false, confidence: medium }
+          DV-60: { cost_shows_multiplier: true, confidence: medium }
+          DV-61: { off_in_one_tap: true, cost_back_to_plain: true, confidence: medium }
+          DV-62: { buy_button_repurposed: true, confidence: low }
+          DV-63: { package_changes_between_spins: true, confidence: low }
+      cases:
+        - id: DV-59
+          title: "Every configured Premium Reel package switches on from the feature panel"
+          assert:
+            - stream: "{facts.packages_configured} >= 1"                  # gameInfo offers the feature
+            - stream: "{facts.packages_tested} == {facts.packages_configured}"
+            - stream: "{facts.all_engaged} == True"                      # each one really switched on
+            # the client QUOTED the right cost before each spin (display value; the stake is DV-60)
+            - stream: "{facts.all_spin_costs_match} == True"
+
+        - id: DV-60
+          title: "A Premium Reel spin is charged base bet x package multiplier; payouts stay on the base"
+          assert:
+            # §4, exactly: stake = baseStake x multiplier on every premium round, and switching a
+            # package on never moved baseStake
+            - stream: premium_reel_stake
+            - stream: "{facts.all_stakes_match} == True"
+            - stream: "{facts.all_bases_unchanged} == True"
+            # the round echoed the package it was bet with, at the configured multiplier
+            - stream: "{facts.all_ids_echoed} == True"
+            - stream: "{facts.all_multipliers_echoed} == True"
+            # the money: the inflated stake is what was debited, and winlose is net of it
+            - stream: conservation
+            - stream: winlose_consistent
+
+        - id: DV-61
+          title: "One tap switches the package off and the next spin is a plain spin"
+          assert:
+            - stream: "{facts.all_switched_off} == True"
+            - stream: "{facts.off_spin_plain} == True"            # stake == baseStake...
+            - stream: "{facts.after_premium_id} == 0"            # ...and no package echoed
+            - stream: "{facts.after_stake} == {facts.plain_stake}"
+
+        - id: DV-62
+          title: "While a Premium Reel is on, Ante Bet and Buy Bonus cannot be reached"
+          assert:
+            - stream: "{facts.all_engaged} == True"              # probed while a package WAS on
+            # `buyBonus` resolved null (the panel cannot open), and the bridge refused an Ante Bet
+            # activation — both instant reads, never waits
+            - stream: "{facts.panel_blocked_while_on} == True"
+            - stream: "{facts.ante_blocked_while_on} == True"
+            # ...and refused it BECAUSE a package was on (bridge §8 `premium_reels_active`), not
+            # because something else happened to be animating at the moment of the probe
+            - stream: "{facts.ante_block_reasons} == ['premium_reels_active']"
+            # Server-side exclusion (-114 for ante + premium, -115 during a purchase) is not
+            # reachable through the UI — docs/dragon-vip-coverage.md.
+
+        - id: DV-63
+          title: "The package can be changed between base spins"
+          assert:
+            # §6 rule 3: no cross-spin lock in the base game — consecutive premium rounds were bet with
+            # different packages, each echoed by its own round
+            - stream: "{facts.packages_tested} >= 2"
+            - stream: "{facts.distinct_ids_played} == {facts.packages_tested}"
+
+  # ── DV-64 / 65 : a Hold & Spin triggered on a PREMIUM REEL spin ──────────────────────────────
+  # `hold-spin-complete` with `feature: "premium:2"` — reelId 2, a single upgraded reel at the lowest
+  # multiplier (Rule 6: the smallest thing that reaches the feature). Switched on before the hunt,
+  # off after the feature; every hunting spin must echo package 2 or the run stops as unreached.
+  #
+  # `premium-trigger3-countdown` forces COIN onto reel 1 in every `PremiumReel_BaseGame` section and
+  # zeroes every `PremiumReel_FreeGame` CoinWeight. The plain `BaseGame` is untouched, so the trigger
+  # itself proves the server spun the PREMIUM reels. Loose `max_win_x: 500` (see dv-holdspin.yml).
+  #
+  # ⚠ WATCH `conservation` ON THIS RUN. client-integration §4's phase table says a Premium Reel bonus
+  # round echoes `stake = baseStake x multiplier` — while §3.3 says the client SENDS stake 0 for it.
+  # If respins echo a non-zero stake that is not debited, `conservation` goes red. That is the
+  # contract contradicting itself, and worth a question to the server team rather than a looser
+  # assert; `{facts.respin_stakes}` shows what was echoed.
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: premium-trigger3-countdown, max_win_x: 500 }
+      teardown: return-to-base
+      params: { feature: "premium:2" }
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        # ⚠ Same correction as dv-ante.yml's DV-57/58 prompt (2026-09-16): "is the package still shown
+        # as active?" and "is its off control locked?" are ONE property asked twice in opposite
+        # directions (the inverse-pair trap, docs/scenario-assert-authoring.md §2) — the feature
+        # control is HIDDEN during the bonus, so a truthful model must answer "not shown" AND
+        # "locked". Both fields are now distinct properties, and both are graded.
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus and a Premium Reel
+          feature that upgrades a reel for a higher stake. This build has NO separate Premium Reel
+          button: Buy Bonus, Ante Bet and every Premium Reel package live in one feature panel behind
+          the main feature button, and while a package is on that same button becomes its OFF control
+          (it reads DISABLE). A package was switched on through that panel BEFORE this clip starts, so
+          the base spin that triggers the bonus was charged {facts.trigger_stake} instead of the plain
+          {facts.trigger_base_stake}. The clip covers that triggering spin,
+          {facts.respins_played} respin(s), and the return to the base game. Right at the end, once
+          the game is back in the base game, the run taps the feature button once to switch the
+          package off again — that is the test tidying up, not part of the bonus. The ACTION TIMELINE
+          marks the trigger, every respin and that final tap. Answer each independently:
+
+          (1) feature_entered: does the game clearly enter the Hold & Spin bonus, distinct from an
+          ordinary base spin?
+
+          (2) coins_visibly_held: across the respins, do the locked Coins stay in the same cells
+          while only the empty cells respin?
+
+          (3) cost_shows_package_price: during the TRIGGERING spin at the very start of the clip,
+          before the bonus transition, does the bet / cost area show {facts.trigger_stake} — the
+          package's price — rather than only the plain {facts.trigger_base_stake}?
+
+          (4) feature_off_unavailable_during_bonus: WHILE the respins play, is there no usable control
+          to switch the package off — the feature button (the DISABLE control) hidden, greyed out, or
+          otherwise not clickable? Judge only the respin part of the clip; the button is expected back
+          once the game has returned to the base game.
+
+          (5) returns_to_base: after the total win is presented, does the game return to the base
+          game before that final tap?
+        output_schema:
+          feature_entered: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          cost_shows_package_price: { type: boolean }
+          feature_off_unavailable_during_bonus: { type: boolean }
+          returns_to_base: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-64: { feature_entered: true, coins_visibly_held: true, cost_shows_package_price: true, returns_to_base: true, confidence: medium }
+          DV-65: { feature_off_unavailable_during_bonus: true, confidence: medium }
+      cases:
+        - id: DV-64
+          title: "A Hold & Spin triggered on a Premium Reel spin keeps that package for every respin"
+          assert:
+            # PRECONDITION: the trigger round was really bet with package 2, at its configured price
+            - stream: "{facts.feature_switched_on} == True"
+            - stream: "{facts.feature_on_trigger} == True"
+            - stream: "{facts.trigger_stake_matches} == True"
+            - stream: "{facts.trigger_multiplier} == {facts.feature_multiplier_configured}"
+            # §6 rule 4: every respin echoes the package that opened the bonus, and only that one
+            - stream: premium_reel_frozen_in_freespins
+            - stream: "{facts.respin_premium_ids} == [2]"
+            # the bonus itself is an ordinary Hold & Spin
+            - stream: holdspin_award
+            - stream: holdspin_coins_held
+            - stream: holdspin_countdown
+            - stream: holdspin_ends_correctly
+            - stream: "{facts.respins_played} >= 2"      # a lock needs two respins to be "kept"
+            - stream: "{facts.capped} == False"
+            - stream: conservation                       # see the ⚠ note above the run
+
+        - id: DV-65
+          title: "The Premium Reel package cannot be switched off while its Hold & Spin is running"
+          assert:
+            - stream: "{facts.respins_played} >= 1"
+            # `premiumReels:off` sampled every 0.5 s across the whole drain and never resolved
+            - stream: "{facts.off_available_in_feature} == False"
+            - stream: "{facts.control_samples} >= 2"
+            # NOT asserted: whether the package is still ON after the bonus
+            # (`{facts.feature_on_after_bonus}`). The contract only says the BASE game has no
+            # cross-spin lock; the first run answers it.

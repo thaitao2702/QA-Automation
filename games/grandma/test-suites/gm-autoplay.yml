@@ -1,0 +1,446 @@
+# Grandma Pets — AUTO MODE. 12 cases, 7 runs. TC-021 … TC-031.
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-autoplay.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# No paytable in this suite, so only run 1 loads the page at PREPARE; the rest continue in it
+# (docs/run-lifecycle.md). A bonus can trigger at the game's own rate — each scenario drains it.
+# AUTO_COUNTS = (10, 20, 30, 50, None): index 0 = 10 spins, index 4 = unlimited.
+# Every "and then it stops" run ends in confirm_stopped(): watch for another bet, read isAutoPlay,
+# then hold the still screen so the tail is on the clip.
+
+runs:
+
+  # TC-021 + TC-022 + TC-027 + TC-028 + TC-030
+  # HOW:
+  #  - click the auto button to open the auto-play panel (it opens already showing 10), wait 2 s
+  #  - click the 50-spins option first, so the chosen count visibly changes, wait 2 s
+  #  - click the 10-spins option to come back, wait 2 s
+  #  - click the confirm button — the game starts spinning on its own — then wait 2 s
+  #  - watch 10 paid spins go by without touching anything (the run fails if a spin takes more
+  #    than 90 s to come)
+  #  - if one of them starts free spins, let the bonus play out on its own and decline the
+  #    extension offer at its end; the free spins don't count toward the 10
+  #  - if a big-win celebration comes up on any spin, skip it with two taps
+  #  - after the 10th spin, wait (up to 60 s) until it has finished and the spin button is usable
+  #    again, plus 0.5 s
+  #  - watch 6 s to see if another spin starts
+  #  - if the game still shows auto running, wait up to 5 s more for it to switch off
+  #  - hold 3 s on the still game
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (auto-play):
+  #  - count: 10 (set here) — how many paid auto spins are chosen in the panel and watched;
+  #    10/20/30/50 pick that option (anything else picks the 10 option)
+  #  - stop_probe_ms: 6000 (default) — how long to watch for another spin after the last one
+  #  - stop_dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
+  #  - setup_dwell_ms: 2000 (default) — pause after each panel click and after confirm
+  - run:
+      scenario: auto-play
+      params: { count: 10 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the player sets up auto-play and lets
+          it run. The clip continues for about {facts.stop_watch_s} seconds after the last spin —
+          watch that tail as well as the spins.
+
+          (1) auto_starts: do the reels begin spinning repeatedly without the player clicking each
+          time?
+          (2) count_shown: is a countdown of remaining spins displayed on or near the spin button?
+          (3) counts_down: does that number decrease as the spins go by?
+          (4) bet_constant: does the bet amount stay the same for every spin of the run?
+          (5) stops_at_end: after the last spin, do the reels stay still for the rest of the clip?
+          (6) controls_look: while the run is going, how do the bet + / − , Settings and Buy Bonus
+          controls look? One of: greyed_out_or_inactive, normal_and_active.
+          (7) unlocked_after: once the run has ended, are those controls usable again?
+          (8) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, naming any control that looked usable mid-run.
+        output_schema:
+          auto_starts: { type: boolean }
+          count_shown: { type: boolean }
+          counts_down: { type: boolean }
+          bet_constant: { type: boolean }
+          stops_at_end: { type: boolean }
+          controls_look: { type: string, enum: [greyed_out_or_inactive, normal_and_active] }
+          unlocked_after: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-021: { auto_starts: true, ui_broken: false, confidence: medium }
+          TC-022: { stops_at_end: true, confidence: medium }
+          TC-027: { controls_look: greyed_out_or_inactive, unlocked_after: true, confidence: medium }
+          TC-028: { count_shown: true, counts_down: true, confidence: medium }
+          TC-030: { bet_constant: true, confidence: medium }
+      cases:
+        - id: TC-021
+          title: "Auto mode starts and spins on its own"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"
+            # As DR-13/14: the count is read right after confirm, and the game fires its first
+            # spin ON that click, so it may already read one less. `< via_count` proves the panel
+            # accepted 10, not the 50 it detoured through.
+            - stream: "{facts.auto_spins_at_start} >= {facts.auto_count} - 1"
+            - stream: "{facts.auto_spins_at_start} < {facts.via_count}"
+            - stream: conservation
+
+        - id: TC-022
+          title: "The run stops when the chosen number of spins is used up"
+          assert:
+            # (no `rounds_played == auto_count`: the run always watches exactly `auto_count` spins,
+            # so that equality held whenever it finished. An overrun is what the next lines catch.)
+            - stream: "{facts.completed} == True"
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: "{facts.auto_stopped} == True"
+
+        - id: TC-027
+          title: "The bet, Settings and Buy Bonus controls are locked while a run is going"
+          assert:
+            # As DR-19: no spin of the run was placed at a different bet (the stream half); the
+            # controls being greyed out, and usable again after, is the video half above.
+            - stream: "{facts.rounds_played} >= 1"
+            - stream: "{facts.stake_constant} == True"
+            - stream: "{facts.stakes_seen} == 1"
+
+        - id: TC-028
+          title: "The spin button shows how many auto spins are left"
+          assert:
+            - stream: "{facts.rounds_played} >= 2"          # a countdown needs two spins to count
+            - stream: "{facts.auto_spins_at_start} >= {facts.auto_count} - 1"
+            - stream: "{facts.auto_spins_left_after} == 0"
+
+        - id: TC-030
+          title: "Every spin of the run is placed at the chosen bet"
+          assert:
+            - stream: "{facts.stake_constant} == True"
+            - stream: "{facts.stakes_seen} == 1"
+            - stream: conservation
+
+  # TC-023
+  # HOW:
+  #  - click the auto button, wait 2 s
+  #  - click the "stop at any win" switch, wait 2 s
+  #  - click the unlimited option, so nothing but a win can end the run, wait 2 s
+  #  - click the confirm button, with no wait after it — the game starts spinning on its own
+  #  - watch the spins go by (up to 200, each allowed 90 s to come) until one pays
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - if a spin starts free spins before any plain win, let the bonus play out and decline the
+  #    extension offer, wait (up to 60 s) for the spin button to be usable again, then start over
+  #    from the auto button — at most 6 tries in all
+  #  - if no plain paying spin comes in 200 spins, or all 6 tries end on free spins, the run is
+  #    unreached (the 6 s watch and 3 s hold below still happen)
+  #  - once a spin pays: watch 6 s to see if another spin starts
+  #  - if the game still shows auto running, wait up to 5 s more for it to switch off
+  #  - hold 3 s on the still game
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (auto-stop-at-win):
+  #  - max_spins: 200 (default) — most spins watched per try before giving up
+  #  - watch_ms: 6000 (default) — how long to watch for another spin after the win
+  #  - dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
+  #  - stop_on: base_win (set here) — only a plain paying spin counts; a stop on a free-spin
+  #    trigger is played out, thrown away and auto is started again
+  #  - max_attempts: 6 (default) — how many times auto may be started in all
+  #  - tail_dwell_ms: 0 (default) — extra hold on the still game after the stop (none)
+  #  - lead_in_rounds: 3 (default) — no effect on screen: only how many spins before the win
+  #    are marked for the clip (this run has no video)
+  #  - min_spins_before_win: 0 (default) — a win on the very first spin is accepted
+  #  Graded from the responses only, like DR-15: the win, the stop and "no spin after it" are all
+  #  exact facts, so there is nothing an AI read would add.
+  - run:
+      scenario: auto-stop-at-win
+      params: { stop_on: base_win }
+      teardown: return-to-base
+      cases:
+        - id: TC-023
+          title: "With stop-at-win set, the run ends on the first winning spin"
+          assert:
+            - stream: "{facts.won_by_feature} == False"     # a plain paying spin, not a trigger
+            - stream: "{facts.won_payout} > 0"
+            - stream: "{facts.spins_to_win} >= 1"
+            - stream: "{facts.auto_stopped} == True"
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: conservation
+
+  # TC-009 + TC-024
+  # HOW:
+  #  - set the player's balance to exactly two bets at the current bet, retrying up to 10 times
+  #    2 s apart (the run is unreached if the wallet cannot be set)
+  #  - reload the game and click Start so it shows the new balance
+  #  - click the auto button, wait 2 s
+  #  - click the unlimited option, wait 2 s
+  #  - click the confirm button — the game starts spinning on its own — wait 2 s
+  #  - watch the spins go by, checking the balance after each one (a free-spin bonus that starts
+  #    is played out, extension offer declined, and the balance taken after its last spin)
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - stop watching once less than one bet is left — not after a set number of spins, because a
+  #    spin can win money back; also stop if no spin comes for 90 s, or after 200 spins
+  #  - watch 6 s to see if another spin starts
+  #  - if the game still shows auto running, wait up to 5 s more for it to switch off
+  #  - hold 3 s on the still game
+  #  - the run is unreached if the balance never fell below one bet, or a spin came after it did
+  #  - teardown: put the balance back to what it was and reload the game (Start clicked), then
+  #    play out any free-spin bonus still running
+  # PARAMS (auto-until-empty):
+  #  - fund_spins: 2 (set here) — the balance is set to this many bets before auto starts
+  #  - cap: 200 (default) — most spins watched before giving up
+  #  - watch_ms: 6000 (default) — how long to watch for another spin after the money runs out
+  #  - dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
+  #  Needs PLAYSITE_*. Teardown puts the wallet back (that reloads too) before return-to-base.
+  - run:
+      scenario: auto-until-empty
+      params: { fund_spins: 2 }
+      teardown: [restore-balance, return-to-base]
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip the wallet holds a small balance and
+          auto-play is started. The clip continues for about {facts.stop_watch_s} seconds after the
+          last spin — watch that tail as well as the spins.
+
+          (1) spins_happen: do some spins play automatically?
+          (2) run_stops: do the reels then stay still for the rest of the clip?
+          (3) message_shown: does the game show a message about the balance being used up?
+          (4) message_text: read it exactly as printed, as a string; "none" if there is none.
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          spins_happen: { type: boolean }
+          run_stops: { type: boolean }
+          message_shown: { type: boolean }
+          message_text: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # message_text is DISCOVERY: the wording is localisation, not this claim.
+          TC-009: { message_shown: true, confidence: medium }
+          TC-024: { spins_happen: true, run_stops: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-009
+          title: "Running out of money during a run is announced"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"
+            - stream: "{facts.extra_round_after_stop} == False"   # as DR-08
+
+        - id: TC-024
+          title: "The run stops when the balance can no longer cover a spin"
+          assert:
+            - stream: "{facts.spins_played} >= 1"
+            - stream: "{facts.final_balance} < {facts.bet}"
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: conservation
+
+  # TC-025
+  # HOW:
+  #  - click the auto button, wait 2 s
+  #  - click the unlimited option, so the run cannot end by itself, wait 2 s
+  #  - click the confirm button — the game starts spinning on its own — wait 2 s
+  #  - let 3 paid spins go by (the run fails if a spin takes more than 90 s to come); a free-spin
+  #    bonus that starts is played out, extension offer declined, and does not count
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - stop it the way a player would: click the auto button on the main screen, which on this
+  #    build doubles as the stop control, wait 2 s
+  #  - watch 6 s to see if another spin starts
+  #  - if the game still shows auto running, wait up to 5 s more for it to switch off
+  #  - hold 3 s on the stopped game
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (auto-user-stop):
+  #  - spins_before_stop: 3 (set here) — how many paid auto spins play before the stop click
+  #  - watch_ms: 6000 (default) — how long to watch for another spin after the stop
+  #  - dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
+  - run:
+      scenario: auto-user-stop
+      params: { spins_before_stop: 3 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Auto-play is running and the player stops it by
+          hand after {facts.spins_before_stop} spins. The clip holds for about
+          {facts.stop_watch_s} seconds afterwards — judge that tail.
+
+          (1) run_stops_on_click: after the stop is pressed, do the reels stay still for the rest of
+          the clip?
+          (2) current_spin_end: how does the spin that was turning when stop was pressed end? One
+          of: reels_stop_and_result_shows, cut_off_mid_animation, no_spin_was_turning.
+          (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          run_stops_on_click: { type: boolean }
+          current_spin_end: { type: string, enum: [reels_stop_and_result_shows, cut_off_mid_animation, no_spin_was_turning] }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-025: { run_stops_on_click: true, current_spin_end: [reels_stop_and_result_shows, no_spin_was_turning],
+                    ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-025
+          title: "The player can stop a run, and it stays stopped"
+          assert:
+            - stream: "{facts.auto_stopped} == True"
+            - stream: "{facts.spins_before_stop} >= 1"
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+
+  # TC-026
+  # HOW:
+  #  - click the auto button, wait 2 s
+  #  - click the unlimited option, wait 2 s
+  #  - click the confirm button — the game starts spinning on its own — wait 2 s
+  #  - let 2 paid spins go by (the run fails if a spin takes more than 90 s to come); a free-spin
+  #    bonus that starts is played out, extension offer declined, and does not count
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - reload the page and click Start (a free-spin bonus still owed plays out on its own first)
+  #  - watch 6 s to see if a spin starts by itself
+  #  - if the game still shows auto running, wait up to 5 s more for it to switch off
+  #  - hold 3 s on the game
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (auto-reload-cancels):
+  #  - spins_before_reload: 2 (set here) — how many paid auto spins play before the reload
+  #  - watch_ms: 6000 (default) — how long to watch for a spin after the game comes back
+  #  - dwell_ms: 3000 (default) — how long to hold on the game at the end
+  - run:
+      scenario: auto-reload-cancels
+      params: { spins_before_reload: 2 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Auto-play is running; after
+          {facts.spins_before_reload} spins the game is RELOADED. The clip holds for about
+          {facts.stop_watch_s} seconds after it comes back — judge that tail.
+
+          (1) game_reloads: does the game visibly reload and come back?
+          (2) auto_resumes: after it returns, do the reels start spinning by themselves again?
+          (3) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          game_reloads: { type: boolean }
+          auto_resumes: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-026: { game_reloads: true, auto_resumes: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-026
+          title: "Reloading the game cancels a run in progress"
+          assert:
+            - stream: "{facts.auto_cancelled} == True"
+            - stream: "{facts.spins_before_reload} >= 1"
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+
+  # TC-029
+  # HOW:
+  #  - pick the 4th-lowest bet in the denomination list (the lowest if the list has 3 or fewer);
+  #    if the game is already on it, pick the next higher one instead (wrapping to the lowest)
+  #    (the run is unreached if the game offers no denominations)
+  #  - click the stake-up arrow, which on this build OPENS the denomination list, wait 2 s
+  #  - click the picked row in the list, wait 2 s
+  #  - click the list's close button if there is one, wait 2 s
+  #  - click the auto button, wait 2 s
+  #  - click the 10-spins option, wait 2 s
+  #  - click the confirm button — the game starts spinning on its own — wait 2 s
+  #  - let 10 paid spins go by (the run fails if a spin takes more than 90 s to come); a free-spin
+  #    bonus that starts is played out, extension offer declined, and does not count
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - wait (up to 60 s) until the last spin has finished and the spin button is usable again,
+  #    plus 0.5 s
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (auto-change-bet-first):
+  #  - count: 10 (set here) — how many paid auto spins are chosen and watched; 10/20/30/50 pick
+  #    that option (anything else picks the 10 option)
+  #  - target_index: None (default) — which row of the denomination list is picked (0 = lowest
+  #    bet); unset means the 4th-lowest (or the lowest on a list of 3 or fewer)
+  - run:
+      scenario: auto-change-bet-first
+      params: { count: 10 }
+      teardown: return-to-base
+      # Graded from the responses, like Dragon DR-21: the stake every auto spin was placed at is an
+      # exact fact, so an AI reading the bet label adds nothing.
+      cases:
+        - id: TC-029
+          title: "Auto-play runs at the bet chosen before it was confirmed"
+          assert:
+            # THE claim: the first auto spin was placed at the bet picked from the list
+            - stream: "{res.stake} == {facts.picked_bet}"
+            - stream: "{facts.picked_bet} > 0"
+            - stream: conservation
+            # ⚠ this run leaves the game on the NEW bet: nothing puts it back after the run.
+  # TC-031
+  # HOW:
+  #  - click the auto button (waiting up to 15 s for it), wait 1 s
+  #  - if the panel opened: click the 10-spins option (up to 10 s), wait 1 s, then click the
+  #    confirm button (up to 10 s), wait 2 s so the "auto play on" message is on the clip
+  #  - if confirm was clicked: let 1 paid spin go by (moving on if none comes within 90 s); a
+  #    free-spin bonus that starts is played out, extension offer declined
+  #  - if a big-win celebration comes up, skip it with two taps
+  #  - if confirm was clicked: click the auto button on the main screen again, which on this
+  #    build doubles as the stop control (up to 20 s), wait 2 s
+  #  - wait (up to 60 s) until the spin button is usable
+  #  - a control that never becomes clickable is skipped rather than failing the run; the run is
+  #    unreached if auto never started at all
+  #  - teardown: if a free-spin bonus is still running, play it out
+  # PARAMS (toggle-auto):
+  #  - count_index: 0 (set here) — which auto-spin count is picked: the first option, 10 spins
+  #  - spins_before_stop: 1 (set here) — how many paid auto spins play before the stop click
+  #  - dwell_ms: 2000 (default) — pause after the confirm click and after the stop click
+  - run:
+      scenario: toggle-auto
+      params: { count_index: 0, spins_before_stop: 1 }
+      teardown: return-to-base
+      video:
+        assets: []
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. In this clip auto-play is switched ON, one spin
+          runs, and it is switched OFF again.
+
+          (1) enable_message: when auto-play is switched on, does a short message or toast appear
+          saying so?
+          (2) enable_text: read it exactly as printed, as a string; "none" if there is none.
+          (3) disable_message: when it is switched off, does a message appear saying that?
+          (4) disable_text: read it exactly as printed, as a string; "none" if there is none.
+          (5) returns_to_idle: does the game end the clip sitting idle, ready to spin?
+          (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          enable_message: { type: boolean }
+          enable_text: { type: string }
+          disable_message: { type: boolean }
+          disable_text: { type: string }
+          returns_to_idle: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # enable_text / disable_text are DISCOVERY: the wording is localisation, the claim is
+          # only that the game says something at each toggle.
+          TC-031: { enable_message: true, disable_message: true, returns_to_idle: true,
+                    ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-031
+          title: "Switching auto mode on and off tells the player it happened"
+          assert:
+            - stream: "{facts.auto_started} == True"
+            - stream: "{facts.stop_clicked} == True"
+            - stream: "{facts.auto_stopped} == True"
+            - stream: "{facts.returned_to_idle} == True"
+            # popup_events is NOT asserted: the notification is a toast, and a build that renders
+            # it outside the popup system reports nothing while the player sees it. Hence the clip.

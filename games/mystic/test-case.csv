@@ -1,0 +1,154 @@
+,
+Check UI Game,Follow Design
+Loading 30%,
+1. Game info trả trước 10s,- Thanh loading chạy từ 1% -> 30% sau đó chuyến sang trang landing page chạy tiếp
+2. Game info trả sau 10s,"- Thanh loading chạy từ 1% -> 30% , sau đó giữ ở 30% chờ sau khi nhận được game info thì chuyển sang landing page chạy tiếp"
+Check Denomination,
+Open game,Denomination đúng config (xem ở console game info )
+"Bấm + , -",Tăng giảm bet Amount
+Bet Amount level default,Vào game nhận đúng bet level default được setting từ BO
+"Cộng, trừ tiền của Balance trong 1 lượt Bet",
+Bấm bet,Balance = Balance hiện tại - Bet Amount ( trừ luôn)
+Bấm Bet -> Quay xong có kết quả,Balance = Balace hiện tại + Payout của lượt Bet đó ( quay xong reel cộng tiền)
+Hết số dư,
+Bấm Bet,Có Popup thông báo hết số dư ( chặn phía client)
+Auto | Tự động tắt Auto Mode,Hiển thị Popup báo hết số dư ( chặn phía client)
+"hết số dư trong FS, buy bonus, promo","có thể chơi tiếp khi hết balance trong FS, buy bonus, promo"
+History 1 lượt Bet. Kiểm tra 2 vị trí :,
+1. History trong Game,"đúng design, đúng kết quả"
+2. History trên BO,"đúng design, đúng kết quả"
+Check chức năng Auto Mode,
+1. Bật Auto Mode & Điều kiện dừng,
+1. Click btn Autoplay,
+2. Click Confim,
+3. Kiểm tra từng điều kiện dừng Auto Spin sau:,1. Hết số Number of Bet
+,2. Stop at any win
+,3. Hết số dư
+,4. User bấm Stop Auto
+,5. Reload Page/Tắt mở lại Game
+2. Kiểm tra trạng thái nút và hiển thị số vòng quay,
+1. Bật auto & quan sát các button,"1. Khoá các nút : + , - Bet Amount"
+,"2. (Trophy, Paytable, Sound, Info, Menu) : disable"
+,3. Nút Bet (Spin) hiển thị đúng số lượt quay
+3. Thiết lập cược trong Auto Mode,
+1. Click btn Auto play,1. Bet Amount thay đổi đúng theo thao tác
+"2. Click +,- điều chỉnh bet amount",2. Auto Spin chạy với đúng Bet Amount đã chọn
+3. Click Confim,
+Check Turbo/ Hold for Turbo,
+1. Bật turbo,"1. Tốc độ quay của Reel nhanh hơn, kích hoạt stop now"
+,2. Nhấn giữ chuột or phím space khi nhả ra k ảnh hưởng đến turbo
+2. Hold for turbo,
+1. Nhấn giữ chuột khoảng 1s,"1. btn turbo sáng lên, kích hoạt stop now"
+,"2. nhả chuột -> button turbo tắt, trở lại trạng thái bình thường"
+2. Nhấn giữ phím space khoảng 1s,"1. btn turbo sáng lên, kích hoạt stop now"
+,"2. nhả phím space -> button turbo tắt, trở lại trạng thái bình thường"
+Check Sound/Music,Follow Design
+1. Ẩn/ Chuyển tab,Toàn bộ Sound sẽ tắt khi Ẩn/Chuyển Tab
+2. Tắt Sound BGM,Sound BGM có volume = 0
+3. Tắt Music,Music có Volume = 0
+Check Auto Reconnect,
+1. Disconnect < 20s,Hiển thị Text > Kết nối lại Game và chơi bình thường
+2. Disconnect > 20s,Hiển thị Popup chuyển về trang chủ
+3. Change wifi A > B,Hiển thị Popup chuyển về trang chủ
+4. Đăng nhập cùng game cùng acc trên nhiều tab,Hiển thị Popup chuyển về trang chủ
+5. Auto mode + reconnect,
+6. Switch/Hide tab too long > 30-45 min,
+7. Focus tab game,
+8. Check hệ thống khi mạng lag,
+Check Auto Reconnect,
+Cơ chế quay,
+1. Spin được kích hoạt khi click button spin hoặc phím Space,
+1. Click button Spin,1. Cả hai thao tác đều kích hoạt spin.
+2. Nhấn phím space,2. Reels bắt đầu quay bình thường.
+2. Nhấn giữ Spin button hoặc phím Space kích hoạt Auto Spin + Sudden Stop,
+1. Nhấn giữ spin button hoặc phím space,"1. Khi giữ, game tự động quay liên tục (Auto Spin)."
+2. Quan sát trạng thái quay trong khi giữ,"2, Khi giữ trong lúc reels đang quay, kích hoạt Sudden Stop (reels dừng ngay lập tức)."
+3. Buông tay khỏi phím/ spin button,"3. Khi buông tay, auto spin ngừng lại ngay."
+3. Double click vào Spin button kích hoạt Sudden Stop,1. Spin dừng ngay lập tức (Sudden Stop).
+1. Nhấn 2 lần liên tiếp vào Spin button khi reels đang quay.,"2. Kết quả hiển thị chính xác, không bị lỗi hoặc mất animation."
+Reels Glow,
+1. Nếu symbol bonus xuất hiện trên 2 reels khác nhau trở nên từ reels 1-reels 6,1. kích hoạt reels glow
+2. Nếu symbol bonus thứ 2 xuất hiện trên reels cuối cùng,1. Không kích hoạt reels glow
+Base game,
+1. Bắt đầu một vòng cược mới trong Base Game,1. Multiplier khởi tạo ở Level 1 = x1
+2. Spin và có cluster win,1.Tính win theo Multiplier hiện tại
+,2. Multiplier tăng 1 level sau mỗi cascade
+,3. Nếu đã đạt x1000 → giữ nguyên mức này
+3. không có cluster win,1. Multiplier reset về Level 1 = x1 cho vòng cược tiếp theo
+4. Reel đang quay,
+,1. Khóa các nút: Bet + / Bet - / Autoplay
+,"2. Disable: Trophy, Paytable, Sound, Info, Menu"
+Kích hoạt Free Spin,
+1. Spin và nhận được Bonus icon trên ít nhất 3 Reel,1. Nhận được FreeSpin
+,2. Multiplier được khởi tạo ở Level 1 = x2
+2. bet và có cluster win,1. Nếu Multiplier chưa đạt x10 → tăng lên 1 level sau mỗi bước thắng (cascade)
+,2. Nếu Multiplier đã đạt x10 (Max Multiplier) → giữ nguyên ở x10 cho các bước thắng tiếp theo
+3. không có cluster win,1. Multiplier được reset về Level 1 = x2 cho lượt FS tiếp theo
+4. Đang ở chế độ Free Spins,"3. Khoá các Button + , - , Autoplay"
+,4. Hiển thị số lượt quay trên Play Button
+,"5. (Trophy, Paytable, Info, Menu) : disable"
+Multi-Language,Text in game đều hỗ trợ multi language
+1. Đồng bộ language,Đồng bộ language giữa các game
+2. Auto text scaling text,Đảm bảo all ngôn ngữ k bị tràn viền ( check tiếng burmese - my)
+"3. Text không bị cắt, mất chân",check tiếng burmese - my
+Tutorial,Flow figma
+1. Nội dung,
+2. payout base symbol,"đúng paytable, dynamic theo bet amount"
+3. đúng image,
+replay,
+1. Check balance replay,
+1. bet normal,
+1. hiển thị balance trước khi quay reels,1. Hiển thị balance trước 0.5s = balance sau - payout + stake
+2. Check balance sau khi reels quay,1. = balance sau - payout
+3. Check balance sau khi hoàn thành,1. Hiển thị balance sau theo data trả về
+2. Buy bonus,
+1. hiển thị balance trước khi quay reels,1. Hiển thị balance trước 0.5s = balance sau - payout + bet buy bonus
+2. Check balance sau khi reels quay,1. = balance sau - payout
+3. Check balance sau khi hoàn thành,1. Hiển thị balance sau theo data trả về
+2. Check replay big win bet normal,
+3. Check replay big win FS,
+4. Check replay big win trong BUY BONUS,
+"5. Disable btn + , - , autoplay, history, mount win, setting",
+"6. enable btn turbo, audio",
+7. có text Replay dưới btn spin trong replay,
+"8. check Watch again, copy link",
+Test promo,Check UI
+PROMO count,
+PROMO countdown,
+Compliance settting,
+1. auto play: false,"ẩn btn, ẩn text trong tutorial"
+2. turboMode: false,"ẩn btn, ẩn text trong tutorial, chặn skip anim big win, total win, xóa text press..."
+3. minSpinDurationSec,"Check time quay của reels delay theo setting, k lỗi anim"
+4. oneClickPerSpin: true,chặn k cho hold spin
+5. realityCheckEnabled,check popup reality check
+6. maxSessionTimeMin,check popup max session khi hết time theo setting
+7. bonusBuyAllowed,"ẩn btn, ẩn text trong tutorial"
+8. check compliance settting của replay,"replay k hiển thị popup thông báo của realityCheckEnabled, maxSessionTimeMin"
+Last bet,
+1. bet normal k win,"hiện đúng view , stake"
+1. bet normal win,"hiện view, win line, win amount , stake của last bet"
+3. bet buy bonus,lưu local màn fake data của buy bonus
+4. change denom,
+bet normal,last bet lấy bet level default cảu denom list
+bet FS,show stake theo pending hết FS mới hiển thị bet default của denom list
+5. promo,"hiển thị đúng stake, hết promo thì hiển thị theo bet level default"
+,
+Dynamic Game Help,
+Support On/Off tính năng theo setting BO,Cho ẩn/ hiện theo setting từ BO
+maxWinEnabled,
+gameLimitsEnabled,
+volatilityEnabled,
+rtpDisplayEnabled,
+interruptionPolicyEnabled,
+Time auto-finalize nhận theo setting từ BO,
+status,check ẩn hiện theo setting
+duration,Check hiển thị đúng time setting
+rtpValues,check value đúng theo key
+check gán key value,"The theoretical RTP of this game is ""gameRTP""%.
+The bonus game’s theoretical RTP is ""bonusTheoRTP""%. After factoring in the buy cost, the effective RTP is ""buyBonusRTP""%.
+The Ante Bet option’s theoretical RTP is ""anteTheoRTP""%. After factoring in the buy cost, the effective RTP is ""anteRTP""%."
+"Check show popup On/Off khi bật Turbo, Auto-play, Ante bet",
+1. bật/ tắt btn turbo,"hiện popup "" Turbo Disable/ Enable"""
+2. Bật/ tắt btn ante bet,"hiện popup "" Ante bet Disable/ Enable"""
+3. bật/ tắt Auto-play,"hiện popup "" Auto-play Disable/ Enable"""
+"4. bật nhanh turbo - auto-play, turbo-antebet",check các btn không được overlap

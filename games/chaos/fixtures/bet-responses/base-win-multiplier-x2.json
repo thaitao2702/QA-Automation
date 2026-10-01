@@ -1,0 +1,91 @@
+{
+  "status": 1,
+  "code": 0,
+  "msg": "",
+  "timestamp": 1787569275854,
+  "result": {
+    "result": {
+      "rawViews": null,
+      "views": [
+        {
+          "id": 1,
+          "value": [
+            4,
+            11,
+            2
+          ]
+        },
+        {
+          "id": 2,
+          "value": [
+            3,
+            3,
+            2
+          ]
+        },
+        {
+          "id": 3,
+          "value": [
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "id": 4,
+          "value": [
+            4,
+            4,
+            2
+          ]
+        },
+        {
+          "id": 5,
+          "value": [
+            1,
+            11,
+            6
+          ]
+        }
+      ]
+    },
+    "freeSpins": 0,
+    "totalFreeSpin": 0,
+    "totalFreeSpinPayout": 0,
+    "randomMultiplier": 2,
+    "scatterMultiplier": 0,
+    "anteMultiplier": 0,
+    "paylines": [
+      {
+        "symbols": [
+          2,
+          2,
+          2,
+          2,
+          6
+        ],
+        "payline": 19,
+        "payoutRate": 10,
+        "winType": "J-J-J-J-P2"
+      }
+    ],
+    "baseStake": 0.6,
+    "stake": 0.6,
+    "rawPayout": 0.6,
+    "payout": 0.6,
+    "accumulatedWinAmount": 0.6,
+    "winlose": 0,
+    "betLines": 20,
+    "jackpot": 0,
+    "balance": 9833.79,
+    "hasReachedMaxWin": false,
+    "maxWin": 600,
+    "gameState": 1,
+    "promoResult": null,
+    "id": "922247554920349697",
+    "roundId": "922247554920349697",
+    "betTime": 1787569275812,
+    "processedTime": 1787569275813,
+    "settledTime": 1787569275813
+  }
+}

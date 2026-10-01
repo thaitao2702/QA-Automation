@@ -1,0 +1,315 @@
+# Treasures of the Dragon — Auto Mode (DR-08, DR-13 … DR-21).
+#
+# Run:  python scripts/run_scenario.py --game dragon --env dev --suite games/dragon/test-suites/dr-autoplay.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon
+#
+# DR-NN is ZZ-NN of test-case-zeus.xlsx (games/zeus/test-suites/zz-autoplay.yml has the history).
+# Every scenario here is mechanism-free; the Dragon part is the dialect (bridge-qa-api.md §9):
+#   * the panel's controls are `auto:count:{i}` over [10, 20, 30, 50, ∞] and `auto:confirm`; it
+#     has no close X, so `auto:close` is a strip of the tap-outside backdrop;
+#   * a run is stopped ONLY by the main-screen `stopAuto`. `autoOrFreeSpin`, which replaces Spin
+#     during a run, merely fast-stops the current reels, and `auto` does not resolve during a run.
+#     `auto_stop_button()` returns `stopAuto` for this profile;
+#   * the panel ignores a pick made within 0.5 s of the previous one; `auto-play` dwells 2 s between
+#     its setup clicks, so its detour lands;
+#   * starting or stopping a run raises the `autoNotify` toast for ~2.4 s, and on Dragon toasts ARE
+#     listed in `visiblePopups`. Nothing below asserts on popups mid-run, so it changes no case.
+#
+# ── RULE 4 IS THE SPINE OF THIS FILE ────────────────────────────────────────────────────────
+# Every case claims "…and then it stops" — a NEGATIVE claim, worth something only if you waited.
+# Each scenario ends in `confirm_stopped()`: it watches `awaitBetResponse` (NOTHING ARRIVING IS THE
+# EVIDENCE), polls the client's own auto flag, then HOLDS so the still screen is filmed. So every
+# case asserts
+#     {facts.extra_round_after_stop} == False      no further bet was wagered
+#     {facts.auto_flag_after} == False             the client agrees it is no longer running
+# and every prompt tells the model to judge the TAIL. The one deliberate exception is DR-08/16
+# (Rule 15), noted there.
+
+runs:
+  # ── DR-13 + DR-14 + DR-19 + DR-20 : one auto run, one clip, four verdicts ─────────────
+  # count: 10 is the shortest package. The panel OPENS on 10, so the scenario selects a different
+  # count FIRST and changes back — the count visibly moves without paying for a longer run.
+  - run:
+      scenario: auto-play
+      teardown: return-to-base
+      params: { count: 10 }
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon is a 3x3 slot with 5 paylines. In this clip the player opens the
+          auto-play panel, first selects {facts.via_count} spins, then changes it back to
+          {facts.auto_count}, and confirms; auto-play then runs all {facts.auto_count} spins and
+          stops. (The panel opens on {facts.auto_count}, so the detour is what makes the count
+          visibly change.) The ACTION TIMELINE below gives the clip-relative second of each step —
+          use it to find them rather than guessing. Answer each of the following about the moment it
+          names, independently:
+
+          (1) auto_ran: does the game spin repeatedly ON ITS OWN, without a click per spin?
+
+          (2) auto_stopped_at_end: once the {facts.auto_count} spins are done, has auto-play
+          stopped? The clip deliberately continues for about {facts.stop_watch_s} seconds AFTER the
+          last spin finishes and then holds still — during that tail the reels must not start again
+          and no new spin may begin. A clip that simply ends is not evidence; judge the tail.
+
+          (3) count_shown / count_decrements: WHILE auto is running, does the Spin button (or a
+          counter that replaces it) show how many spins are left, and does that number count DOWN as
+          the spins play? clears_at_end: does it disappear or reset once auto-play finishes?
+
+          (4) bet_locked: WHILE auto is running, are the bet controls disabled, hidden or visibly
+          locked? unlocked_after: are they usable again once auto-play has ended?
+        output_schema:
+          auto_ran: { type: boolean }
+          auto_stopped_at_end: { type: boolean }
+          count_shown: { type: boolean }
+          count_decrements: { type: boolean }
+          clears_at_end: { type: boolean }
+          bet_locked: { type: boolean }
+          unlocked_after: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DR-13: { auto_ran: true, confidence: medium }
+          DR-14: { auto_stopped_at_end: true, confidence: medium }
+          DR-19: { bet_locked: true, unlocked_after: true, confidence: medium }
+          DR-20: { count_shown: true, count_decrements: true, confidence: medium }
+      cases:
+        - id: DR-13
+          title: "Autoplay starts from the popup and runs"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"
+            # the panel really accepted a count — otherwise "it spun" cannot tell auto-play from a
+            # stray manual spin
+            - stream: "{facts.auto_spins_at_start} >= 1"
+
+        - id: DR-14
+          title: "Autoplay stops after the selected number of spins"
+          assert:
+            # the client played the configured number of base spins...
+            - stream: "{facts.rounds_played} == {facts.auto_count}"
+            - stream: "{facts.completed} == True"
+            # ...and it really STOPPED (Rule 4): a client that overruns keeps wagering, and that
+            # extra BET is the evidence
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - stream: "{facts.auto_stopped} == True"
+            # the panel ended on OUR count, not the one we detoured through
+            - stream: "{facts.auto_spins_at_start} >= {facts.auto_count} - 1"
+            - stream: "{facts.auto_spins_at_start} < {facts.via_count}"
+
+        - id: DR-19
+          title: "Bet controls are disabled while autoplay is running"
+          assert:
+            - stream: "{facts.rounds_played} >= 1"    # there was a run to be locked during
+            # EXACT, and stronger than the video: every paid round was charged the same stake, so
+            # the bet cannot have moved — which no frame-by-frame read can establish.
+            - stream: "{facts.stake_constant} == True"
+            - stream: "{facts.stakes_seen} == 1"
+
+        - id: DR-20
+          title: "The Spin button shows the remaining autoplay count while it runs"
+          assert:
+            - stream: "{facts.rounds_played} >= 2"    # a countdown needs two spins to be visible
+            # The number is a client-side render with no response field behind it, so the count
+            # is the AI's part; the stream pins that there were spins to count down through.
+
+  # ── DR-15 : stop at any win ────────────────────────────────────────────────────────
+  # `stop_on: base_win`: a win comes in two shapes that look nothing alike on screen — a line win,
+  # or a Hold & Spin being awarded — and one prompt cannot describe both. This run is about the line
+  # win; a feature stop is DISCARDED and the hunt resumes (facts.discarded_stops counts them). The
+  # feature shape is DR-30's subject, under its own forced paytable.
+  - run:
+      scenario: auto-stop-at-win
+      teardown: return-to-base
+      params: { stop_on: base_win }
+      cases:
+        - id: DR-15
+          title: "Stop at any win halts autoplay on the first winning spin"
+          assert:
+            # the boolean, not `{facts.won_via} == base_win` — a bare word becomes a NameError
+            - stream: "{facts.won_by_feature} == False"
+            - stream: "{facts.won_payout} > 0"             # it stopped ON a win, not merely stopped
+            - stream: "{facts.spins_to_win} >= 1"
+            - stream: "{facts.auto_stopped} == True"
+            - stream: conservation
+            # Rule 4
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                at: [win, win_end]
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon is a 3x3 slot with 5 paylines. Auto-play was running with
+                  "stop at any win" enabled, and this clip covers the spin that ENDED it plus
+                  everything after, up to the game sitting still. That spin paid a LINE WIN of
+                  {facts.won_payout} — no Hold & Spin feature was awarded. Answer: (1) was auto-play
+                  visibly running — spins starting on their own without a click (auto_ran)? (2) is a
+                  win presented for that spin — a win amount shown and the winning payline(s)
+                  marked (win_shown)? (3) in the still tail at the end, does the screen show
+                  auto-play is NO LONGER running — no auto or remaining-spins counter, the Spin
+                  button back to its normal idle look, and no further spin starting by itself
+                  (auto_stopped_on_screen)? (4) is anything visibly broken — a counter still
+                  ticking, a stuck overlay, placeholder text (display_broken)? A short "auto off"
+                  banner appearing and fading is normal and is not a stuck overlay.
+                output_schema:
+                  auto_ran: { type: boolean }
+                  win_shown: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  display_broken: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  win_shown: true
+                  auto_stopped_on_screen: true
+                  display_broken: false
+                  confidence: medium
+
+  # ── DR-08 + DR-16 : autoplay stops when the balance runs out ───────────────────────
+  # Needs PLAYSITE_* wallet credentials to fund a deterministic drain; unreached without them.
+  # Rule 7: this run MOVES THE MONEY, so it declares restore-balance.
+  #
+  # Rule 13 — the end is the SERVER balance, never the funding count: an auto spin can win, and a
+  # Hold & Spin pays across a whole feature. `balance_below_bet` makes this a MONEY stop.
+  #
+  # Rule 15 — `auto_flag_after` is deliberately NOT asserted here. The out-of-money `notification`
+  # popup is what prevents the next bet, and the client's auto flag may stay set until the popup is
+  # dealt with. Nothing was wagered and the screen is idle, so the behaviour is correct whatever
+  # the flag says.
+  - run:
+      scenario: auto-until-empty
+      teardown: restore-balance   # put the wallet back exactly as it was
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon is a 3x3 slot. In this clip the wallet was funded with
+          {facts.funded_balance} — about {facts.fund_spins} spins at a stake of {facts.bet} — and
+          auto-play was started with an unlimited count, so only running out of money can stop it.
+          It played {facts.spins_played} round(s) and the balance ended at {facts.final_balance},
+          below one bet. The clip then deliberately continues for about {facts.stop_watch_s} seconds
+          and holds still. The ACTION TIMELINE marks the moment the balance fell below one bet.
+          Answer each independently: (1) auto_ran: was auto-play visibly running — spins starting on
+          their own? (2) out_of_money_popup: does a popup or message appear telling the player they
+          do not have enough balance? (3) auto_stopped_on_screen: during the still tail at the end,
+          has auto-play stopped — no further spin starts by itself and no reels turn? A clip that
+          simply ends is not evidence; judge the tail.
+        output_schema:
+          auto_ran: { type: boolean }
+          out_of_money_popup: { type: boolean }
+          auto_stopped_on_screen: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DR-08: { out_of_money_popup: true, auto_stopped_on_screen: true, confidence: medium }
+          DR-16: { auto_ran: true, auto_stopped_on_screen: true, confidence: medium }
+      cases:
+        - id: DR-08
+          title: "Running out of balance during autoplay stops it and warns the player"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"   # the stop really was about MONEY
+            - stream: "{facts.extra_round_after_stop} == False"
+        - id: DR-16
+          title: "Autoplay stops when the balance reaches zero"
+          assert:
+            - stream: "{facts.stopped_on_empty} == True"
+            - stream: "{facts.balance_below_bet} == True"
+            - stream: "{facts.spins_played} >= 1"
+            - stream: "{facts.final_balance} < {facts.bet}"
+            - stream: "{facts.extra_round_after_stop} == False"
+
+  # ── DR-17 : user stops autoplay ────────────────────────────────────────────────────
+  # At the UNLIMITED count on purpose (Rule 13): a finite count could run out on its own before the
+  # player pressed Stop, and the case would pass for the wrong reason. The stop is `stopAuto`.
+  - run:
+      scenario: auto-user-stop
+      teardown: return-to-base
+      cases:
+        - id: DR-17
+          title: "Stopping autoplay by hand halts it immediately"
+          assert:
+            - stream: "{facts.auto_stopped} == True"
+            - stream: "{facts.spins_before_stop} >= 1"      # there was a run to interrupt
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon is a 3x3 slot. Auto-play is running with an unlimited
+                  count, and partway through the clip the player presses Stop; the ACTION TIMELINE
+                  marks exactly when. After that the clip continues for about {facts.stop_watch_s}
+                  seconds and holds still. Answer: (1) was auto-play visibly running before the Stop
+                  — spins starting on their own (auto_ran)? (2) after Stop is pressed, does
+                  auto-play halt — at most the current spin finishes and no new one begins
+                  (stopped_on_user_stop)? (3) during the still tail at the end, does the screen show
+                  auto is no longer running — no auto counter, the Spin button back to its idle look
+                  (auto_stopped_on_screen)? A clip that simply ends is not evidence; judge the tail.
+                output_schema:
+                  auto_ran: { type: boolean }
+                  stopped_on_user_stop: { type: boolean }
+                  auto_stopped_on_screen: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran: true
+                  stopped_on_user_stop: true
+                  auto_stopped_on_screen: true
+                  confidence: medium
+
+  # ── DR-18 : reload cancels autoplay ────────────────────────────────────────────────
+  - run:
+      scenario: auto-reload-cancels
+      teardown: return-to-base
+      cases:
+        - id: DR-18
+          title: "Reloading the game cancels a running autoplay"
+          assert:
+            - stream: "{facts.auto_cancelled} == True"
+            - stream: "{facts.spins_before_reload} >= 1"    # auto really was running before the reload
+            - stream: "{facts.extra_round_after_stop} == False"
+            - stream: "{facts.auto_flag_after} == False"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon is a 3x3 slot. Auto-play was running, then the game was
+                  RELOADED; the ACTION TIMELINE marks the reload. A reload lands on a fresh, idle
+                  game, which looks identical to "auto was cancelled" and identical to "the clip just
+                  ended" — so the clip deliberately continues for about {facts.stop_watch_s} seconds
+                  after the reload and holds still. Answer: (1) was auto-play visibly running BEFORE
+                  the reload (auto_ran_before)? (2) after the reload finishes, is the game sitting
+                  idle in the base game with auto-play NOT running — no auto spins firing on their
+                  own, no auto counter, the Spin button in its normal idle state
+                  (auto_not_running_after_reload)? Judge the tail, not the fact that the clip stops.
+                output_schema:
+                  auto_ran_before: { type: boolean }
+                  auto_not_running_after_reload: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  auto_ran_before: true
+                  auto_not_running_after_reload: true
+                  confidence: medium
+
+  # ── DR-21 : bet chosen before confirming is the bet autoplay uses ──────────────────
+  - run:
+      scenario: auto-change-bet-first
+      teardown: return-to-base
+      cases:
+        - id: DR-21
+          title: "Autoplay runs at the bet chosen before it was confirmed"
+          assert:
+            # exact: the first auto spin was charged the stake that was picked
+            - stream: "{res.stake} == {facts.picked_bet}"
+            - stream: "{facts.picked_bet} > 0"
+            - video:
+                timestamp: true
+                prompt: >-
+                  Treasures of the Dragon is a 3x3 slot. In this clip the player changes the bet to
+                  {facts.picked_bet}, opens the autoplay panel, confirms, and auto-play then runs.
+                  The ACTION TIMELINE gives the time of each step. Answer: (1) after the bet is
+                  changed, does the bet / stake readout show {facts.picked_bet}
+                  (bet_readout_matches)? (2) do the auto spins run at that bet — the stake shown
+                  stays {facts.picked_bet} for every spin rather than reverting to the previous
+                  value (bet_stays_at_chosen)? Judge the bet readout only, not the balance.
+                output_schema:
+                  bet_readout_matches: { type: boolean }
+                  bet_stays_at_chosen: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  bet_readout_matches: true
+                  bet_stays_at_chosen: true
+                  confidence: medium

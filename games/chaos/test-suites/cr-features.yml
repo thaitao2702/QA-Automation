@@ -1,0 +1,594 @@
+# Chaos Runner — game features: Reel Glow, Free Spin, Random Multiplier, Raining Wild, P1
+# (CR_044 … CR_048, CR_057 … CR_063) from test-case-chaos.csv.
+#
+# Run:  python scripts/run_scenario.py --game chaos --env dev --suite games/chaos/test-suites/cr-features.yml
+#
+# RUN LIFECYCLE (docs/run-lifecycle.md). A clean base is the FRAMEWORK's invariant now, not this
+# file's: PREPARE runs `return-to-base` + `waitForSpinClickable` before every run and CLEANUP does
+# the same after, falling back to a reload. So no run below declares `teardown: return-to-base` —
+# declared teardowns are for EXTRAS only, like topping the wallet back up after a drain.
+#
+# Scenarios here follow docs/scenario-authoring-rules.md: every spin goes through
+# `spin_and_finish()` so a free-spin trigger is played out inside the loop body (Rule 1); bonus
+# drains end on `is_terminal()` (Rule 2); every "…and then it stops" claim goes through
+# `confirm_stopped()` — watched, then held (Rule 4); controls are addressed by ROLE.
+#
+# IMAGE vs VIDEO (follow the Mystic convention — it is ~97% video). Default to `video:`. Reach for
+# `image:` ONLY when ONE still answers the question AND the detail is too fine for a montage —
+# text, glyphs, diacritics, clipping, small payout digits, image sharpness. A video assert grades a
+# DOWNSAMPLED composite, so a missing Burmese mark or a two-pixel clip is simply not in those
+# pixels; conversely anything that CHANGES over time (a popup opening and closing, an animation, a
+# counter ticking, "and then it stopped") cannot be shown by a still at all.
+#
+# An `image:` assert also needs its scenario to CAPTURE stills and RETURN them
+# (`ScenarioResult(..., shots=ctx.shots)`). Miss either and the assert sits at `pending` forever —
+# it reads as "the AI never ran" rather than "there was nothing to grade".
+# tests/chaos/validate_suites.py now fails the suite for both mistakes.
+#
+# ...and if the stills are SCREENFULS OF ONE SCROLLING SURFACE (a help document, the tutorial
+# guide), set `combine: true` on the assert so they are graded in ONE call — Rule 18. Per-still is
+# the default and is right for a tour of DIFFERENT surfaces; on one scrolled surface it cannot
+# answer "is this section anywhere in the document?", because the honest answer for every screenful
+# but one is "no".
+#
+# THE POINT OF THIS SUITE — the grid IS the evidence.
+# Chaos is a line game: one grid per round, no cascades, nothing held. So every feature rule it
+# states is a predicate over a per-reel symbol census, and the census is in the BET response:
+#
+#   freespin_award               Bonus on 3/4/5 REELS -> 12/15/20, x the ways multiplier   CR_046
+#   p1_reels_only                P1 (id 5) lands only on reels 1, 3, 5                     CR_062
+#   symbol_reel_restrictions     ...and Wild (id 9) never lands on reel 1                  CR_062 / CR_059
+#   p1_ways_payout               rawPayout covers ways x 10 x baseStake                    CR_063
+#   scatter_pay_matches_p1_ways  scatterMultiplier == ways x 10, checked against the grid  CR_063
+#   max_win_cap_applied          payout == min(rawPayout, maxWin), flag set honestly       CR_063
+#   payout_matches_paylines      lines + scatter, then capped                              CR_063
+#   multiplier_in_ladder         every multiplier is one of x1/x2/x5/x10                   CR_057 / CR_058
+#
+# That is why these are `stream:` asserts. What is genuinely visual — the glow, the wild rain, the
+# ORDER two animations play in — stays `video:`, and each one carries a hard companion proving the
+# situation was actually reached.
+#
+# THE CONTRACT IS NOW VERIFIED. Six real BET payloads are captured under
+# games/chaos/fixtures/bet-responses/ and documented in games/chaos/bet-response.md, so the grid
+# reader, the symbol ids (P1 = 5, Wild = 9, Bonus = 11) and every formula below are confirmed
+# rather than modelled. What is still assumed is flagged per case.
+#
+# ⚠ TWO RULES THAT BITE HERE, both learned from real payloads:
+#   * `payout` is CAPPED at `maxWin`; `rawPayout` is the gross. A captured P1 round grossed 12 and
+#     credited 10. Never compare a payout formula against `payout` — use `rawPayout`.
+#   * a SCATTER (P1) pays `multiplier x baseStake` with NO `/betLines` divisor, unlike a line win.
+#
+# FORCING. A run that NEEDS a free-spin trigger forces one with `paytable: { ref: chaos-fs-easy }`
+# rather than hunting for it (Rule 17) — fs-complete and random-multiplier both do. Hunting costs
+# real spins at the live stake and ends in `inconclusive`, which reads like coverage and is not.
+#
+# The situations that are rare for a reason OTHER than the trigger (5 Bonus symbols; P1 on all three
+# of its reels at once) still hunt naturally within a budget and report honestly when they do not
+# arrive. Where a fixture would make one reliable the run says which one to add; do not raise the
+# budget instead — that is how a suite turns into an hour of spinning for one verdict.
+
+runs:
+  # ── CR_046 / 047 / 048 / 044 : the free-spin round, end to end ─────────────────────
+  # TWO video calls for four cases, split by WINDOW rather than by case — each clip is cut to the
+  # span that actually contains the thing being judged.
+  #
+  #   * CR_046 / 047 / 048 share ONE clip of the whole bonus: `at: [trigger, terminal]`, the
+  #     triggering spin through the end of the last free spin. Every question they ask (the award
+  #     count, the locked controls, the total-win summary, the return to base) lives inside it, so
+  #     one AI answer is re-graded per case via `expected_by_case`. The span also EXCLUDES the base
+  #     spins the scenario burned hunting for a trigger — up to `max_base` of them. CR_047 used to
+  #     have no `at:` at all, so it was grading that entire hunt.
+  #     A retrigger can extend the bonus, but `maxWin` truncates the round, so the clip stays
+  #     bounded rather than growing with the free-spin count.
+  #
+  #   * CR_044 (Reel Glow) keeps its OWN clip: `at: [trigger, "rounds[1]"]` — the triggering spin
+  #     through the FIRST free spin — at `high_fps`. The glow is a sub-second effect on the reels as
+  #     they come to rest; grading it over the whole bonus at 4fps would not resolve it. Ending the
+  #     span one free spin later is also what makes `effect_ends_cleanly` answerable at all: the
+  #     screen the glow must NOT bleed into is now in frame, which it was not when this assert was
+  #     cut at `at: trigger`.
+  - run:
+      scenario: fs-complete
+      # FORCE the trigger, do not hunt for it (Rule 17). `max_base` is gone: it was a budget of 300
+      # REAL base spins, paid for at the live stake, burned before the clip this run cares about
+      # even begins — and a run that spent it without triggering returned unreached, so all four
+      # cases reported inconclusive. chaos-fs-easy raises FreeSpin! to 30% of base reels 0/1/2 and
+      # zeroes the other two, so a bonus arrives in a spin or two and is the 12-spin minimum
+      # (Rule 6). The scenario's own default budget stays behind it as an unreachable backstop.
+      #
+      # The cap is 10x the live bet. A capped round ENDS the bonus and clears the counter
+      # (backend fix 2026-09-05, Rule 9), so CR_047's and CR_048's `{terminal.free_spins} == 0`
+      # still holds and the round stays short — which also keeps the shared clip below short.
+      # What a tight cap costs is LENGTH: it can land on free spin 1, and CR_047 asks the AI to
+      # watch a counter COUNT DOWN, which one round cannot show. Hence the free_spins_played
+      # assert on CR_047 — if it starts failing the cap is too tight for this award, so raise the
+      # multiple rather than dropping the assert.
+      paytable: { ref: chaos-fs-easy, max_win_x: "10 * bet" }
+      cases:
+        - id: CR_046
+          title: "3+ Bonus symbols trigger free spins and award the configured count"
+          assert:
+            # Keyed off the GRID, not off the server's counter compared to itself: asserting
+            # totalFreeSpin == totalFreeSpin would pass on any number the server invented.
+            - stream: freespin_award
+            - stream: "{trigger.total_free_spin} > 0"
+
+        - id: CR_047
+          title: "During free spins the bet/auto controls are locked and the spin button shows spins left"
+          assert:
+            - stream: stake_zero_in_freespins      # a free spin never costs the player anything
+            - stream: freespins_monotonic          # the counter only counts down, or rises on a retrigger
+            # ...and any rise was a REAL retrigger — Bonus actually on the grid, not phantom spins.
+            # The BO export shows `FreeSpinGame.FreeSpins` is identical to the base table, so a
+            # retrigger awards base(reels) x ways on the same terms.
+            - stream: freespin_retrigger_adds
+            - stream: "{terminal.free_spins} == 0"
+            # The video below asks whether the counter COUNTS DOWN, which needs at least two
+            # rounds to be visible at all. At a 10x cap the bonus can end on free spin 1, so the
+            # length is asserted rather than assumed (Rule 17). A failure here means the cap is
+            # too tight for this paytable's award, not that the game is broken.
+            - stream: "{facts.free_spins_played} >= 2"
+
+        - id: CR_048
+          title: "Free spins end after the last spin, credit the total, and unlock the base game"
+          assert:
+            - stream: terminal_reached
+            - stream: "{terminal.free_spins} == 0"
+            - stream: conservation                 # the total credited matches the rounds that paid
+
+        - id: CR_044
+          title: "Reel Glow fires when 2 Bonus symbols land on different reels"
+          assert:
+            # A trigger round carries 3+ Bonus symbols across reels, so the 2-on-different-reels
+            # precondition is satisfied by construction. For the NON-triggering 2-scatter case
+            # (glow with no bonus) see the reels-glow run below.
+            - stream: "{trigger.total_free_spin} > 0"
+            - video:
+                at: [trigger, "rounds[1]"]   # the triggering spin -> the end of the FIRST free spin
+                high_fps: true               # 16fps effective — the glow is sub-second
+                timestamp: true
+                prompt: >-
+                  Chaos Runner, a 5x3 line slot. This clip is the base-game spin that TRIGGERED free
+                  spins, carrying on through the transition into the free-spin round and its first
+                  free spin. On that triggering spin, Bonus symbols land across more than one reel.
+                  Watch the reels as they come to rest. Answer: (1) do the non-Bonus symbols on the
+                  reels holding a Bonus become dimmed or darkened (non_bonus_dimmed)? (2) do the
+                  remaining reels show a glow / anticipation effect (glow_on_other_reels)? (3) does
+                  that glow finish cleanly — ending before the free-spin screen rather than
+                  persisting into it (effect_ends_cleanly)?
+                output_schema:
+                  non_bonus_dimmed: { type: boolean }
+                  glow_on_other_reels: { type: boolean }
+                  effect_ends_cleanly: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  non_bonus_dimmed: true
+                  glow_on_other_reels: true
+                  effect_ends_cleanly: true
+                  confidence: low
+
+      video:                                 # ONE AI call over the whole bonus, graded per case
+        at: [trigger, terminal]              # triggering spin -> end of the last free spin
+        timestamp: true                      # the ACTION TIMELINE is what separates the phases
+        prompt: >-
+          Chaos Runner, a 5x3 line slot. This clip runs from the base-game spin that TRIGGERED free
+          spins, through the entire free-spin round of {trigger.total_free_spin} spins, to the point
+          where the game returns to the base game. The ACTION TIMELINE below gives the clip-relative
+          time of every spin, so use it to tell the three phases apart, and answer each field for
+          the phase it belongs to.
+
+          PHASE A — THE TRIGGERING SPIN, at the very start of the clip. Bonus symbols land across
+          more than one reel and free spins are awarded. (1) does the game transition to a distinct
+          free-spin screen or intro (enters_freespin_screen)? (2) is the number of free spins
+          awarded shown on screen (award_count_shown)? (3) read that number exactly as displayed
+          (award_count_text).
+
+          PHASE B — DURING THE FREE SPINS, the middle of the clip. (4) are the bet + and - controls
+          disabled or hidden (bet_locked)? (5) is the Auto Play control disabled or hidden
+          (auto_locked)? (6) does the spin button area show a remaining free-spin count that counts
+          down (spin_shows_remaining)? (7) is a per-spin multiplier displayed (multiplier_shown)?
+
+          PHASE C — THE END OF THE ROUND, the last part of the clip. (8) is a total-win summary for
+          the whole free-spin round shown (total_win_shown)? (9) read that total win exactly as
+          displayed (total_win_text). (10) does the game return to the normal base game screen
+          (returns_to_base)? (11) do the bet and Auto Play controls become usable again
+          (controls_unlocked)?
+        output_schema:
+          enters_freespin_screen: { type: boolean }
+          award_count_shown: { type: boolean }
+          award_count_text: { type: string }
+          bet_locked: { type: boolean }
+          auto_locked: { type: boolean }
+          spin_shows_remaining: { type: boolean }
+          multiplier_shown: { type: boolean }
+          total_win_shown: { type: boolean }
+          total_win_text: { type: string }
+          returns_to_base: { type: boolean }
+          controls_unlocked: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_046:
+            enters_freespin_screen: true
+            award_count_shown: true
+            award_count_text: "{trigger.total_free_spin}"
+            confidence: medium
+          CR_047:
+            bet_locked: true
+            auto_locked: true
+            spin_shows_remaining: true
+            multiplier_shown: true
+            confidence: medium
+          CR_048:
+            total_win_shown: true
+            returns_to_base: true
+            controls_unlocked: true
+            confidence: medium
+
+  # ── CR_062 / 063 / 045 : symbol P1 ("Fuel") — position rule, ways win, and its Reel Glow ──
+  # `chaos-p1-ways` raises P1 to ~30% of base reels 0/2/4 — the only reels it may occupy — and
+  # LEAVES the other symbols there. Not a 100% force: P1 pays by WAYS, the product of how many land
+  # per reel (design doc §4), so a reel filled with P1 shows it in all 3 rows and turns a 1-way win
+  # into 3 x 3 x 3 = 27 ways at 270x the base bet. At 30% a reel usually contributes ONE P1, so the
+  # win is the small, ordinary one the case is about — 1 or 2 ways — which is the shape of the
+  # captured payload fixtures/bet-responses/p1-scatter-win-maxwin-capped.json (2 ways, gross 12 at
+  # base 0.6). See Rule 6: 30% frequent, never 100% forced.
+  #
+  # The scenario spins until it lands a SCATTER-ONLY P1 win — one with no payline win alongside —
+  # because the game shows a single number and a round that paid both shows the sum, which proves
+  # nothing about either half. ~28% of spins qualify, about 1 in 3.5, so `max_spins: 40` overshoots
+  # by a wide margin while still failing honestly rather than spinning forever.
+  #
+  # ⚠ CR_062 (the position rule) now rides on THIS run, so it is audited over the handful of rounds
+  # the hunt spins, on the FORCED paytable. That is weaker than the 250-spin natural sample it used
+  # to get: the fixture leaves P1 at weight 0 on reels 2 and 4 exactly as the real paytable does, so
+  # the audit still proves the server honours a 0 weight — but it no longer samples the real strips.
+  # If CR_062 needs to be strong again it wants its own unforced run.
+  #
+  # ⚠ max_win_x is 500 HERE, where the free-spin runs use 10x, and the reason is the whole point of
+  # CR_063. The case tests the DOCUMENTED PAYOUT FORMULA — design doc §4:
+  #     Total Payout = Total Ways x Symbol Multiplier x Bet base   (e.g. 2 x 10 x base = 20x base)
+  # A capped round credits the CAP instead, so the figure on screen would be the cap and the formula
+  # would be untestable from the video. This paytable's largest possible win is 27 ways x 10 = 270x
+  # base, so 500 can never bite: every round plays out at its true value. There is no bonus in this
+  # run to bound, so the cap has no other job here (Rule 9 — a backstop, not a shaper).
+  - run:
+      scenario: p1-ways-win
+      params: { max_spins: 40 }       # ~28% of spins qualify: a wide margin, not a long hunt
+      paytable: { ref: chaos-p1-ways, max_win_x: 500 }
+      cases:
+        - id: CR_062
+          title: "P1 (Fuel) appears only on reels 1, 3 and 5 — never on 2 or 4"
+          assert:
+            # P1 is symbol id 5 (confirmed). Both rules read the BO reel strips, where P1's weight
+            # is literally 0 on reels 2 and 4.
+            - stream: p1_reels_only
+            - stream: symbol_reel_restrictions
+            - stream: "{facts.illegal_reels} == []"
+            # ANTI-VACUITY. This used to be `rounds_audited >= 20`, which the old 250-spin audit run
+            # could deliver and this hunt cannot: it stops on the first qualifying win, sometimes on
+            # spin 1. So the guard is now about EVIDENCE rather than volume — P1 was actually
+            # observed, on all three legal reels and on no others. A run that saw no P1 at all
+            # yields [] and fails, which is exactly the false green the old assert guarded against.
+            - stream: "{facts.p1_reels_seen} == [1, 3, 5]"
+            # The audit covers free-spin rounds too — P1's strip weight is 0 on reels 2 and 4 in the
+            # FreeSpinGame lists as well, so a bonus drained along the way is extra evidence.
+            # paid_spins counts only the rounds we actually clicked (base_rounds_since).
+            - stream: "{facts.paid_spins} >= 1"
+
+        - id: CR_063
+          title: "One P1 on each of reels 1, 3 and 5 wins, paying ways x 10 x base bet"
+          assert:
+            # The ways formula predicts the GROSS win. It must NOT be compared against the credited
+            # payout: a captured P1 round grossed 12 and credited 10, because `maxWin` truncated it.
+            - stream: p1_ways_payout                     # rawPayout >= ways x 10 x baseStake
+            - stream: scatter_pay_matches_p1_ways        # scatterMultiplier == ways x 10, from the grid
+            - stream: max_win_cap_applied                # ...and the cap was applied honestly
+            - stream: payout_matches_paylines            # lines + scatter, then capped
+            - stream: "{facts.p1_ways} >= 1"
+            - stream: "{facts.scatter_multiplier} == {facts.p1_ways} * 10"
+            - stream: "{facts.raw_payout} >= {facts.expected_gross}"
+            - stream: "{facts.actual_payout} == {facts.expected_credited}"
+            # THE DOCUMENTED FORMULA, exactly as design doc §4 states it:
+            #   Total Payout = Total Ways x Symbol Multiplier x Bet base
+            # `formula_ok` is computed in Python because an inline predicate is eval'd without
+            # builtins — no `abs()`, and 2 x 10.0 x 0.6 is 12.000000000000002, not 12.0.
+            - stream: "{facts.formula_ok} == True"
+            - stream: "{facts.symbol_multiplier} == 10"
+            # ...and the conditions that make the SCREEN show that figure rather than something else
+            - stream: "{facts.scatter_only} == True"    # no line win inflating the displayed total
+            - stream: "{facts.capped} == False"         # not truncated, so the cap is not what shows"
+
+        - id: CR_045
+          title: "Reel Glow fires on the P1 win condition (P1 on reels 1 and 3 glows reel 5)"
+          assert:
+            - stream: "{facts.p1_ways} >= 1"       # P1 really did reach reels 1, 3 and 5
+
+      # ONE AI CALL FOR BOTH CASES (Rule 16). They already graded the SAME clip — both were
+      # `at: win`, the single winning round — so two `video:` asserts meant uploading and analysing
+      # identical footage twice to ask about two moments of one spin.
+      #
+      # `high_fps` is on for the merged block, which is affordable HERE and would not be on the
+      # fs-complete run: this clip is one round of a few seconds, not a whole bonus, so 16fps
+      # effective costs little. CR_045 needs it — the glow is a sub-second anticipation before reel
+      # 5 stops — and CR_063 only gains from the extra frames when reading the win amount.
+      #
+      # The prompt is ordered CHRONOLOGICALLY, glow first then the win presentation, because that is
+      # the order the model sees them in and the ACTION TIMELINE marks the round.
+      video:
+        at: win                          # the winning round, exposed as a mark by the scenario
+        high_fps: true                   # 16fps effective — the glow is sub-second, the clip is short
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 line slot. This clip is ONE spin in which the P1 symbol (a fuel can)
+          lands on reels 1, 3 and 5 — P1 only ever appears on those three reels — giving
+          {facts.p1_ways} winning way(s). P1 pays by WAYS, and the game's design document gives the
+          payout as: Total Ways x Symbol Multiplier x Base Bet. Here that is
+          {facts.p1_ways} x {facts.symbol_multiplier} x {facts.base_stake} =
+          {facts.p1_pay}, and this round paid nothing else (no line win) and was not capped, so
+          {facts.p1_pay} is the ENTIRE win for the spin. Watch it in two stages and answer each
+          field for its own stage.
+
+          STAGE 1 — THE REELS STOPPING, left to right. (1) once P1 has landed on reels 1 and 3, does
+          reel 5 show a glow / anticipation effect BEFORE it comes to rest (glow_on_reel_5)? (2) are
+          the symbols outside the winning combination dimmed or darkened (non_winning_dimmed)?
+          (3) does that glow interrupt or cut short the win animation that follows
+          (breaks_other_animation)?
+
+          STAGE 2 — THE WIN BEING PRESENTED, after the reels have stopped. (4) is a win presented
+          for this spin at all (win_presented)? (5) read the win amount exactly as displayed, as
+          digits (win_amount_text) — report what is on screen, do NOT copy the figure quoted above,
+          and if a counter animates upwards read its FINAL settled value. (6) does the amount the
+          game presents equal {facts.p1_pay}, the documented
+          {facts.p1_ways} x {facts.symbol_multiplier} x {facts.base_stake}
+          (win_matches_formula)? (7) are the winning P1 symbols themselves highlighted or animated
+          (p1_highlighted)?
+        output_schema:
+          glow_on_reel_5: { type: boolean }
+          non_winning_dimmed: { type: boolean }
+          breaks_other_animation: { type: boolean }
+          win_presented: { type: boolean }
+          win_amount_text: { type: string }
+          win_matches_formula: { type: boolean }
+          p1_highlighted: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_063:
+            win_presented: true
+            # The read is compared NUMERICALLY by the framework (commas, spaces and $ stripped,
+            # 1e-6 tolerance), so a display of "12.00" matches a computed 12.0. This is the case's
+            # core claim: the ways formula reached the screen, not just the response.
+            win_amount_text: "{facts.p1_pay}"
+            win_matches_formula: true
+            p1_highlighted: true
+            confidence: medium
+          CR_045:
+            glow_on_reel_5: true
+            non_winning_dimmed: true
+            breaks_other_animation: false
+            confidence: low
+
+  # ── CR_059 / 059b / 060 / 061 : Raining Wild ─────────────────────────────────────
+  # The rule is absolute, not probabilistic: 2 or more Wilds -> 100%, fewer -> 0%. So the scenario
+  # captures BOTH a qualifying spin and a contrasting one, and the cases judge both directions.
+  # Raining Wild is VISUAL ONLY (game-knowledge.md §4): it must never move the payout, which is why
+  # `conservation` rides along here rather than any claim that the effect paid something.
+  #
+  # ONE AI CALL FOR THE THREE CASES THAT GRADE THE RAIN (Rule 16). CR_059, CR_060 and CR_061 were
+  # three `video:` asserts all pointing at `at: rain` — the same single round — so the same footage
+  # was uploaded and analysed three times to ask about three moments of one spin. They now share the
+  # run-level block below and `expected_by_case` re-grades that one answer per case.
+  #
+  # CR_059b is deliberately NOT merged: it grades `at: norain`, the CONTRASTING spin with fewer than
+  # 2 Wilds. Different clip, different call — and it is the half that stops an implementation which
+  # rains on every spin from passing CR_059 perfectly.
+  #
+  # `chaos-wild-rain` puts WILD! at ~15% of base reels 1/2/3/4. On the real strips Wilds sit at
+  # 2-6% and a 2-Wild result is uncommon, so this run used to spin a 200-round budget hoping for one.
+  #
+  # ⚠ 15% IS A CEILING AS WELL AS A FLOOR, which is what makes this fixture different from
+  # `chaos-fs-easy` and `chaos-p1-ways`. This scenario needs BOTH halves of the rule: a result with
+  # 2+ Wilds AND a control result with fewer than 2. Raising Wilds further does not just waste money,
+  # it destroys the negative half — at 50% per cell the control round takes ~315 spins, and a 100%
+  # force makes it impossible, so the run would never reach and every case would report
+  # inconclusive. At 15% the split is ~55% / ~45%, and both rounds arrive in a median of 3 spins
+  # (95th percentile 6, worst of 2000 simulated runs 16) — hence `max_spins: 30`.
+  #
+  # REEL 0 IS DELIBERATELY LEFT ALONE at weight 0. CR_059 asserts `symbol_reel_restrictions`, which
+  # is the rule that Wild never lands on reel 1; a fixture that put Wilds there would break the very
+  # thing the case is checking.
+  - run:
+      scenario: raining-wild
+      params: { max_spins: 30 }       # median 3 spins for both rounds; 30 is a wide margin
+      paytable: { ref: chaos-wild-rain }
+      cases:
+        - id: CR_059
+          title: "Raining Wild plays when the result holds 2+ Wilds, and Wilds land reel 1 to reel 5"
+          assert:
+            - stream: "{facts.wilds} >= 2"
+            - stream: "{facts.expected_raining} == True"
+            - stream: conservation                 # the animation changed nothing about the money
+            # Wild is symbol id 9, and its reel-strip weight is 0 on REEL 1 in every distribution
+            # list. No CSV case covers that, but this run has the grids to prove it, so it rides
+            # along here rather than going untested.
+            - stream: symbol_reel_restrictions
+
+        - id: CR_059b
+          title: "Raining Wild does NOT play when the result holds fewer than 2 Wilds (0% rule)"
+          assert:
+            # The negative half of the same rule. Without it, an implementation that played the
+            # animation on EVERY spin would pass CR_059 perfectly.
+            - stream: "{facts.has_control} == True"
+            - stream: "{facts.control_wilds} < 2"
+            - video:
+                at: norain                 # the CONTRASTING round -- a different clip, so its own call
+                high_fps: true
+                prompt: >-
+                  Chaos Runner. This spin's result contains only {facts.control_wilds} Wild
+                  symbol(s) — fewer than the 2 required — so the Raining Wild animation must NOT
+                  play. Answer: (1) does a Raining Wild animation (wilds visibly raining or falling
+                  across the reels) play at any point in this clip (rain_plays)?
+                output_schema:
+                  rain_plays: { type: boolean }
+                  confidence: { type: string, enum: [high, medium, low] }
+                expected:
+                  rain_plays: false
+                  confidence: medium
+
+        - id: CR_060
+          title: "Raining Wild resolves before Reel Glow, with neither animation lost"
+          assert:
+            - stream: "{facts.wilds} >= 2"
+
+        - id: CR_061
+          title: "Raining Wild combined with Bonus symbols dims correctly and does not alter the payout"
+          assert:
+            - stream: "{facts.wilds} >= 2"
+            - stream: conservation                 # the visual-only rule, asserted as money
+
+      video:                               # ONE AI call over the raining round, graded per case
+        at: rain                           # the qualifying round, exposed as a mark by the scenario
+        high_fps: true                     # 16fps effective — the rain and the glow are fast
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 line slot. This clip is ONE spin whose result contains {facts.wilds}
+          Wild symbols on reel(s) {facts.wild_reels} and {facts.scatters_at_rain} Bonus symbol(s),
+          and which paid {facts.payout_at_rain}. Two or more Wilds must trigger the Raining Wild
+          animation, and the Bonus symbols may also raise a Reel Glow. Watch the spin in three
+          stages and answer each field for its own stage.
+
+          STAGE 1 — WHILE THE REELS ARE STILL TURNING. (1) does a Raining Wild animation play while
+          the reels are still spinning (rain_plays_during_spin)?
+          (2) do the Wild symbols arrive in order from the leftmost reel towards the rightmost
+          (wilds_land_left_to_right)? (3) do the remaining symbols settle only AFTER the wilds have
+          finished falling (others_settle_after)?
+
+          STAGE 2 — THE HANDOVER FROM THE RAIN TO THE GLOW. (4) does the Raining Wild animation
+          finish BEFORE any reel glow effect begins (rain_before_glow)? (5) are the two ever drawn on
+          top of each other at the same moment (effects_overlap)? (6) is either effect skipped
+          entirely or cut short before it completes (effect_lost)?
+
+          STAGE 3 — ONCE THE WILDS HAVE LANDED. (7) are the symbols that are neither Bonus nor Wild
+          dimmed on the reels holding a Bonus (others_dimmed)? (8) does a glow effect appear on a
+          following reel (glow_on_next_reel)? (9) taking the spin as a whole, do the animations run
+          in a clean sequence with none of them interrupting another (order_clean)?
+        output_schema:
+          rain_plays_during_spin: { type: boolean }
+          wilds_land_left_to_right: { type: boolean }
+          others_settle_after: { type: boolean }
+          rain_before_glow: { type: boolean }
+          effects_overlap: { type: boolean }
+          effect_lost: { type: boolean }
+          others_dimmed: { type: boolean }
+          glow_on_next_reel: { type: boolean }
+          order_clean: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_059:
+            rain_plays_during_spin: true
+            wilds_land_left_to_right: true
+            others_settle_after: true
+            confidence: low
+          CR_060:
+            rain_before_glow: true
+            effects_overlap: false
+            effect_lost: false
+            confidence: low
+          CR_061:
+            others_dimmed: true
+            glow_on_next_reel: true
+            order_clean: true
+            confidence: low
+
+  # ── CR_057 / 058 : the random multiplier ladder, base game AND free spins ──────────
+  # `chaos-fs-easy` so the bonus is reached (Rule 17) rather than hunted. The shape of the clip is
+  # deliberate: a few NORMAL spins first, then the bonus, so one recording holds both halves of the
+  # claim and the AI can compare them.
+  #
+  # `base_spins: 3` is a TARGET, not a guarantee — we cannot choose which spin triggers. At ~37% a
+  # spin the mean is ~2.7 before the bonus, and if the very first spin triggers the base sample is 1
+  # (which `{facts.base_spins} >= 1` accepts). If no trigger has arrived by spin 3 the loop keeps
+  # going; extra base rounds are extra evidence.
+  #
+  # 10x cap: a capped round ends the bonus cleanly (Rule 9). CR_058 needs only
+  # `{facts.fs_spins} >= 1`, so even a bonus cut to one round still answers it.
+  - run:
+      scenario: random-multiplier
+      params: { base_spins: 3 }
+      paytable: { ref: chaos-fs-easy, max_win_x: "10 * bet" }
+      cases:
+        - id: CR_057
+          title: "The random multiplier animates and lands on a configured ladder value"
+          assert:
+            - stream: multiplier_in_ladder
+            - stream: "{facts.reported_any} == True"
+            # The ladder the bar SHOWS is the ladder the game is CONFIGURED with — read from the
+            # bridge, so this stays exact instead of an AI read of the on-screen bar.
+            - stream: "{facts.all_in_ladder} == True"
+
+        - id: CR_058
+          title: "The random multiplier appears in both the base game and free spins"
+          assert:
+            - stream: multiplier_in_ladder
+            - stream: "{facts.base_spins} >= 1"
+            # Both halves of the claim, each proven separately. Asserting only "a multiplier was
+            # seen" would pass on a build that never showed one during the bonus.
+            - stream: "{facts.reached_freespins} == True"
+            - stream: "{facts.fs_spins} >= 1"
+
+      # ONE AI CALL FOR BOTH CASES (Rule 16), over the WHOLE clip — base spins and bonus together,
+      # which is the point: CR_058's claim is that the multiplier appears in both, so its evidence
+      # is the contrast between the two stretches of one recording. `timestamp: true` gives the model
+      # the ACTION TIMELINE, where the scenario marks where the base sampling ends and the free
+      # spins begin.
+      #
+      # `values_vary` is graded against the RESPONSE, not against `true`: x1 carries 80% of the base
+      # weight and 65% of the free-spin weight, so a correct game returns three all-x1 base spins
+      # about half the time. `{facts.varied}` says whether THIS run actually varied, and the AI has
+      # to agree with it either way — the oracle-computes-expected pattern from
+      # scenario-assert-authoring §5.
+      video:
+        timestamp: true
+        prompt: >-
+          Chaos Runner, a 5x3 line slot with a RANDOM MULTIPLIER: before each spin resolves, an
+          indicator animates across a ladder of values and settles on one. The configured values are
+          {facts.ladder}. This clip contains {facts.base_spins} normal base-game spin(s) FIRST and
+          then a FREE-SPIN round of {facts.fs_spins} spin(s) — the ACTION TIMELINE below marks where
+          the base sampling ends and the free spins begin. Watch the multiplier indicator throughout
+          and answer:
+
+          (1) during the NORMAL base-game spins, is a multiplier indicator shown and does it settle
+          on a value (multiplier_shown_in_base)?
+
+          (2) during the FREE SPINS, is a multiplier indicator shown there too
+          (multiplier_shown_in_freespins)?
+
+          (3) does the indicator ANIMATE before settling, rather than simply appearing already set
+          (multiplier_animates)?
+
+          (4) does that animation sweep from LEFT to RIGHT across the ladder
+          (sweeps_left_to_right)?
+
+          (5) across all the spins in this clip, does the value it settles on CHANGE from spin to
+          spin, rather than being the same value every time (values_vary)? Answer what you actually
+          see: landing on the same value every spin is a legitimate outcome of a random draw, so do
+          not assume it must vary.
+
+          (6) list every multiplier value you saw it land on, in order (values_seen).
+        output_schema:
+          multiplier_shown_in_base: { type: boolean }
+          multiplier_shown_in_freespins: { type: boolean }
+          multiplier_animates: { type: boolean }
+          sweeps_left_to_right: { type: boolean }
+          values_vary: { type: boolean }
+          values_seen: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          CR_057:
+            multiplier_animates: true
+            sweeps_left_to_right: true
+            values_vary: "{facts.varied}"     # the response decides, not the suite
+            confidence: medium
+          CR_058:
+            multiplier_shown_in_base: true
+            multiplier_shown_in_freespins: true
+            confidence: medium

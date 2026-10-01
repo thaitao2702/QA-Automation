@@ -1,0 +1,555 @@
+# Grandma Pets — BUY BONUS (TC-108 … TC-112) and WALKING WILD (TC-140 … TC-156).
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-real-weights.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# ⚠ NO `paytable:` KEY ANYWHERE IN THIS FILE, deliberately. Every run buys the bonus, so nothing
+# needs forcing, and the walking wild needs the game's REAL free-spin weights. Once a suite selects
+# the automation paytable, a run WITHOUT a fixture inherits whatever the last fixture left behind
+# (summary 11 §3) — keeping the forced runs in gm-forced.yml is what makes "real weights" true.
+# Nothing here loads the page at PREPARE except run 1.
+#
+# ⚠ Every bonus ends on the FREE SPIN EXTENSION offer, and the spin button never frees up until it
+# is answered — the free-spin drain declines it (`extension:decline`). `return-to-base` proves it.
+#
+# Sources: bridge-api.md §8.2/§8.3/§8.4, bet-response.md, docs/assets/assets.yml.
+# ⚠ NOT docs/raw/paytable.json for pay VALUES; `ways_payout_matches` checks the response against
+# itself (symbolMultiplier × totalWildMultiplier × wayCount × baseStake == payout).
+
+runs:
+
+  # B1 — TC-108, TC-109, TC-110
+  # HOW:
+  #  - read what the game is currently betting
+  #  - click the buy bonus button to open the panel
+  #  - read how many packages it offers and whether the panel finished loading
+  #  - scroll the first package into view and click it
+  #  - read the price back — if it is 0 nothing is actually selected, and the run STOPS there
+  #    rather than confirming a dead control and then waiting out the timeout for a bet that
+  #    can never come
+  #  - click the buy control, which raises the confirmation sheet
+  #  - click the confirm button
+  #  - wait for the purchase to come back
+  #  - while the "you triggered it" teaser is playing, read the grid the CLIENT is drawing
+  #  - play out the 15 free spins, declining the extension offer at the end
+  #  - settle back to the base game and prove it got there
+  #
+  # ⚠ The reveal exists ONLY on the client: the server sends five reels of -1 for a purchase
+  #   (bet-response.md §9), so the sampled grid is the only exact record of what the player saw.
+  #   It has to be read between the response and the first free spin — after the drain it is gone.
+  - run:
+      scenario: buy-bonus
+      params: { package: 0, sample_reveal: true }
+      teardown: return-to-base
+      # ⚠ `at: trigger` ALONE IS TOO SHORT. A round's clip ends when the NEXT round starts, and a
+      # free spin's start is recorded the moment the framework begins waiting for it — which is
+      # immediately after this round's response. The response arrives BEFORE the presentation
+      # plays, so a trigger-only clip ends mid-animation and the reveal/award is never on it.
+      # Spanning to the first free spin is what puts the whole presentation in the clip.
+      video:
+        # The pictures the model is shown. Question (3) asks whether any symbol repeats across
+        # reels 1-3, so it needs the whole symbol set, not just the paw.
+        asset_groups: [symbols]
+        at: [trigger, "rounds[1]"]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip covers the moment the player bought the
+          bonus, and runs to the end of the FIRST free spin. Right after the purchase the game plays
+          a "fake" reel spin. Answer about that fake spin and what follows it, not about the free
+          spin at the end.
+
+          The BONUS symbol is a golden paw print set with coloured gems (see the reference images).
+          Do not confuse it with the grandma WILD, which is an old lady with white curly hair and
+          sunglasses.
+
+          (1) bonus_on_every_reel: when the fake spin stops, is there a BONUS paw symbol on EVERY
+          one of the five reels — reel 1 through reel 5, left to right?
+          (2) bonus_count_per_reel: how many BONUS paws are on the reel that has the most? Answer
+          with a number.
+          (3) other_symbols_form_no_win: apart from the BONUS paws, do the remaining symbols form a
+          winning combination — the same animal or card appearing on reels 1, 2 AND 3 (a win must
+          start at reel 1 and run left to right without a gap)? Answer true only if you can see
+          such a run of three.
+          (4) wild_present: is the grandma WILD anywhere on the fake spin?
+          (5) win_celebrated: does the game celebrate a WIN on this fake spin — a coin burst, a win
+          amount counting up, win lines drawn?
+          (6) award_announced: after the fake spin, does the game announce the number of free spins
+          won, on a banner, popup or counter?
+          (7) award_number: read that number exactly as printed and report it as a string of
+          digits. If you cannot read it clearly, answer "unreadable".
+          (8) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bonus_on_every_reel: { type: boolean }
+          bonus_count_per_reel: { type: number }
+          other_symbols_form_no_win: { type: boolean }
+          wild_present: { type: boolean }
+          win_celebrated: { type: boolean }
+          award_announced: { type: boolean }
+          award_number: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-108: { bonus_on_every_reel: true, bonus_count_per_reel: 1, confidence: medium }
+          # `wild_present` is asked and graded on NO case — a DISCOVERY field. The teaser is drawn
+          # client-side and the rules say nothing about wilds in it, so what it puts there is
+          # recorded for whoever reads a green run, not turned into a claim.
+          TC-109: { other_symbols_form_no_win: false, win_celebrated: false, confidence: medium }
+          TC-110: { award_announced: true, award_number: "15", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-108
+          title: "Buy Bonus reveal shows one BONUS symbol on each of the five reels"
+          assert:
+            # the purchase really happened, and it is the round the clip covers
+            # float-safe: a bet of 0.01 makes `bet * 75` inexact, so compare with a tolerance
+            # rather than `==`, which would go red on a game that charged correctly.
+            - stream: "abs({trigger.stake} - {trigger.base_stake} * 75) < 0.005"
+            - stream: "{trigger.won_free_spins} == 15"
+            # THE CASE, exact half: what the player was shown once the reveal SETTLED. Gate on
+            # `reveal_stable` first — a grid read while the teaser is still landing reels reports
+            # whatever was on screen at that instant, and a red from that blames the game for our
+            # timing. False here means "could not verify", which is a different conversation.
+            - stream: "{facts.reveal_stable} == True"
+            - stream: "{facts.reveal_bonus_reels} == 5"
+            - stream: "{facts.reveal_max_bonus_per_reel} == 1"
+
+        - id: TC-109
+          title: "The reveal's other symbols never form a winning combination"
+          assert:
+            - stream: "{facts.reveal_stable} == True"
+            # THE CASE: no symbol (or wild) occupies reels 1, 2 and 3 together on the reveal grid,
+            # so no ways win can exist; and the server paid nothing for the round.
+            - stream: "{facts.reveal_winning_run} == False"
+            - stream: "{trigger.payout} == 0"
+            # ⚠ NOT asserted: `{facts.reveal_wilds} == 0`. It was, and it failed on a healthy
+            # game — the teaser drew one grandma. Nothing in the rules (docs/raw/4.jpg) says the
+            # reveal is wild-free; the case's claim is only that the symbols form NO WINNING
+            # COMBINATION, and `reveal_winning_run` already counts a wild as substituting for any
+            # symbol. The count stays a reported fact so the grid is on the record.
+
+        - id: TC-110
+          title: "The award animation announces the 15 free spins the purchase bought"
+          assert:
+            - stream: "{trigger.won_free_spins} == {facts.package_spins}"
+            - stream: "{facts.price_ratio} == 75"
+            # the announcement itself is the video half, above
+            - stream: conservation
+
+  # B2 — TC-111, TC-112
+  # HOW:
+  #  - buy the bonus, exactly the same way B1 does
+  #  - play 2 free spins, so 13 are still owed
+  #  - start watching, 50 times a second, the controls that must stay disabled while spins are
+  #    owed: the bet arrows, auto-play, settings and buy bonus
+  #  - reload the page and click Start
+  #  - read what the game says is pending — in the gap between the bridge appearing and Start,
+  #    which is the only moment it exists
+  #  - let the game play out the 13 it still owes
+  #    (if the bonus happens to end before those first 2 spins the run is unreached: a reload
+  #     with nothing owed proves nothing)
+  #
+  # ⚠ `pending.gameState` must be 2 (free game), NOT 3. State 3 means "buy bonus / lucky spin
+  #   pending", and Lucky Spin is disabled here — a 3 would mean the client parked the resume in a
+  #   state it has no UI to leave.
+  - run:
+      scenario: freespin-reload
+      params: { source: buy, after_rounds: 2 }
+      teardown: return-to-base
+      video:
+        # No symbol is named in this prompt — it reads a counter and watches button states — so no
+        # reference pictures are sent. An explicit empty list says that; omitting the field would
+        # send the whole manifest.
+        assets: []
+        at: [reload, resume]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. The player bought a bonus, played 2 free spins, and
+          then the game was RELOADED. This clip starts at the reload and ends after the first free
+          spin that plays once the game has come back. The ACTION TIMELINE marks the reload and the
+          first resumed spin — use it rather than guessing.
+
+          Question (4) is about these controls: the bet + and − buttons, Autoplay, Settings and Buy
+          Bonus. "Enabled" means lit up and usable, as opposed to greyed out or visibly inactive.
+          Watch for a brief FLASH as well as a steady state — during loading and right after the
+          game reappears.
+
+          (1) counter_shown: once the game has reloaded, does the spin button show a number of free
+          spins remaining?
+          (2) counter_value: read that number exactly as printed and report it as a string of
+          digits. If you cannot read it clearly, answer "unreadable".
+          (3) spins_resume: do the free spins start playing again by themselves, without the player
+          clicking anything?
+          (4) buttons_flash_enabled: at any moment in this clip — including during loading — do any
+          of the bet +, bet −, Autoplay, Settings or Buy Bonus buttons appear ENABLED? Answer true
+          if you see even a brief flash, and say which in `notes`.
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, naming any button that flashed.
+        output_schema:
+          counter_shown: { type: boolean }
+          counter_value: { type: string }
+          spins_resume: { type: boolean }
+          buttons_flash_enabled: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `counter_value` is compared against the count the RESPONSE says is owed —
+          # `{facts.pending_free_spins}` is interpolated at grading time, so the AI is
+          # never shown the answer: it reads the number, the framework compares.
+          TC-111: { counter_shown: true, spins_resume: true,
+                    counter_value: "{facts.pending_free_spins}", confidence: medium }
+          TC-112: { buttons_flash_enabled: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-111
+          title: "Reloading inside a bought bonus resumes with the right number of free spins"
+          assert:
+            # the resume signal itself — not client state (bridge §4: `pending` is the only one)
+            - stream: "{facts.pending_free_spins} == {facts.free_spins_before_reload}"
+            - stream: "{facts.pending_game_state} == 2"
+            # it counted ON from there rather than restarting the bonus
+            - stream: "{facts.first_resumed_free_spins} == {facts.pending_free_spins} - 1"
+            # and the bonus really finished after the reload
+            - stream: terminal_reached
+            - stream: "{terminal.free_spins} == 0"
+            - stream: stake_zero_in_freespins
+            - stream: freespins_monotonic
+            - stream: conservation
+
+        - id: TC-112
+          title: "No control flashes enabled while the resumed bonus is still owed"
+          assert:
+            # 50 ms polling from the moment the bridge installs until the bonus ends
+            - stream: "{facts.buttons_polled} > 0"
+            
+  # C1 — TC-140 … TC-153 + TC-156
+  # HOW:
+  #  - if grandmas from an earlier bonus are still standing on the reels, click spin (up to 3
+  #    times) until they have all walked off
+  #  - click spin twice in the base game (playing out a bonus if one starts) — no grandma walks
+  #    onto the reels here
+  #  - buy the bonus (the first package)
+  #  - on every free spin, wait until the reels have stopped and every grandma has finished
+  #    walking, then check where each grandma stopped and what the grid shows
+  #  - when the bonus ends, decline the Free Spin Extension offer if it shows
+  #  - if a grandma arriving, one leaving and one moving have not all been seen yet, buy another
+  #    bonus and repeat (at most 3 bonuses in total)
+  #  - click spin once more in the base game (playing out a bonus if one starts) — a grandma may
+  #    walk OFF here, but none walks ON
+  #  - wait for the end-of-feature celebration to close, then watch the base game for 5 s
+  #
+  # ⚠ bridge §8.2: a wild parked in a bonus may still stand on the grid in base game until the next
+  #   spin walks it off. Leftovers from EARLIER runs are cleared at the start; this run's own
+  #   leftovers can still walk off in the final base spin, which is why TC-140 asserts no walk
+  #   STARTS in a paid round (`walk_started_in_base`), never that the grid is empty.
+  #
+  # ⚠ Every `at:` below is a MARK set on the round where that transition happened (`new_wild`,
+  #   `more_wilds`, `fewer_wilds`, `moved_wild`, `multi_wild`). No transition → no mark → the
+  #   assert reports UNREACHED rather than passing on no evidence.
+  - run:
+      scenario: walking-wild
+      # ⚠ `max_bonuses: 3`. TC-151/152/153 each need a transition the SERVER decides — a
+      # wild arriving, leaving, moving — and none is guaranteed in one bonus (a live run
+      # saw 0 "moved" in 15 spins). The scenario buys another only while something is
+      # still missing, so a lucky first bonus costs nothing. `transitions_seen` records
+      # what turned up; a case whose transition never appeared still fails, but after 3
+      # bonuses that is worth looking at rather than a coin flip.
+      params: { source: buy, base_spins_before: 2, base_spins_after: 1, max_bonuses: 3 }
+      teardown: return-to-base
+      video:
+        # Only the grandma matters here — every question is about HER walking.
+        assets: [symbols.wild]
+        # a SPAN, and `resolve_window` takes exactly two targets: first target's start ->
+        # second target's end. So this runs from the first paid spin to the last one, with
+        # the whole bonus in between — a 3-element list is not a wider span, it crashes.
+        at: [base_before, base_after]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1-5 from the left, rows 1-4 from
+          the top. The WILD symbol is a grandma with white curly hair and sunglasses; in free spins she
+          rides a pink car. This clip is: 2 normal paid spins, then one or
+          more bought bonuses of free spins, then 1 normal paid spin. The ACTION TIMELINE marks every
+          round and says which is which — use it rather than guessing.
+
+          (1) walk_in_base_before: after the freespin trigger, at the round freespin start, does a grandma symbol
+          ever walk ONTO the reels from the left side?
+          (2) walk_in_freespins: during the free spins, do grandmas symbol walk onto and across the reels?
+          (4) walks_while_spinning: does the grandma symbol move across the grid WHILE the reels are still
+          spinning, rather than only after every reel has stopped?
+          (6) exits_to_the_right: on any free spin where the number of grandmas symbol DROPS, does the
+          extra one walk to the RIGHT, past reel 5, and leave the screen?
+          (8) multiple_walk_together: on any free spin with two or more grandmas symbol, do they walk at
+          the SAME time rather than one after another?
+          (9) spin_waits_for_walk: does the next free spin ever start while a grandma symbol is still
+          walking?
+          (10) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          walk_in_base_before: { type: boolean }
+          walk_in_freespins: { type: boolean }
+          walk_in_base_after: { type: boolean }
+          walks_while_spinning: { type: boolean }
+          exits_to_the_right: { type: boolean }
+          multiple_walk_together: { type: boolean }
+          spin_waits_for_walk: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-140: { walk_in_base_before: false, walk_in_freespins: true,  confidence: medium }
+          TC-143: { walks_while_spinning: true, confidence: medium }
+          TC-150: { multiple_walk_together: true, confidence: medium }
+          TC-151: { exits_to_the_right: true, confidence: medium }
+          TC-152: { walks_while_spinning: true, confidence: medium }
+          TC-156: { spin_waits_for_walk: false, ui_broken: false, confidence: medium }
+      # SHORT CLIPS, ONE PER FREE SPIN. A whole bonus is over 2 minutes, and asked about it in one
+      # go the model loses the detail of a sub-second walk and cannot say WHICH round went wrong.
+      # `each:` cuts one clip per round of a list mark and grades every clip on its own; the case
+      # passes only if every clip does. Sampled at the default 4 fps (no `high_fps`).
+      videos:
+        # every free spin where a grandma was ADDED (she has to walk onto the reels)
+        - each: wild_enter_rounds
+          assets: [symbols.wild]
+          max_rounds: 3
+          prompt: >-
+            Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1-5 from the left. In free
+            spins the WILD is a grandma with white curly hair and sunglasses, driving a pink car.
+            The other symbols are playing-card letters (A, J, Q, K), cats and dogs. This clip is
+            ONE free spin: the reels spin, then stop.
+
+            Watch the grandma in her car. If several are on screen, answer about the one that
+            comes into view during this clip.
+
+            (1) grandma_appears: does a grandma in her car come into view during this clip?
+            (2) enters_from: from which edge of the screen does she first come into view? One of:
+            left, right, top, bottom, already_on_screen, none.
+            (3) stops_on_cell: once all five reels have stopped, does she stop on a cell?
+
+            notes: one short sentence on anything the questions above do not cover.
+          output_schema:
+            grandma_appears: { type: boolean }
+            enters_from: { type: string, enum: [left, right, top, bottom, already_on_screen, none] }
+            stops_on_cell: { type: boolean }
+            notes: { type: string }
+            confidence: { type: string, enum: [high, medium, low] }
+          expected_by_case:
+            TC-153: { grandma_appears: true, enters_from: left, stops_on_cell: true,
+                      confidence: medium }
+        # every free spin where the bridge saw ANOTHER symbol on the cell a grandma was heading to
+        - each: stand_in_kick_rounds
+          max_rounds: 3 
+          assets: [symbols.wild]
+          prompt: >-
+            Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1-5 from the left. In free
+            spins the WILD is a grandma with white curly hair and sunglasses, driving a pink car.
+            The other symbols are playing-card letters (A, J, Q, K), cats and dogs. This clip is
+            ONE free spin: the reels spin, then stop.
+
+            Several grandmas may be on screen in this clip. After the reels stop, each one either
+            stops on a cell or drives off the screen. Answer ONLY about the grandmas that stop on
+            a cell; ignore any that drive off. If several stop on a cell, a question is "yes" when
+            it is true for any of them.
+
+            (1) hits_symbol: when a grandma reaches the cell where she stops, does her car hit a
+            symbol in that cell?
+            (2) symbol_fate: what happens to the symbol she hits? One of:
+            pushed_out (knocked out of its cell and off the grid);
+            thrown_at_screen (it flies toward the viewer, fills the screen, and cracks spread
+            across the screen like broken glass);
+            disappears_in_place (it vanishes without moving);
+            stays (it remains in the cell);
+            none (no grandma hit a symbol).
+            (3) grandma_stays: after the hit, does that grandma remain in the cell?
+
+            notes: one short sentence on anything the questions above do not cover.
+          output_schema:
+            hits_symbol: { type: boolean }
+            symbol_fate: { type: string, enum: [pushed_out, thrown_at_screen, disappears_in_place, stays, none] }
+            grandma_stays: { type: boolean }
+            notes: { type: string }
+            confidence: { type: string, enum: [high, medium, low] }
+          expected_by_case:
+            TC-145: { hits_symbol: true, confidence: medium }
+            # a LIST = any of these passes: a letter is pushed out, a cat or dog is thrown at the
+            # screen — both are a correct kick
+            TC-146: { symbol_fate: [pushed_out, thrown_at_screen], grandma_stays: true,
+                      confidence: medium }
+      cases:
+        - id: TC-140
+          title: "A grandma walks onto the reels only during free spins"
+          assert:
+            - stream: terminal_reached
+            - stream: "{facts.fs_rounds} >= 2"
+            # THE CASE: no walk STARTED during a paid round, before or after the bonus. A leftover
+            # walking off in the base game is allowed by bridge §8.2 and is not a violation.
+            - stream: "{facts.walk_started_in_base} == False"
+            - stream: "{facts.fs_rounds_with_wilds} >= 1"
+
+        - id: TC-141
+          title: "Every walking wild parks exactly where the server put a wild"
+          assert:
+            - stream: "{facts.fs_rounds} >= 2"
+            # THE CASE: for every free spin, the parked cells equal the set of cells holding symbol
+            # 19 in that round's `view`. Compared as SETS, so the order a walk visits cells in is
+            # irrelevant — only where it stopped.
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+
+        - id: TC-142
+          title: "The server decides the wilds; the client only animates them"
+          assert:
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+            # the other half of "server decides": the money came out of the server's own grid
+            - stream: ways_payout_matches
+            - stream: conservation
+
+        - id: TC-143
+          title: "A walking wild moves while the reels are still spinning"
+          assert:
+            # exact half: the walk animation overlapped the reel spin at least once
+            - stream: "{facts.walk_overlapped_spin_rounds} >= 1"
+
+        - id: TC-144
+          title: "A stand-in symbol holds the cell until the wild arrives"
+          assert:
+            # exact half: mid-walk, the destination cell on screen was NOT yet the wild
+            - stream: "{facts.stand_in_rounds} >= 1"
+
+        - id: TC-145
+          title: "The walking wild collides with the stand-in at its destination"
+          assert:
+            - stream: "{facts.stand_in_rounds} >= 1"
+            # the collision itself is only visible — graded on the clip above
+
+        - id: TC-146
+          title: "The stand-in is knocked off the screen"
+          assert:
+            - stream: "{facts.stand_in_rounds} >= 1"
+            # and the cell ends on the server's symbol, not the stand-in
+            - stream: "{facts.grid_matches_view_rounds} == {facts.fs_rounds}"
+
+        - id: TC-147
+          title: "After the walk the wild is real and pays as a wild"
+          assert:
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+            # every wild that took part in a win stood on a parked cell
+            - stream: "{facts.wild_wins_use_parked_cells} == True"
+
+        - id: TC-148
+          title: "Stand-in symbols change no result, multiplier or payout"
+          assert:
+            # the payout of every round follows from the SERVER grid alone
+            - stream: ways_payout_matches
+            - stream: conservation
+            - stream: stake_zero_in_freespins
+
+        - id: TC-149
+          title: "What the player sees matches the server's final grid, every cell"
+          assert:
+            # exact half: getDisplayedGrid() == `view`, all 20 cells, every free spin
+            - stream: "{facts.grid_matches_view_rounds} == {facts.fs_rounds}"
+          # ⚠ The AI half of this case is a per-round GRID READ compared to `view`, which the
+          # framework cannot express yet: a `video: { read:, equals: }` compares ONE value. It
+          # needs the grid read+compare extension (plan §0 P7). Until that lands, TC-149 is
+          # carried by the bridge half above, and the clip's `ui_broken` is the only visual guard.
+
+        - id: TC-150
+          title: "Several walking wilds are all handled, and walk together"
+          assert:
+            - stream: "{facts.multi_wild_rounds} >= 1"
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+
+        - id: TC-151
+          title: "A wild no longer needed walks off to the right"
+          assert:
+            # UNREACHED, not green, when this bonus never dropped a wild
+            - stream: "{facts.fewer_wild_rounds} >= 1"
+            - stream: "{facts.exit_animation_rounds} >= 1"
+
+        - id: TC-152
+          title: "A wild that stays moves to its new cell"
+          assert:
+            - stream: "{facts.moved_wild_rounds} >= 1"
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+
+        - id: TC-153
+          title: "A newly needed wild enters from the left"
+          assert:
+            - stream: "{facts.more_wild_rounds} >= 1"
+
+        - id: TC-156
+          title: "The bonus continues only once the walk has finished"
+          assert:
+            # every round's walk finished before the next round arrived
+            - stream: "{facts.walk_finished_before_next_round} == True"
+            - stream: terminal_reached
+
+  # ══ C2 ═══════════════════════════════════════════════════════════════════════════════════
+  # TC-154, TC-155 — turbo and sudden stop must not skip the walk.
+  #
+  # C2 — TC-154, TC-155
+  # HOW: the same as C1 — buy the bonus, read every free spin the same way — with two changes:
+  #  - click the turbo button FIRST, before anything else
+  #    (if it never becomes clickable the run is unreached, rather than quietly grading the whole
+  #     thing at normal speed and calling it a turbo test)
+  #  - click the stop control while the reels are turning
+  #    (this run plays ONE bonus, where C1 plays up to three; the timings are compared against
+  #     C1's, so C1 has to have run)
+  #
+  # ⚠ Free spins play themselves. If `stop` never resolves during one, the sudden-stop half is
+  #   UNREACHED, not passed — `facts.stop_clicks` says which.
+  - run:
+      scenario: walking-wild
+      params: { source: buy, turbo: true, sudden_stop: true }
+      teardown: return-to-base
+      video:
+        assets: [symbols.wild]
+        at: terminal
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is a bought bonus played with TURBO
+          switched on, and the player tapping the spin/stop control during the spins. The WILD symbol is a
+          grandma with white curly hair and sunglasses.
+
+          (1) walk_still_plays: on the free spins where a grandma symbol arrives, leaves or moves, does the
+          walking animation still play in full — rather than the grandma symbol simply appearing in place
+          with no walk at all?
+          (2) walk_cut_short: does any walk visibly jump, teleport or get cut off part-way?
+          (3) grandma_in_wrong_place: at the end of any spin, does a grandma symbol appear to be standing
+          somewhere the win lines do not treat as a wild — for example a win is celebrated that
+          does not line up with where she stands?
+          (4) animation_glitch: is there any visible desync — a grandma symbol drawn twice, left behind
+          after the round, or missing while the game still treats her as present?
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          walk_still_plays: { type: boolean }
+          walk_cut_short: { type: boolean }
+          grandma_in_wrong_place: { type: boolean }
+          animation_glitch: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-154: { walk_still_plays: true, walk_cut_short: false, confidence: medium }
+          TC-155: { grandma_in_wrong_place: false, animation_glitch: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-154
+          title: "Turbo and a sudden stop do not skip the walking-wild animation"
+          assert:
+            - stream: "{facts.speed_mode} == 'TURBO'"
+            # the walk still ran on every round where the wilds changed
+            - stream: "{facts.walk_animation_rounds} == {facts.wild_change_rounds}"
+            # and it was not collapsed to nothing
+            - stream: "{facts.min_walk_ms} >= 300"
+
+        - id: TC-155
+          title: "Nothing desyncs: the wilds still land where the server put them"
+          assert:
+            - stream: "{facts.wild_cells_match_view_rounds} == {facts.fs_rounds}"
+            - stream: "{facts.grid_matches_view_rounds} == {facts.fs_rounds}"
+            - stream: ways_payout_matches
+            - stream: terminal_reached

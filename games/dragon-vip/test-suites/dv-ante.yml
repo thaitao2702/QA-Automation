@@ -1,0 +1,253 @@
+# Treasures of the Dragon VIP — Ante Bet (DV-53 … DV-58). NEW: plain Dragon has no Ante Bet.
+#
+# Run:  python scripts/run_scenario.py --game dragon-vip --env dev --suite games/dragon-vip/test-suites/dv-ante.yml
+# Validate (no browser):  python tests/chaos/validate_suites.py --game dragon-vip
+#
+# Sources: games/dragon-vip/game-bridge-api.md §5 (isAnteBet / anteMultiplier / spinCost), §6.3 (the
+# feature panel), §9 ("Activate Ante Bet, then spin", "Deactivate a feature", "Mutual exclusion");
+# docs/raw/paytable.json `AnteBetSetting: {Enabled: true, AnteBetMultiplier: 1.5}`.
+#
+# THE RULE THIS SUITE PINS — the same one Chaos's cr-ante.yml pins, on a different build:
+# Ante Bet multiplies what a spin COSTS (`stake`); it never moves the payout base (`baseStake`).
+#
+#   ante_stake_multiplier   stake == baseStake x anteMultiplier on every ante round, AND the base is
+#                           unchanged against a plain round at the same bet            DV-53 / DV-57
+#   conservation            balance == prev - stake + payout, at the inflated stake     DV-53 / DV-57
+#
+# The multiplier is never hardcoded: every assert compares against what the SERVER echoed
+# (`{facts.ante_multiplier}`) and what gameInfo CONFIGURES (`{facts.ante_multiplier_setting}`), and
+# DV-53 asserts that those two agree. The paytable ships 1.5; BO can change it.
+#
+# HOW IT IS REACHED ON THIS BUILD. There is no ante toggle. `switch_feature` drives the documented
+# flow: `buyBonus` opens the feature panel -> the Ante Bet ACTIVATE row (`buyBonus:anteBet`) -> the
+# confirm sheet (`buyBonus:confirm`). While Ante is on, that same main button turns it OFF with one
+# click (`anteBet:off`) and does NOT open the panel — so Buy Bonus and every Premium Reel package
+# are unreachable. Both halves of that are cases here.
+#
+# WHAT THE FIRST LIVE RUN CHANGED (2026-09-16, docs/dragon-vip-coverage.md):
+#   * DV-56 (the Ante Bet notification) is GONE. This build raises no toast when Ante is switched on:
+#     `visibleNotifications` stayed empty across the switch. The bridge doc lists `anteNotify` (§5,
+#     §6.8), so the doc and the build disagree — a question for the game team, not a suite fix. The
+#     facts are still exposed (`{facts.ante_toast_on_enable}` / `_on_disable`) for when it is settled.
+#   * DV-55 no longer asserts the Premium Reel half: this session offers no Premium Reel
+#     (`settings.premiumReel` is null), so that refusal says nothing about ante. See the case.
+#
+# ⚠ UNVERIFIED FIELD NAME. No BET response has been captured from this build. `anteMultiplier` is
+# the name bridge §9's recipe uses (the `pending` block spells it `anteMulti`). Capture one ante round
+# into games/dragon-vip/fixtures/bet-responses/ before reading a red on `ante_stake_multiplier` or
+# `{facts.ante_engaged}` as a game defect — docs/dragon-vip-coverage.md, open items.
+
+runs:
+  # ── DV-53 / 54 / 55 / 56 : switch Ante on from the panel, spin, switch it off, spin ──────────
+  # ONE play: a plain baseline spin, Ante ON through the panel, a spin at the SAME bet level, Ante OFF
+  # with one click, and a spin at the plain stake again (`spin_after_off`). All three rounds are in
+  # `rounds`, so `ante_stake_multiplier` sees both an ante round and a plain one to compare the base
+  # against. Every spin goes through `spin_and_finish`, so a Hold & Spin landing on any of them is
+  # played out rather than hung on (Rule 1).
+  #
+  # No `at:` on the video: the case spans three spins and two feature switches, and the switch-off
+  # click happens between marks. The ACTION TIMELINE names every step instead.
+  - run:
+      scenario: ante-toggle
+      teardown: return-to-base
+      params: { spin_after_off: true }
+      video:
+        timestamp: true
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with an Ante Bet feature that raises what each
+          spin costs. This ONE clip shows, in order: (A) a plain base spin at a stake of
+          {facts.stake_off}; (B) the feature panel is opened from the Buy Bonus button, the Ante
+          Bet row's ACTIVATE control is pressed and a confirmation sheet is accepted; (C) a spin
+          with Ante Bet ON, charged {facts.stake_on} — the configured ante multiplier is
+          x{facts.ante_multiplier_setting}, so the cost shown should read {facts.expected_ante_stake};
+          (D) a single tap on the main Buy Bonus button switches Ante Bet OFF; (E) one more spin at
+          the plain stake, {facts.stake_after_off}. The ACTION TIMELINE marks each step. Answer each
+          of the following about the step it names, independently:
+
+          (1) panel_shows_ante_row: at (B), does the feature panel list an Ante Bet row with its own
+          activate control?
+
+          (2) confirm_sheet_shown: at (B), after that control is pressed, does a confirmation sheet
+          appear before Ante Bet takes effect?
+
+          (3) bet_cost_shows_ante: during (C), does the bet / spin-cost readout show
+          {facts.expected_ante_stake} — the plain {facts.stake_off} multiplied by
+          {facts.ante_multiplier_setting} — rather than the plain stake? Answer false if it changed
+          by any other amount.
+
+          (5) buy_button_repurposed: between (B) and (D), is the main Buy Bonus button visibly shown
+          as the Ante Bet ON / switch-off control, rather than as a way to buy the bonus?
+
+          (6) ante_off_in_one_tap: at (D), does ONE tap on that button switch Ante Bet off, without
+          opening any panel or confirmation?
+
+          (7) cost_back_to_plain: during (E), does the bet readout read {facts.stake_after_off} again?
+
+          (8) display_broken: anywhere in the clip, is anything visibly broken — overlapping or
+          clipped text in the panel, a stuck sheet over the reels, placeholder values?
+        output_schema:
+          panel_shows_ante_row: { type: boolean }
+          confirm_sheet_shown: { type: boolean }
+          bet_cost_shows_ante: { type: boolean }
+          buy_button_repurposed: { type: boolean }
+          ante_off_in_one_tap: { type: boolean }
+          cost_back_to_plain: { type: boolean }
+          display_broken: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-53: { panel_shows_ante_row: true, confirm_sheet_shown: true, bet_cost_shows_ante: true, display_broken: false, confidence: medium }
+          DV-54: { ante_off_in_one_tap: true, cost_back_to_plain: true, confidence: medium }
+          DV-55: { buy_button_repurposed: true, confidence: medium }
+      cases:
+        - id: DV-53
+          title: "Ante Bet switched on from the feature panel charges base bet x ante multiplier"
+          assert:
+            # the switch really took, and the spin after it really was an ante round — otherwise the
+            # comparison below is between two plain spins and passes trivially
+            - stream: "{facts.ante_switched_on} == True"
+            - stream: "{facts.ante_engaged} == True"
+            # the rule, exactly: stake = base x multiplier, and the base did not move
+            - stream: ante_stake_multiplier
+            - stream: conservation
+            - stream: "{facts.base_unchanged} == True"
+            - stream: "{facts.base_on} == {facts.base_off}"
+            # the multiplier the round ECHOED is the one gameInfo CONFIGURES
+            - stream: "{facts.ante_multiplier} == {facts.ante_multiplier_setting}"
+            # ...and the client QUOTED that cost before the spin (`spinCost` is display-only; the
+            # stake above is the authority). A window: an inline predicate has no abs().
+            - stream: "{facts.spin_cost_on} >= {facts.expected_ante_stake} - 0.005"
+            - stream: "{facts.spin_cost_on} <= {facts.expected_ante_stake} + 0.005"
+
+        - id: DV-54
+          title: "One tap on the main button switches Ante Bet off and the next spin is plain"
+          assert:
+            - stream: "{facts.ante_switched_off} == True"
+            # the spin after it carried no ante and was charged the plain base...
+            - stream: "{facts.ante_off_spin_plain} == True"
+            - stream: "{facts.stake_after_off} == {facts.base_after_off}"
+            # ...which is the same base the baseline spin had
+            - stream: "{facts.base_after_off} == {facts.base_off}"
+
+        - id: DV-55
+          title: "While Ante Bet is on, the feature panel (Buy Bonus and Premium Reel) cannot be opened"
+          assert:
+            - stream: "{facts.ante_switched_on} == True"
+            # Probed while Ante was ON, with an instant read (never a wait on a control that should be
+            # locked): `buyBonus` resolved null, so the panel cannot open — and Buy Bonus and every
+            # Premium Reel row live behind it.
+            - stream: "{facts.feature_panel_blocked_while_on} == True"
+            # ⚠ THE PREMIUM HALF IS NOT ASSERTED, and that is about the SESSION, not the game.
+            # This dev launch offers no Premium Reel at all (`settings.premiumReel` is null, so
+            # `premiumReelAvailable` is false and `getPremiumReelOptions()` is []). Every
+            # `canDo('activatePremiumReels:*')` then answers `feature_unavailable:premiumReels`,
+            # which says nothing about ante — asserting it failed DV-55 on `None == True`
+            # (2026-09-16). `{facts.premium_offered}` records which case you are in. Once BO enables
+            # the feature for this player, add back:
+            #   - stream: "{facts.premium_offered} == True"
+            #   - stream: "{facts.premium_blocked_while_on} == True"
+            #   - stream: "{facts.premium_block_reason} == 'ante_bet_active'"
+            # The mirror claim — Ante unreachable while a package is ON — is DV-62 in
+            # dv-premium-reel.yml, which stays unreached until then.
+            # Server-side exclusion (a bet carrying both is rejected with -114) is not reachable
+            # through the UI, so it is not asserted here — docs/dragon-vip-coverage.md.
+
+  # ── DV-57 / 58 : a Hold & Spin triggered on an ANTE spin ─────────────────────────────────────
+  # `hold-spin-complete` with `feature: ante`: Ante is switched on before the hunt and off again after
+  # the feature. Every hunting spin must carry ante, or the run stops as unreached instead of hunting
+  # at the plain odds.
+  #
+  # `ante-trigger3-countdown` forces COIN onto reel 1 in the `AnteBetBaseGame` section ONLY and zeroes
+  # `AnteBetFreeSpinGame.CoinWeight`. The plain `BaseGame` section is untouched, so the trigger itself
+  # proves the server spun the ANTE reels — a plain spin would almost never land it. Loose
+  # `max_win_x: 500`, as every forced Hold & Spin run (see dv-holdspin.yml).
+  #
+  # ⚠ NOT ASSERTED: `stake_zero_in_freespins`. What a respin of an ante bonus echoes as `stake` is not
+  # documented (bridge §5's `spinCost` is 0 during free spins, but that is a display value). It is
+  # exposed as `{facts.respin_stakes}`, and `conservation` still proves nothing was DEBITED that was not
+  # reported.
+  - run:
+      scenario: hold-spin-complete
+      paytable: { ref: ante-trigger3-countdown, max_win_x: 500 }
+      teardown: return-to-base
+      params: { feature: ante }
+      video:
+        at: [trigger, terminal]
+        timestamp: true
+        # ⚠ (3) and (4) USED TO ASK "is Ante still shown as ON?" and "is that control locked?" — ONE
+        # physical property asked twice in opposite directions (the inverse-pair trap,
+        # docs/scenario-assert-authoring.md §2), and the first was never graded because no case
+        # claimed it. The 2026-09-16 run said exactly that: "the Ante Bet control (the 'DISABLE'
+        # button) is hidden while the bonus is active, so it is both not shown and effectively
+        # locked". They are now two DIFFERENT properties — the price on screen at the trigger, and
+        # the off control's absence during the respins — and both are graded.
+        # The prompt also says there is no separate ante button on this build: with the one-panel UI
+        # the feature button IS the off control while a feature is on.
+        prompt: >-
+          Treasures of the Dragon VIP is a 3x3 slot with a Hold & Spin bonus and an Ante Bet feature.
+          This build has NO separate Ante button: Ante Bet, Premium Reel and Buy Bonus all live in one
+          feature panel behind the main feature button, and while Ante Bet is on that same button
+          becomes its OFF control (it reads DISABLE). Ante Bet was switched on through that panel
+          BEFORE this clip starts, so the base spin that triggers the bonus was charged
+          {facts.trigger_stake} instead of the plain {facts.trigger_base_stake}. The clip covers that
+          triggering spin, {facts.respins_played} respin(s) with no new Coin, and the return to the
+          base game. Right at the end, once the game is back in the base game, the run taps the
+          feature button once to switch Ante Bet off again — that is the test tidying up, not part of
+          the bonus. The ACTION TIMELINE marks the trigger, every respin and that final tap. Answer
+          each independently:
+
+          (1) feature_entered: does the game clearly enter the Hold & Spin bonus, distinct from an
+          ordinary base spin?
+
+          (2) coins_visibly_held: across the respins, do the locked Coins stay in the same cells
+          while only the empty cells respin?
+
+          (3) cost_shows_ante_price: during the TRIGGERING spin at the very start of the clip, before
+          the bonus transition, does the bet / cost area show {facts.trigger_stake} — the ante price —
+          rather than only the plain {facts.trigger_base_stake}?
+
+          (4) feature_off_unavailable_during_bonus: WHILE the respins play, is there no usable control
+          to switch Ante Bet off — the feature button (the DISABLE control) hidden, greyed out, or
+          otherwise not clickable? Judge only the respin part of the clip; the button is expected back
+          once the game has returned to the base game.
+
+          (5) returns_to_base: after the total win is presented, does the game return to the base
+          game before that final tap?
+        output_schema:
+          feature_entered: { type: boolean }
+          coins_visibly_held: { type: boolean }
+          cost_shows_ante_price: { type: boolean }
+          feature_off_unavailable_during_bonus: { type: boolean }
+          returns_to_base: { type: boolean }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          DV-57: { feature_entered: true, coins_visibly_held: true, cost_shows_ante_price: true, returns_to_base: true, confidence: medium }
+          DV-58: { feature_off_unavailable_during_bonus: true, confidence: medium }
+      cases:
+        - id: DV-57
+          title: "A Hold & Spin triggered on an Ante Bet spin plays by the normal rules"
+          assert:
+            # PRECONDITION: the trigger round was really bet with ante, at the configured multiplier
+            - stream: "{facts.feature_switched_on} == True"
+            - stream: "{facts.feature_on_trigger} == True"
+            - stream: "{facts.trigger_stake_matches} == True"
+            - stream: "{facts.trigger_multiplier} == {facts.feature_multiplier_configured}"
+            - stream: ante_stake_multiplier
+            # the bonus it bought is an ordinary Hold & Spin
+            - stream: holdspin_award
+            - stream: holdspin_coins_held
+            - stream: holdspin_countdown
+            - stream: holdspin_ends_correctly
+            - stream: holdspin_payout_matches_coins
+            - stream: "{facts.respins_played} >= 2"      # Rule 17: the invariants compare consecutive rounds
+            - stream: "{facts.capped} == False"
+            - stream: conservation
+
+        - id: DV-58
+          title: "Ante Bet cannot be switched off while its Hold & Spin is running"
+          assert:
+            - stream: "{facts.respins_played} >= 1"      # there was a feature to be locked during
+            # `anteBet:off` sampled every 0.5 s across the whole drain and never resolved
+            - stream: "{facts.off_available_in_feature} == False"
+            - stream: "{facts.control_samples} >= 2"     # ...and it really was sampled, not skipped
+            # NOT asserted: whether Ante is still ON once the bonus ends (`{facts.feature_on_after_bonus}`).
+            # Neither doc says; the first run answers it.

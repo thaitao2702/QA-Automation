@@ -1,0 +1,825 @@
+# Grandma Pets — FREE SPIN (TC-103, 105, 106, 107), REEL GLOW (TC-131 … 138),
+# CAT vs DOG DRAMA (TC-113, 115 … 125, 127 … 130).
+#
+# Run:       python scripts/run_scenario.py --game grandma --env dev --suite games/grandma/test-suites/gm-forced.yml
+# Validate:  python tests/chaos/validate_suites.py --game grandma
+#
+# Buy Bonus and Walking Wild live in gm-real-weights.yml, which pushes NO paytable at all. Keeping
+# them apart is deliberate: once a suite selects the automation paytable, a run without a fixture
+# inherits whatever the last fixture left in it (summary 11 §3).
+#
+# ── WHY EVERY RUN HERE IS FORCED ───────────────────────────────────────────────────────────
+# Unforced, a free-spin trigger is 1 spin in 149 and the drama's roll is 4%. Neither is huntable.
+# Each fixture below makes its PRECONDITION certain and nothing else — it never sets the thing
+# under test.
+#
+#   gm-fs-easy       BONUS on reels 1-3 only, dense    -> a trigger every ~3 spins, always 3 reels
+#   gm-fs-4reel      BONUS on reels 1-4, very dense    -> ~9 triggers in 10 land on all 4 reels
+#   gm-fs-5reel      BONUS on all 5 reels, very dense  -> ~9 triggers in 10 land on all 5 reels
+#   gm-glow-bonus    BONUS on reels 1-2 only           -> the glow condition every spin, and free
+#                                                         spins can NEVER trigger (2 reels < 3)
+#   gm-glow-p1       P1 on reels 1-2, none on reel 3   -> condition met, then the run is broken
+#   gm-glow-negative reel 1 = P1, reel 2 = BONUS,      -> a mixed pair, and a P1 pair that cannot
+#                    reel 3 = P1                          connect through reel 2
+#   gm-drama-bigwin  P3 (orange cat) dense everywhere, -> a big win nearly every spin, so the
+#                    no BONUS                             drama rolls at 70% instead of 4%
+#
+# ⚠ EVERY FIXTURE RUN CARRIES A GUARD. `docs/raw/paytable.json` is the file the fixtures are
+# derived from, and it is not certainly the table this game session runs on. So each run asserts
+# that what LANDED matches what the fixture asked for, before grading anything else. A red guard
+# means the fixture did not apply (wrong `bo.game_id`, wrong `paytable_code`, or a name that does
+# not mean what we think) — not a game defect. This is the cheap version of the export.
+#
+# ── WHERE THE RULES COME FROM ──────────────────────────────────────────────────────────────
+#   1. `games/grandma/bridge-api.md` §8.5 (drama), §4 (`pending`, the resume signal)
+#   2. `games/grandma/bet-response.md` — `wonFreeSpins` is the award, `freeSpins` is what is left
+#   3. `games/grandma/docs/raw/2.jpg` — 3 / 4 / 5 REELS award 8 / 12 / 15, and several BONUS on
+#      one reel still count as one
+# ⚠ NOT `docs/raw/paytable.json` for PAY VALUES — it is not necessarily this session's table.
+#
+# ⚠ Every bonus ends with the FREE SPIN EXTENSION offer on screen and the spin button locked until
+# it is answered. The drain declines it; `return-to-base` proves the game came back.
+#
+# ⚠ EVERY RUN HERE PUSHES A PAYTABLE, so every run reloads the page at PREPARE (bo_setup writes to
+# BO before the load; bo_reset clears it after). That is also why the fixture GUARD exists on each
+# one: a red guard means the fixture did not apply (wrong `bo.game_id` / `paytable_code`), not a
+# game defect.
+
+runs:
+
+  # A1 — TC-103a + TC-105
+  # HOW: set the paytable to gm-fs-easy first, capped at 50x. Then:
+  #  - click spin until a round starts free spins AND has the right shape: bonus symbols on
+  #    exactly 3 reels, with at least 2 of them stacked on one reel
+  #  - if a trigger has the wrong shape, play it out and keep hunting — never leave a bonus owed
+  #  - play the bonus all the way to its last round
+  #  - after each free spin FINISHES ANIMATING, read the number on the spin button and compare it
+  #    to what the response says is left
+  #
+  # ⚠ The counter is read after the round finishes presenting, not when the response lands: the
+  #   button has not been redrawn yet, so reading early compares this round's count to the previous
+  #   round's label and every round mismatches by one (it reported `0 == 8` on a correct game).
+  #
+  # ⚠ TC-103a's point is that the award counts REELS, not ways — hence `min_on_one_reel: 2`, the
+  #   shape a ways-based count would get wrong. The award must be 8 whatever is stacked.
+  - run:
+      scenario: fs-complete
+      # ⚠ `min_on_one_reel: 2` is what makes TC-103a's real claim reachable rather than lucky.
+      # The case needs a trigger carrying TWO BONUS on one reel -- the shape a ways-based award
+      # count would get wrong -- and at ~30%/cell that is common but not certain. Hunting for it
+      # turns "the bonus happened to show one" into a precondition; if 40 spins never produce one
+      # the scenario reports UNREACHED, which is honest, instead of a red that blames the game.
+      params: { arrive_when: { bonus_reels: 3, min_on_one_reel: 2 } }
+      teardown: return-to-base
+      paytable: { ref: gm-fs-easy, max_win_x: 50 }
+      video:
+        # The BONUS paw, which the award questions turn on.
+        assets: [symbols.scatter]
+        at: [trigger, terminal]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is the spin that TRIGGERS the free spins,
+          followed by the whole bonus. The BONUS symbol is a golden paw print set with coloured
+          gems. The ACTION TIMELINE marks the trigger and every free-spin round — use it rather
+          than guessing which round is on screen.
+
+          (1) award_announced: when the bonus starts, does the game announce how many free spins
+          were won — on a banner, popup or counter?
+          (2) award_number: read that number exactly as printed and report it as a string of
+          digits. If you cannot read it clearly, answer "unreadable".
+          (3) counter_on_spin_button: during the free spins, does the spin button show how many
+          spins are left?
+          (4) counter_counts_down: does that number go DOWN by one per spin, without ever jumping
+          up or repeating a value? Ignore a rise caused by the game announcing MORE free spins were
+          won mid-bonus, and mention it in `notes` if you see one.
+          (5) final_counter_value: read the LAST value shown on the spin button before the bonus
+          ends, as a string.
+          (6) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          award_announced: { type: boolean }
+          award_number: { type: string }
+          counter_on_spin_button: { type: boolean }
+          counter_counts_down: { type: boolean }
+          final_counter_value: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-103a: { award_announced: true, award_number: "8", confidence: medium }
+          TC-105: { counter_on_spin_button: true, counter_counts_down: true, final_counter_value: "0", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-103a
+          title: "Free spins are awarded by the number of REELS holding a BONUS, not by ways"
+          assert:
+            # GUARD: the fixture applied — BONUS landed on exactly the 3 reels it allows
+            - stream: "{facts.trigger_bonus_reels} == 3"
+            # THE CASE: 3 reels -> 8, and 8 regardless of how many BONUS sat on each reel
+            - stream: "{trigger.won_free_spins} == 8"
+            - stream: "{trigger.total_free_spin} == 8"
+            # the part a ways-based count would fail: the trigger carried 2+ BONUS on one reel
+            # (the run's `arrive_when` guarantees it) and the award did NOT multiply.
+            - stream: "{facts.trigger_max_bonus_per_reel} >= 2"
+            - stream: freespins_monotonic
+            - stream: conservation
+
+        - id: TC-105
+          title: "The spin button shows the free spins that are actually left"
+          assert:
+            - stream: terminal_reached
+            - stream: "{facts.fs_rounds} >= 2"
+            # THE CASE: after every free spin the number on the button equalled the response's
+            # `freeSpins`. The scenario reads the button once the round has finished presenting —
+            # reading when the RESPONSE lands catches the label a spin behind and reports `0 of 8`
+            # for a game counting down perfectly.
+            # ⚠ On a red, read `facts.counter_offsets` before blaming the game: `[0]` is correct,
+            # `[1]` means the label trails by one spin, and a mixed list is a real inconsistency.
+            # `facts.counter_readings` has the per-round pair.
+            - stream: "{facts.counter_matches_rounds} == {facts.fs_rounds}"
+            - stream: "{terminal.free_spins} == 0"
+            - stream: stake_zero_in_freespins
+
+  # A2 — TC-106, TC-107
+  # HOW: set the paytable to gm-fs-easy first. Then:
+  #  - click spin until a round starts free spins, up to 40 spins
+  #    (if none does, the run is unreached and it means the fixture did not apply — the answer is
+  #     a working paytable, not a longer hunt)
+  #  - play 2 free spins, so the rest are still owed
+  #  - start watching, 50 times a second, the controls that must stay disabled while spins are owed
+  #  - reload the page and click Start
+  #  - read what the game says is pending, in the gap before Start
+  #  - let the game play out what it still owes
+  #    (B2 in gm-real-weights.yml is the same thing with a BOUGHT bonus; kept apart so a reload
+  #     defect cannot show up as a purchase failure)
+  - run:
+      scenario: freespin-reload
+      params: { source: natural, after_rounds: 2 }
+      teardown: return-to-base
+      paytable: { ref: gm-fs-easy, max_win_x: 50 }
+      video:
+        assets: [symbols.scatter]
+        at: [reload, resume]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. The player triggered free spins, played 2 of them,
+          and then the game was RELOADED. This clip starts at the reload and ends after the first
+          free spin that plays once the game is back. The ACTION TIMELINE marks both moments.
+
+          Question (4) is about these controls: the bet + and − buttons, Autoplay, Settings and Buy
+          Bonus. "Enabled" means lit up and usable, as opposed to greyed out or visibly inactive.
+          Watch for a brief FLASH as well as a steady state — during loading and right after the
+          game reappears.
+
+          (1) counter_shown: once the game has reloaded, does the spin button show a number of free
+          spins remaining?
+          (2) counter_value: read it exactly as printed, as a string of digits. If you cannot read
+          it clearly, answer "unreadable".
+          (3) spins_resume: do the free spins start playing again by themselves, with no click?
+          (4) buttons_flash_enabled: at any moment — loading included — do the bet +, bet −,
+          Autoplay, Settings or Buy Bonus buttons appear ENABLED? Answer true for even a brief
+          flash, and name the button in `notes`.
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, naming any button that flashed.
+        output_schema:
+          counter_shown: { type: boolean }
+          counter_value: { type: string }
+          spins_resume: { type: boolean }
+          buttons_flash_enabled: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # `counter_value` is compared against the count the RESPONSE says is owed —
+          # `{facts.pending_free_spins}` is interpolated at grading time, so the AI is
+          # never shown the answer: it reads the number, the framework compares.
+          TC-106: { counter_shown: true, spins_resume: true,
+                    counter_value: "{facts.pending_free_spins}", confidence: medium }
+          TC-107: { buttons_flash_enabled: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-106
+          title: "Reloading inside free spins resumes with the right number left"
+          assert:
+            - stream: "{facts.pending_free_spins} == {facts.free_spins_before_reload}"
+            - stream: "{facts.pending_game_state} == 2"
+            - stream: "{facts.first_resumed_free_spins} == {facts.pending_free_spins} - 1"
+            - stream: terminal_reached
+            - stream: "{terminal.free_spins} == 0"
+            - stream: freespins_monotonic
+            - stream: conservation
+
+        - id: TC-107
+          title: "No control flashes enabled while the resumed bonus is still owed"
+          assert:
+            - stream: "{facts.buttons_polled} > 0"
+
+  # A3 — TC-103b (4 reels) and A4 — TC-103c (5 reels)
+  # HOW: the same as A1, with a denser fixture and a narrower shape to hunt for.
+  #  - A3 sets the paytable to gm-fs-4reel and clicks spin until a trigger lands on exactly 4 reels
+  #  - A4 sets it to gm-fs-5reel and hunts one on exactly 5
+  #  - both give up after 10 spins, which the fixtures make plenty (~9 triggers in 10 land on target)
+  #  - a trigger on the wrong number of reels is played out and ignored, not graded as a failure
+  #  - only the trigger and its award popup are filmed — the free spins themselves are A1's subject
+  - run:
+      scenario: fs-complete
+      params: { arrive_when: { bonus_reels: 4 }, max_spins: 10 }
+      teardown: return-to-base
+      paytable: { ref: gm-fs-4reel, max_win_x: 50 }
+      # ⚠ `at: trigger` ALONE IS TOO SHORT. A round's clip ends when the NEXT round starts, and a
+      # free spin's start is recorded the moment the framework begins waiting for it — which is
+      # immediately after this round's response. The response arrives BEFORE the presentation
+      # plays, so a trigger-only clip ends mid-animation and the reveal/award is never on it.
+      # Spanning to the first free spin is what puts the whole presentation in the clip.
+      video:
+        assets: [symbols.scatter]
+        at: [trigger, "rounds[1]"]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is the spin that TRIGGERS free spins,
+          the announcement that follows it, and then the first free spin. Judge ONLY the triggering
+          spin and the announcement — the free spin at the end is there so the announcement is
+          fully on the clip, and is not the subject. The BONUS symbol is a golden paw print set
+          with coloured gems.
+
+          (1) bonus_reel_count: on how many different reels does a BONUS paw appear? Count REELS,
+          not symbols — two paws on the same reel count once. Answer with a number.
+          (2) award_announced: does the game announce how many free spins were won?
+          (3) award_number: read that number exactly as printed, as a string. If you cannot read it
+          clearly, answer "unreadable".
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bonus_reel_count: { type: number }
+          award_announced: { type: boolean }
+          award_number: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-103b: { bonus_reel_count: 4, award_announced: true, award_number: "12", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-103b
+          title: "A BONUS on four reels awards twelve free spins"
+          assert:
+            - stream: "{facts.trigger_bonus_reels} == 4"
+            - stream: "{trigger.won_free_spins} == 12"
+            - stream: "{trigger.total_free_spin} == 12"
+            - stream: conservation
+
+  - run:
+      scenario: fs-complete
+      params: { arrive_when: { bonus_reels: 5 }, max_spins: 10 }
+      teardown: return-to-base
+      paytable: { ref: gm-fs-5reel, max_win_x: 50 }
+      # ⚠ `at: trigger` ALONE IS TOO SHORT. A round's clip ends when the NEXT round starts, and a
+      # free spin's start is recorded the moment the framework begins waiting for it — which is
+      # immediately after this round's response. The response arrives BEFORE the presentation
+      # plays, so a trigger-only clip ends mid-animation and the reveal/award is never on it.
+      # Spanning to the first free spin is what puts the whole presentation in the clip.
+      video:
+        assets: [symbols.scatter]
+        at: [trigger, "rounds[1]"]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is the spin that TRIGGERS free spins,
+          the announcement that follows it, and then the first free spin. Judge ONLY the triggering
+          spin and the announcement — the free spin at the end is there so the announcement is
+          fully on the clip, and is not the subject. The BONUS symbol is a golden paw print set
+          with coloured gems.
+
+          (1) bonus_reel_count: on how many different reels does a BONUS paw appear? Count REELS,
+          not symbols. Answer with a number.
+          (2) award_announced: does the game announce how many free spins were won?
+          (3) award_number: read that number exactly as printed, as a string. If you cannot read it
+          clearly, answer "unreadable".
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          bonus_reel_count: { type: number }
+          award_announced: { type: boolean }
+          award_number: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-103c: { bonus_reel_count: 5, award_announced: true, award_number: "15", ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-103c
+          title: "A BONUS on five reels awards fifteen free spins"
+          assert:
+            - stream: "{facts.trigger_bonus_reels} == 5"
+            - stream: "{trigger.won_free_spins} == 15"
+            - stream: "{trigger.total_free_spin} == 15"
+            - stream: conservation
+
+  # G1 — TC-131a + TC-134 … TC-138
+  # HOW: set the paytable to gm-glow-bonus first. Then:
+  #  - click spin 3 times, letting each one settle (and playing out a bonus if one ever starts,
+  #    so the settle cannot hang)
+  #  - after the LAST spin, read off that round's grid which reels carried a bonus symbol and
+  #    which carried P1 — that is the check that the fixture applied, and it is the only exact
+  #    thing this run produces
+  #    (the fixture makes the setup certain: bonus symbols on reels 1-2 ONLY means the glow
+  #     condition is met on every spin, and free spins can NEVER start — 2 reels is below the 3
+  #     the award table needs — so nothing interrupts the clip)
+  #
+  # ⚠ THE GLOW ITSELF IS AI-ONLY. The bridge exposes nothing about it — no busy label, no event,
+  #   no state. `getReelGlowState()` would make all six cases exact and is the most valuable bridge
+  #   addition left for this game. The AI is never told which reel SHOULD glow: it reports what it
+  #   saw and the case compares.
+  #
+  # The effect, from the game team (2026-09-24) — not a simple "next reel glows". When the SAME
+  # special symbol (P1 or BONUS) has landed on two different reels among the FIRST FOUR, and one
+  # more on a later reel could still make a big win or a bonus:
+  #   1. every reel from 1 up to and including the SECOND special reel is revealed, all symbols
+  #      dark except the specials (specials on reels 1 and 4 reveals reels 1, 2, 3 AND 4);
+  #   2. then each remaining reel resolves in turn: the whole reel is highlighted while it spins,
+  #      and once it stops only a special on it stays bright.
+  # ⚠ SAME TYPE. A white cat on one reel and a BONUS paw on another are NOT a pair — that is all
+  #   of TC-132, and why G3 exists as a separate run.
+  - run:
+      scenario: reels-glow
+      params: { spins: 3 }
+      teardown: return-to-base
+      paytable: { ref: gm-glow-bonus, max_win_x: 50 }
+      video:
+        assets: [symbols.scatter]
+        at: spin
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1 to 5 from the LEFT. This clip
+          is a few normal paid spins. The BONUS symbol is a golden paw print set with coloured
+          gems.
+
+          WHAT THE EFFECT LOOKS LIKE. The game has an anticipation sequence: some reels are
+          "revealed", with their symbols going DARK while certain symbols stay bright; then the
+          remaining reels are resolved one at a time, each one highlighted while it is still
+          spinning.
+
+          Answer about the spins as a group; describe any difference between them in `notes`.
+
+          (1) any_glow: does this anticipation sequence play at all?
+          (2) glowing_reels: list the reel NUMBERS that are highlighted while still spinning during
+          the sequence, in the order it happens, as a JSON array of numbers — for example [3, 4, 5].
+          Empty array if none. Do not include the reels that were merely revealed at the start.
+          (3) revealed_dimmed_except_special: on the reels revealed at the START of the sequence, is
+          everything dark EXCEPT the BONUS paws, which stay bright?
+          (4) whole_reel_highlighted_while_spinning: while one of those later reels is still
+          spinning, is the WHOLE reel highlighted, rather than a single cell?
+          (5) dims_after_stopping: when such a reel stops and it has NO paw on it, does that whole
+          reel go dark?
+          (6) effects_removed: when the spin is completely over, are the highlight and the darkening
+          both gone, leaving the grid drawn normally?
+          (7) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, including any difference between the spins.
+        output_schema:
+          any_glow: { type: boolean }
+          glowing_reels: { type: array, items: { type: number } }
+          revealed_dimmed_except_special: { type: boolean }
+          whole_reel_highlighted_while_spinning: { type: boolean }
+          dims_after_stopping: { type: boolean }
+          effects_removed: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # BONUS on reels 1 and 2 -> revealed span is reels 1-2, and the sequence runs 3, 4, 5:
+          # after each miss a bonus is still possible (2 found, one more would make 3).
+          TC-131a: { any_glow: true, confidence: medium }
+          TC-134: { glowing_reels: [3, 4, 5], confidence: medium }
+          TC-135: { whole_reel_highlighted_while_spinning: true, confidence: medium }
+          TC-136: { revealed_dimmed_except_special: true, confidence: medium }
+          TC-137: { dims_after_stopping: true, confidence: medium }
+          TC-138: { effects_removed: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-131a
+          title: "A BONUS on two of the first four reels starts the anticipation"
+          assert:
+            # GUARD: the fixture applied — BONUS on reels 1 and 2, nowhere else, and no trigger
+            - stream: "{facts.bonus_reels_hit} == 2"
+            - stream: "{res.won_free_spins} == 0"
+
+        - id: TC-134
+          title: "Each remaining reel is anticipated in turn while a bonus is still possible"
+          assert:
+            - stream: "{facts.bonus_reels_hit} == 2"
+
+        - id: TC-135
+          title: "The whole of the spinning reel is highlighted, not one cell"
+          assert:
+            - stream: "{facts.bonus_reels_hit} == 2"
+
+        - id: TC-136
+          title: "The revealed reels go dark except for the special symbols themselves"
+          assert:
+            - stream: "{facts.bonus_reels_hit} == 2"
+
+        - id: TC-137
+          title: "Each following reel goes dark once it stops without a special symbol"
+          assert:
+            - stream: "{facts.bonus_reels_hit} == 2"
+
+        - id: TC-138
+          title: "The highlight and the darkening are both removed when the spin ends"
+          assert:
+            - stream: "{facts.bonus_reels_hit} == 2"
+
+  # G2 — TC-131b + TC-133a
+  # HOW: the same as G1 — 3 spins, play out any bonus, then read the landed grid — but with the
+  #      paytable set to gm-glow-p1.
+  #      P1 is an ordinary ways symbol, so a win has to run reels 1-2-3 with no gap. The fixture
+  #      puts P1 on reels 1-2, NONE on reel 3, and no wild on reel 3 either (a wild would stand in
+  #      for it and keep the run alive). So the glow should START on reel 3 and then stop — once
+  #      reel 3 lands without P1, no win is possible any more.
+  #      TC-131 is green only if BOTH halves pass: this run and G1.
+  - run:
+      scenario: reels-glow
+      params: { spins: 3 }
+      teardown: return-to-base
+      paytable: { ref: gm-glow-p1, max_win_x: 50 }
+      video:
+        assets: [symbols.p1, symbols.scatter]
+        at: spin
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1 to 5 from the LEFT. This clip
+          is a few normal paid spins. P1 is the fluffy WHITE cat wearing pink headphones — see the
+          reference images, and do not confuse it with the orange or grey cats.
+
+          WHAT THE EFFECT LOOKS LIKE. The game has an anticipation sequence: some reels are
+          "revealed", with their symbols going DARK while certain symbols stay bright; then the
+          remaining reels are resolved one at a time, each one highlighted while it is still
+          spinning.
+
+          Answer about the spins as a group; describe any difference in `notes`.
+
+          (1) any_glow: does the anticipation sequence play at all?
+          (2) glowing_reels: list the reel NUMBERS highlighted while still spinning during the
+          sequence, in order, as a JSON array of numbers. Empty array if none. Do not include the
+          reels merely revealed at the start.
+          (3) white_cat_on_reel3: does a white cat land on reel 3 on any of these spins? Say which
+          in `notes` if so.
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, including any difference between the spins.
+        output_schema:
+          any_glow: { type: boolean }
+          glowing_reels: { type: array, items: { type: number } }
+          white_cat_on_reel3: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # P1 on reels 1 and 2 -> the span is reels 1-2 and reel 3 is the only one worth
+          # anticipating: a ways win must run 1-2-3 with no gap, so when reel 3 lands without a
+          # white cat there is nothing left to wait for and reels 4 and 5 must NOT be highlighted.
+          TC-131b: { any_glow: true, confidence: medium }
+          TC-133a: { glowing_reels: [3], white_cat_on_reel3: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-131b
+          title: "A P1 on two of the first four reels starts the anticipation"
+          assert:
+            # GUARD: P1 landed on reels 1 and 2 and not on reel 3, as the fixture intends
+            - stream: "{facts.p1_reels_hit} == 2"
+            - stream: "{facts.p1_on_reel3} == False"
+
+        - id: TC-133a
+          title: "The anticipation stops once the two symbols can no longer make a win"
+          assert:
+            - stream: "{facts.p1_reels_hit} == 2"
+            - stream: "{facts.p1_on_reel3} == False"
+            - stream: "{res.payout} == 0"
+
+  # G3 — TC-132 + TC-133b
+  # HOW: the same as G1 and G2, with the paytable set to gm-glow-negative — which lands P1 on
+  #      reel 1, a bonus symbol on reel 2, and P1 again on reel 3. That is two negatives at once:
+  #      a MIXED pair (P1 next to a bonus symbol, which must not count as a pair) and a P1 pair on
+  #      reels 1 and 3 that cannot connect, because reel 2 holds neither P1 nor a wild.
+  #
+  # ⚠ Both cases share the run, and WHICH reel glows tells them apart: a glow on reel 3 means the
+  #   mixed pair counted (TC-132 fails); one on reel 4 or 5 means the unconnectable P1 pair counted
+  #   (TC-133b fails). That is why the AI is asked for reel NUMBERS, not a yes/no.
+  - run:
+      scenario: reels-glow
+      params: { spins: 3 }
+      teardown: return-to-base
+      paytable: { ref: gm-glow-negative, max_win_x: 50 }
+      video:
+        assets: [symbols.p1, symbols.scatter]
+        at: spin
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1 to 5 from the LEFT. This clip
+          is a few normal paid spins. P1 is the fluffy WHITE cat with pink headphones; the BONUS is
+          a golden paw print set with coloured gems. They are DIFFERENT symbols.
+
+          WHAT THE EFFECT LOOKS LIKE. The game has an anticipation sequence: some reels are
+          "revealed", with their symbols going DARK while certain symbols stay bright; then the
+          remaining reels are resolved one at a time, each one highlighted while it is still
+          spinning.
+
+          Report exactly what you saw.
+
+          (1) any_glow: does the anticipation sequence play at all?
+          (2) glowing_reels: list the reel NUMBERS highlighted while still spinning, in order, as a
+          JSON array of numbers. Empty array if none. Be precise about WHICH reel — it is the whole
+          question here.
+          (3) reel1_symbol: what is on reel 1 — "white cat", "bonus paw" or "something else"?
+          (4) reel2_symbol: the same question for reel 2.
+          (5) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence, including any difference between the spins.
+        output_schema:
+          any_glow: { type: boolean }
+          glowing_reels: { type: array, items: { type: number } }
+          reel1_symbol: { type: string }
+          reel2_symbol: { type: string }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          # ⚠ `reel1_symbol` / `reel2_symbol` are asked and graded on NO case — DISCOVERY fields.
+          # They record what the fixture actually put there on a green run; the bridge already
+          # asserts it exactly (`p1_reels_hit`, `bonus_reels_hit`), and asking the AI to name a
+          # symbol it might misread should not be able to fail a case.
+          #
+          # Both cases expect NO sequence, and WHICH reel was highlighted tells them apart: reel 3
+          # means the white-cat-plus-paw mix was treated as a pair (TC-132); reel 4 or 5 means the
+          # unconnectable white cats on reels 1 and 3 were (TC-133).
+          TC-132: { glowing_reels: [], confidence: medium }
+          TC-133b: { any_glow: false, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-132
+          title: "A P1 and a BONUS are not a pair, and start no anticipation"
+          assert:
+            # GUARD: the fixture really produced the mix it is for
+            - stream: "{facts.p1_reels_hit} >= 1"
+            - stream: "{facts.bonus_reels_hit} >= 1"
+            - stream: "{res.won_free_spins} == 0"
+
+        - id: TC-133b
+          title: "Two P1 symbols that cannot connect start no anticipation"
+          assert:
+            - stream: "{facts.p1_on_reel3} == True"
+            - stream: "{facts.p1_on_reel2} == False"
+            - stream: "{res.payout} == 0"
+
+  # D1 — TC-113, 115 … 125, 127 … 130
+  # HOW: set the paytable to gm-drama-bigwin first, capped at 100x. Then:
+  #  - read the drama's own config and STOP THE RUN if a dev force switch is on — grading a fight
+  #    the build was told to have proves nothing about the game players get
+  #  - start watching the presentation 50 times a second
+  #  - click spin, let it settle, and grade the round: read the drama state and the grid on screen,
+  #    then check the fight rules against what the server actually sent
+  #  - if a round starts free spins, play it out and do NOT grade it
+  #  - keep going until 4 DRAMAS have played, not 4 spins (giving up after 40), so the clip always
+  #    has enough to judge
+  #    (the rounds in between that played no drama are in the clip on purpose — they carry
+  #     TC-128/129/130)
+  #
+  # The feature (bridge §8.5, and NOT what the matrix assumes): a round holding a cat OR a dog can
+  # play the drama. The client lands a FAKE screen — the real result with fakes of the LOSING
+  # family inserted, one beside a real symbol of the WINNING family — plays the fight, then removes
+  # every fake so the grid ends on the server's `view`. The winner is the family with more symbols
+  # on the bottom row, then the row above.
+  #
+  # THE ROLL: 70% on a big win (`winType >= 4`), 70% on a free-spin trigger, 4% otherwise. The
+  # fixture makes nearly every spin a big win, which is the only reason this run is short enough.
+  - run:
+      scenario: drama
+      params: { dramas: 4, max_spins: 40 }
+      teardown: return-to-base
+      paytable: { ref: gm-drama-bigwin, max_win_x: 100 }
+      video:
+        assets: [symbols.p1, symbols.p2, symbols.p3, symbols.p4, symbols.p5, symbols.wild]
+        at: [first_drama, last_drama]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. Reels are numbered 1-5 from the LEFT, rows 1-4 from
+          the TOP. Some rounds play a "drama": animals on the grid come to life and fight. Other
+          rounds have no drama.
+
+          The animals are in the reference images: three cats (a white one with pink headphones, an
+          orange tabby, a grey long-haired one) and two dogs (a fawn pug, a black-and-tan dachshund
+          in a bonnet). The grandma with sunglasses is the WILD, not an animal in the fight.
+
+          The ACTION TIMELINE names every round and says whether a drama played in it. Use it —
+          do not guess which round you are looking at.
+
+          ABOUT THE FIGHTS:
+          (1) fights_are_side_by_side: in EVERY round where a fight happens, are the two animals
+          standing side by side in the SAME ROW, on neighbouring reels — never one above the other?
+          (2) fight_pair_is_cat_and_dog: is every fight between one CAT and one DOG, rather than
+          two cats or two dogs?
+          (3) one_fight_per_round: in each round with a fight, does exactly ONE pair fight, and only
+          ONCE — not two pairs, and not the same pair twice?
+          (4) loser_disappears: after the fight, does the losing animal disappear, together with the
+          other copies of that same animal that were on the grid?
+          (5) symbols_drop_and_refill: after they disappear, do the remaining symbols drop down and
+          the empty cells fill with new symbols?
+          (6) winner_stays: does the winning animal stay on the grid, in the cell it fought from?
+
+          ABOUT THE ROUNDS WITHOUT A FIGHT:
+          (7) quiet_rounds_are_quiet: in the rounds the timeline marks as having NO drama, do the
+          reels simply stop on their result — with nothing disappearing, nothing dropping and no
+          fight? Answer true if they are all quiet.
+
+          (8) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          fights_are_side_by_side: { type: boolean }
+          fight_pair_is_cat_and_dog: { type: boolean }
+          one_fight_per_round: { type: boolean }
+          loser_disappears: { type: boolean }
+          symbols_drop_and_refill: { type: boolean }
+          winner_stays: { type: boolean }
+          quiet_rounds_are_quiet: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-113: { fight_pair_is_cat_and_dog: true, fights_are_side_by_side: true, confidence: medium }
+          TC-115: { one_fight_per_round: true, confidence: medium }
+          TC-116: { one_fight_per_round: true, confidence: medium }
+          TC-119: { loser_disappears: true, confidence: medium }
+          TC-121: { winner_stays: true, confidence: medium }
+          TC-122: { loser_disappears: true, confidence: medium }
+          TC-123: { symbols_drop_and_refill: true, confidence: medium }
+          TC-124: { symbols_drop_and_refill: true, confidence: medium }
+          TC-127: { fights_are_side_by_side: true, confidence: medium }
+          TC-129: { quiet_rounds_are_quiet: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-113
+          title: "A drama fights a cat against a dog standing side by side"
+          assert:
+            - stream: "{facts.dev_switch_on} == False"
+            - stream: "{facts.dramas_played} >= 3"
+            # THE CASE: every fight was one cat against one dog, on the same row, on reels that
+            # touch. `side` says which side of the winner the loser stood on.
+            - stream: "{facts.fights_cat_vs_dog} == {facts.dramas_played}"
+            - stream: "{facts.fights_same_row_adjacent} == {facts.dramas_played}"
+
+        - id: TC-115
+          title: "With several possible pairs on the grid, only one pair fights"
+          assert:
+            - stream: "{facts.dramas_played} >= 3"
+            # the fixture floods the grid with cats, so candidates are plentiful
+            - stream: "{facts.rounds_with_multiple_candidates} >= 1"
+            - stream: "{facts.fights_per_round_max} == 1"
+
+        - id: TC-116
+          title: "A drama happens at most once per round"
+          assert:
+            - stream: "{facts.dramas_played} >= 3"
+            - stream: "{facts.fights_per_round_max} == 1"
+
+        - id: TC-117
+          title: "The winner is a real symbol of the server's result"
+          assert:
+            - stream: "{facts.dev_switch_on} == False"
+            # every winner stood on a cell the server actually sent, holding that symbol
+            - stream: "{facts.winner_is_real_cell} == {facts.dramas_played}"
+            # and the winning family is the one the rule picks: more symbols on the bottom row
+            - stream: "{facts.winner_family_matches_rule} == {facts.dramas_played}"
+
+        - id: TC-118
+          title: "The loser is a fake the client made up"
+          assert:
+            - stream: "{facts.loser_is_fake} == {facts.dramas_played}"
+            # every fake belongs to the losing family, and no reel carries more than the cap
+            - stream: "{facts.fakes_all_loser_family} == {facts.dramas_played}"
+            - stream: "{facts.fakes_within_column_cap} == {facts.dramas_played}"
+
+        - id: TC-119
+          title: "The fight animation plays for the chosen pair"
+          assert:
+            - stream: "{facts.dramas_played} >= 3"
+            # the exact half: the drama animation really ran on each of those rounds
+            - stream: "{facts.drama_animation_rounds} == {facts.dramas_played}"
+
+        - id: TC-121
+          title: "The winning symbol is kept"
+          assert:
+            - stream: "{facts.winner_survives_on_grid} == {facts.dramas_played}"
+
+        - id: TC-122
+          title: "Every fake of the losing family is removed; the real ones stay"
+          assert:
+            # after the drama the grid is the server's result: fakes gone, real symbols of the
+            # losing family still standing wherever the server put them
+            - stream: "{facts.grid_matches_view_rounds} == {facts.rounds_played}"
+            - stream: "{facts.real_losers_survive} == {facts.dramas_played}"
+
+        - id: TC-123
+          title: "The symbols left behind drop down"
+          assert:
+            - stream: "{facts.dramas_played} >= 3"
+            # only visible — graded on the clip
+
+        - id: TC-124
+          title: "The empty cells refill from the server's result"
+          assert:
+            - stream: "{facts.grid_matches_view_rounds} == {facts.rounds_played}"
+
+        - id: TC-125
+          title: "The grid the player ends on is the server's grid, every cell"
+          assert:
+            - stream: "{facts.grid_matches_view_rounds} == {facts.rounds_played}"
+            - stream: "{facts.rounds_played} >= 4"
+          # ⚠ The AI half — reading each round's final grid as JSON and comparing it cell by cell
+          # to `view` — needs the grid read+compare extension (plan §0 P7). Until it lands, this
+          # case rests on `getDisplayedGrid()` above, which is the same claim checked exactly.
+
+        - id: TC-127
+          title: "A fight is never between symbols stacked vertically"
+          assert:
+            # the same fields as TC-113, guarding a different failure: TC-113 fails if a fight is
+            # not cat vs dog, TC-127 if the loser is placed above or below the winner
+            - stream: "{facts.fights_same_row_adjacent} == {facts.dramas_played}"
+            - stream: "{facts.fights_vertical} == 0"
+
+        - id: TC-128
+          title: "When the roll fails, no drama plays"
+          assert:
+            # UNREACHED if every round in the clip happened to play a drama. At 70% over the rounds
+            # this run takes, that is about 1 in 7500.
+            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.fakes_when_not_played} == 0"
+
+        - id: TC-129
+          title: "A round with no drama has no fake, no removal and no refill"
+          assert:
+            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.fakes_when_not_played} == 0"
+            - stream: "{facts.drama_animation_rounds} == {facts.dramas_played}"
+
+        - id: TC-130
+          title: "A round with no drama shows the server's result directly"
+          assert:
+            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.grid_matches_view_rounds} == {facts.rounds_played}"
+
+  # D2 — TC-120
+  # HOW: the same fixture and the same per-round grading as D1, with two changes:
+  #  - click the turbo button first
+  #    (if it never becomes clickable the run is unreached, rather than quietly grading the whole
+  #     thing at normal speed and calling it a turbo test)
+  #  - let AUTOPLAY drive the spins instead of clicking each one: click the auto button, click the
+  #    10-spins option, click confirm, then watch the 10 rounds go by
+  #  - stop once 3 dramas have played
+  #  - finish by confirming auto really stopped, so the run does not walk away leaving the game
+  #    betting on its own
+  #
+  # ⚠ Whether the build is configured to play the drama in turbo at all is recorded. If that is
+  #   switched OFF, this build disables the drama in turbo — that is not a test problem to route
+  #   around, it IS TC-120's failure, and the first assert says so directly.
+  - run:
+      scenario: drama
+      params: { dramas: 3, max_spins: 20, turbo: true, autoplay: 10 }
+      teardown: return-to-base
+      paytable: { ref: gm-drama-bigwin, max_win_x: 100 }
+      video:
+        assets: [symbols.p1, symbols.p2, symbols.p3, symbols.p4, symbols.p5, symbols.wild]
+        at: [first_drama, last_drama]
+        timestamp: true
+        prompt: >-
+          Grandma Pets is a 5-reel, 4-row slot. This clip is autoplay running with TURBO switched
+          on. Some rounds play a "drama": animals on the grid come to life and fight. The ACTION
+          TIMELINE marks the rounds where a drama played.
+
+          (1) fight_plays_in_full: in the rounds marked as having a drama, does the fight play out
+          from start to finish?
+          (2) fight_cut_short: is any fight skipped, cut off part-way, or reduced to the loser
+          simply vanishing with no fight at all?
+          (3) autoplay_continues: does autoplay carry on spinning afterwards, without the game
+          getting stuck?
+          (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?
+
+          notes: one short sentence on anything the questions above do not cover.
+        output_schema:
+          fight_plays_in_full: { type: boolean }
+          fight_cut_short: { type: boolean }
+          autoplay_continues: { type: boolean }
+          ui_broken: { type: boolean }
+          notes: { type: string }
+          confidence: { type: string, enum: [high, medium, low] }
+        expected_by_case:
+          TC-120: { fight_plays_in_full: true, fight_cut_short: false, autoplay_continues: true, ui_broken: false, confidence: medium }
+      cases:
+        - id: TC-120
+          title: "Turbo and autoplay do not skip the drama"
+          assert:
+            # the build does not switch the feature off in turbo
+            - stream: "{facts.play_in_turbo_config} == True"
+            - stream: "{facts.speed_mode} == 'TURBO'"
+            - stream: "{facts.autoplay_ran} == True"
+            # dramas still played, and were never skipped for being in turbo
+            - stream: "{facts.dramas_played} >= 2"
+            - stream: "{facts.skipped_mode_excluded} == 0"
+            # and each one actually animated
+            - stream: "{facts.drama_animation_rounds} == {facts.dramas_played}"

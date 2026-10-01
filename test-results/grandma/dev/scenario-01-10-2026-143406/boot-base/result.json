@@ -1,0 +1,143 @@
+{
+  "kind": "run",
+  "scenario": "boot-base",
+  "description": "Sit in a clean base game (no spins) and record it. Exposes gameInfo facts \u2014 bet_amount, bet_index, balance, currency, denom_count, min_bet, max_bet \u2014 for the UI and denomination checks.",
+  "reached": true,
+  "reason": null,
+  "video_window": [
+    8.39607286453247,
+    11.675271987915039
+  ],
+  "shots": [
+    {
+      "label": "base",
+      "file": "00-base.png",
+      "path": "D:\\Project\\qa-platform\\test-results\\grandma\\dev\\scenario-01-10-2026-143406\\boot-base\\_shots\\00-base.png"
+    }
+  ],
+  "facts": {
+    "bet_amount": 0.1,
+    "bet_index": 0,
+    "balance": 15233.836,
+    "currency": "TKN",
+    "denom_count": 9,
+    "min_bet": 0.1,
+    "max_bet": 35,
+    "default_bet_level": 0,
+    "default_bet_known": true,
+    "default_bet_amount": 0.1,
+    "last_bet_stake": 0.1,
+    "first_session": false,
+    "expected_open_bet": 0.1,
+    "opens_at_expected_bet": true,
+    "opens_at_default": true
+  },
+  "marks": {},
+  "cases": [
+    {
+      "id": "TC-005",
+      "title": "A first session opens at the bet level the back office configured",
+      "stream": [
+        {
+          "spec": "{facts.denom_count} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.bet_amount} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.balance} > 0",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.default_bet_known} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        },
+        {
+          "spec": "{facts.opens_at_expected_bet} == True",
+          "result": {
+            "valid": true,
+            "violations": []
+          }
+        }
+      ],
+      "video": [
+        {
+          "at": null,
+          "asset_groups": null,
+          "assets": [],
+          "window": [
+            8.39607286453247,
+            11.675271987915039
+          ],
+          "status": "pass",
+          "kind": "schema",
+          "prompt": "Grandma Pets is a 5-reel, 4-row slot. This clip is the game sitting idle just after it loaded \u2014 no spin has been made.\n(1) bet_text: read the bet amount shown, exactly as printed, as a string. \"none\" if no bet amount is displayed. (2) balance_readable: is a balance amount displayed? (3) spin_ready: does the game look ready to play \u2014 reels stopped, spin control present, no loading spinner and no popup covering the screen? (4) ui_broken: is anything overlapping, cut off, placeholder or visibly broken?\nnotes: one short sentence on anything the questions above do not cover.",
+          "output_schema": {
+            "bet_text": {
+              "type": "string"
+            },
+            "balance_readable": {
+              "type": "boolean"
+            },
+            "spin_ready": {
+              "type": "boolean"
+            },
+            "ui_broken": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "string",
+              "enum": [
+                "high",
+                "medium",
+                "low"
+              ]
+            }
+          },
+          "expected": {
+            "bet_text": "0.1",
+            "spin_ready": true,
+            "ui_broken": false,
+            "confidence": "medium"
+          },
+          "group": "shared-1666492620992",
+          "data": {
+            "bet_text": "0.10",
+            "balance_readable": true,
+            "spin_ready": true,
+            "ui_broken": false,
+            "notes": "The video shows the game's initial loading screen followed by its idle state.",
+            "confidence": "high",
+            "reason": "The game successfully finishes loading and displays the main interface with a bet of 0.10 and a clear balance. All game controls are visible and appear ready for interaction."
+          },
+          "mismatches": [],
+          "reason": "The game successfully finishes loading and displays the main interface with a bet of 0.10 and a clear balance. All game controls are visible and appear ready for interaction.",
+          "note": "The game successfully finishes loading and displays the main interface with a bet of 0.10 and a clear balance. All game controls are visible and appear ready for interaction.",
+          "tokens": [
+            987,
+            791
+          ]
+        }
+      ],
+      "image": [],
+      "verdict": "green"
+    }
+  ]
+}

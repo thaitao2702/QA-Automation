@@ -1,0 +1,42 @@
+[
+  {
+    "id": "click-0",
+    "action": "click",
+    "description": "click stakeIncrease",
+    "start_ms": 148401,
+    "end_ms": 150736,
+    "result": {
+      "button": "stakeIncrease"
+    }
+  },
+  {
+    "id": "click-1",
+    "action": "click",
+    "description": "click bet:row:1",
+    "start_ms": 150736,
+    "end_ms": 153068,
+    "result": {
+      "button": "bet:row:1"
+    }
+  },
+  {
+    "id": "click-2",
+    "action": "click",
+    "description": "click bet:close",
+    "start_ms": 153068,
+    "end_ms": 155381,
+    "result": {
+      "button": "bet:close"
+    }
+  },
+  {
+    "id": "click-3",
+    "action": "click",
+    "description": "click spin",
+    "start_ms": 155381,
+    "end_ms": 157707,
+    "result": {
+      "button": "spin"
+    }
+  }
+]

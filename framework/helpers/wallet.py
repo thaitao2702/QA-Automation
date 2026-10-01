@@ -48,8 +48,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -165,6 +167,33 @@ class WalletHelper:
             self._client_instance = client
             return self._client_instance
 
+    def _relogin(self) -> WalletClient:
+        """Throw the logged-in client away and build a fresh one."""
+        with self._login_lock:
+            self._client_instance = None
+        return self._client()
+
+    def _with_login_retry(self, call):
+        """Run *call(client)*, logging in again once if the session has expired.
+
+        The Playsite access token outlives a short run but NOT a long one, and the place it
+        expires is the worst possible one: `restore-balance` runs last, after the scenario has
+        already moved the money, so an expired token there leaves the wallet wherever the test
+        left it. Observed live 2026-09-03 -- a green `freespin-zero-balance` finished with the
+        balance at 111.96 instead of the 11785.03 it started from, because the teardown died with
+        "Token is expired".
+
+        The credentials are held for the whole run, so a session that has simply aged out is
+        recoverable without troubling the caller: log in again and repeat the call once.
+        """
+        try:
+            return call(self._client())
+        except PlaysiteError as e:
+            if "expire" not in str(getattr(e, "message", e)).lower():
+                raise
+            logger.info("Wallet session expired; logging in again and retrying.")
+            return call(self._relogin())
+
     # ------------------------------------------------------------------
     # Operations (async; the blocking HTTP runs in a worker thread)
     # ------------------------------------------------------------------
@@ -190,7 +219,8 @@ class WalletHelper:
         cur = self._resolve_currency(currency)
         return await asyncio.to_thread(self._op_sync, "withdraw", amount, cur)
 
-    async def set_balance(self, target: Amount, currency: str | None = None) -> dict[str, Any]:
+    async def set_balance(self, target: Amount, currency: str | None = None,
+                          attempts: int = 6, pause_s: float = 1.0) -> dict[str, Any]:
         """Set the *currency* wallet to exactly *target* by depositing/withdrawing the
         difference from the current balance. Returns the updated wallet data.
 
@@ -198,33 +228,106 @@ class WalletHelper:
         the reliable primitive for forcing a known balance for a test AND for restoring
         the original balance in teardown — even if the test itself changed the balance.
         Propagates PlaysiteError / WalletConfigError.
+
+        *attempts* / *pause_s* bound the retry described in ``_set_sync``. The default is a
+        few seconds, which covers an ordinary settle. Raise it for a caller that is changing
+        the wallet right after a round or with a bonus open, where the server's hold takes
+        appreciably longer to lift — but only where WAITING IS SAFE, i.e. where nothing can
+        play while the retry loop is running.
         """
         cur = self._resolve_currency(currency)
-        return await asyncio.to_thread(self._set_sync, target, cur)
+        return await asyncio.to_thread(self._set_sync, target, cur, attempts, pause_s)
 
     # -- blocking bodies, run via asyncio.to_thread --------------------------
 
     def _all_balances_sync(self) -> list[dict[str, Any]]:
-        return self._client().get_balance()
+        return self._with_login_retry(lambda c: c.get_balance())
 
     def _balance_for_sync(self, currency: str) -> Any:
-        return self._client().get_balance_for(currency)
+        return self._with_login_retry(lambda c: c.get_balance_for(currency))
 
     def _op_sync(self, op: str, amount: Amount, currency: str) -> dict[str, Any]:
-        client = self._client()
-        return (client.deposit if op == "deposit" else client.withdraw)(amount, currency)
+        return self._with_login_retry(
+            lambda c: (c.deposit if op == "deposit" else c.withdraw)(amount, currency))
 
-    def _set_sync(self, target: Amount, currency: str) -> dict[str, Any]:
-        client = self._client()
-        current = client.get_balance_for(currency)
-        current_f = float(current) if current is not None else 0.0
-        # Round the delta to cents so float dust never triggers a spurious tiny op.
-        delta = round(float(target) - current_f, 2)
-        if delta > 0:
-            return client.deposit(delta, currency)
-        if delta < 0:
-            return client.withdraw(round(-delta, 2), currency)
-        return {"currency": currency, "balance": current_f}  # already at target
+    def _set_sync(self, target: Amount, currency: str,
+                  attempts: int = 6, pause_s: float = 1.0) -> dict[str, Any]:
+        """Move the wallet to *target*, retrying a refusal that is only momentary.
+
+        A withdrawal can be refused as "Insufficient balance" for two quite different reasons,
+        and BOTH are survivable by re-reading and trying again:
+
+        * a RACE -- the balance fell between the read and the op (a base spin settled), so the
+          amount computed from the stale read no longer fits. Re-reading recomputes it.
+        * a TRANSIENT HOLD -- the wallet reports more than it will release while a round is still
+          settling server-side. Measured live on dev 2026-09-03 against a pending free-spin bonus:
+          `withdraw(11752.0)` was refused against a balance of exactly 11752.0 (unchanged, so not a
+          race) and the SAME withdrawal succeeded seconds later at the same balance. The hold is
+          small and short-lived, so waiting clears it.
+
+        This matters for `freespin-zero-balance`, which zeroes the wallet immediately after
+        `stop_client()` -- exactly when the last free-spin round is still settling. Without the
+        retry that scenario cannot reach its own precondition.
+
+        Each attempt re-reads the balance, so the amount is always computed from a fresh number.
+        """
+        last: PlaysiteError | None = None
+        first_read: float | None = None
+        for attempt in range(attempts):
+            current = self._balance_for_sync(currency)
+            current_f = float(current) if current is not None else 0.0
+            if first_read is None:
+                first_read = current_f
+            # Move in THOUSANDTHS — the wallet's own precision. ⚠ A game balance carries a third
+            # decimal (a 0.075 win at a 0.10 stake), and rounding the delta to the nearest CENT left
+            # 15069.237 -> target 0.10 at 0.097: less than one bet, so `freespin-zero-balance` got
+            # "Insufficient balance" on the one spin it had funded (2026-09-29). Playsite settles
+            # 3-decimal amounts exactly (verified live 2026-09-29: withdraw 0.005 moved
+            # 15072.542 -> 15072.537, deposit 0.005 moved it back). Rounding is still one-sided —
+            # withdraw DOWN, deposit UP — so a balance with more decimals than that lands just ABOVE
+            # the target, never below it.
+            diff = Decimal(str(target)) - Decimal(str(current_f))
+            step = (diff.quantize(Decimal("0.001"), rounding=ROUND_CEILING) if diff > 0
+                    else -((-diff).quantize(Decimal("0.001"), rounding=ROUND_FLOOR)))
+            delta = float(step)
+            if delta == 0:
+                return {"currency": currency, "balance": current_f}  # within a cent above target
+            # Playsite accepts FRACTIONAL amounts: /wallet/deposit and /wallet/withdraw take the
+            # amount as a plain JSON number and settle it to the THOUSANDTH. Verified live on dev:
+            # withdraw(0.01) moved 11743.01 -> 11743.00 (2026-09-03), and withdraw(0.005) moved
+            # 15072.542 -> 15072.537 exactly (2026-09-29).
+            #
+            # This used to raise unless the delta was a whole number of units, which made any wallet
+            # sitting on a fractional balance (i.e. any wallet that had been played) impossible to
+            # zero -- that guard, not the API, is what blocked CR_011's freespin-zero-balance.
+            # Send an int when the delta happens to be whole, so ordinary whole-unit moves keep
+            # posting exactly the payload they always did.
+            amount: Amount = (int(round(abs(delta))) if round(delta) == delta
+                              else round(abs(delta), 3))
+            try:
+                return self._op_sync("deposit" if delta > 0 else "withdraw", amount, currency)
+            except PlaysiteError as e:
+                last = e
+                logger.info(
+                    "wallet %s %s %s -> %s refused (%s); balance read %s, attempt %d/%d",
+                    currency, "deposit" if delta > 0 else "withdraw", amount, target,
+                    e.message, current_f, attempt + 1, attempts)
+                if attempt < attempts - 1:
+                    time.sleep(pause_s)
+        # Out of attempts. Report the numbers, so a caller can tell a moving balance (a race that
+        # never settled) from a stuck one (a hold that never cleared) without re-running anything.
+        try:
+            now: Any = self._balance_for_sync(currency)
+        except Exception:  # noqa: BLE001 -- diagnostics must never mask the original error
+            now = "unreadable"
+        moved = str(now) != str(first_read)
+        raise PlaysiteError(
+            f"{last.message if last else 'wallet op failed'} after {attempts} attempts over "
+            f"~{attempts * pause_s:.0f}s (target {target} {currency}: balance first read "
+            f"{first_read}, now {now} -- "
+            f"{'balance moved, an unsettled race' if moved else 'balance UNCHANGED, a hold that did not clear'})",
+            message_code=getattr(last, "message_code", None),
+        ) from last
 
 
 # Surface PlaysiteError so callers can ``from framework.helpers.wallet import PlaysiteError``
