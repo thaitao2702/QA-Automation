@@ -30,8 +30,9 @@ no code at all — just a profile that names its buttons.
 2. **Check the capability column.** A scenario guarded by a flag your profile sets `False` reports
    *precondition not met* → inconclusive. That is the correct outcome for a feature the game does
    not ship — not a failure, and not a reason to write a new scenario.
-3. **Bind its facts** (§4) in your asserts. Every AI assert needs a hard `stream:` companion from
-   the same run, or a scenario that quietly did nothing produces a green.
+3. **Bind its facts** in your asserts — the scenario's `description` in
+   `scripts/scenario_engine.py` lists what it exposes. Every AI assert needs a hard `stream:`
+   companion from the same run, or a scenario that quietly did nothing produces a green.
 4. **Only if nothing fits**, write one — then add a row here and to §5.
 
 ---
@@ -63,89 +64,97 @@ Three mechanisms exist so far. A scenario is **portable** unless this table says
 
 ## 3. By feature — start here
 
+Every table has the same four columns. **Needs** is what the game must have for the scenario to
+reach its situation — a mechanism (cascade, hold & spin), a feature (free spins, Buy Bonus, Ante
+Bet, Premium Reel), or both. `any` means it runs on every game. A game without what a row needs gets
+an *inconclusive*, not a fail.
+
 ### Boot, bets and money
 
-| I need to test | Use | Notes |
-|---|---|---|
-| the game loads into a usable idle screen | `boot-base` | places no bet. For "opens at the default bet" assert `opens_at_expected_bet`, **never** `opens_at_default` — the default governs only a player's FIRST session, and every later one opens at `lastBet.baseStake` |
-| the denomination list matches config | `browse-denominations` | needs `HAS_BET_POPUP`; scrolls to both ends |
-| changing the bet | `change-bet` | `facts.picked_bet` / `landed_bet` — assert the bet that LANDED |
-| one plain spin, balance debited and credited | `base-win`, not `base-spin` | one WINNING round shows BOTH moves of the balance, so the debit and the credit are one run (CR_007+CR_008, ZZ-05+ZZ-06). `base-spin` is the thinnest bet-placing box, but on a loss the credit half has nothing on screen |
-| a WINNING spin specifically | `base-win` (any) · `base-cluster-win` (cascade) | `base-win` hunts a win on any mechanism; trim the assert with `at: win` — the clip spans every hunting spin |
-| balance too low to bet | `insufficient-balance` | pair with `teardown: restore-balance` |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| the game loads into a usable idle screen | `boot-base` | any | places no bet. The default bet applies only to a player's FIRST session; every later session opens at the stake it last played |
+| the denomination list matches config | `browse-denominations` | any — a bet list to see both ends | places no bet. Opens the bet list and scrolls to both ends; on a game without a list it steps the stake a few notches up and back instead, which shows neither end |
+| changing the bet | `change-bet` | any | places no bet |
+| one plain spin, balance debited and credited | `base-win`, not `base-spin` | any | one winning round shows both the debit and the credit in one run; on a losing `base-spin` the credit has nothing on screen |
+| a winning spin | `base-win` | any | spins until it wins. The clip covers every spin it took, so point the video assert at the win (`at: win`) |
+| a winning spin with cascades | `base-cluster-win` | cascade | |
+| balance too low to bet | `insufficient-balance` | any | pair with `teardown: restore-balance` |
 
 ### Auto-play
 
-| I need to test | Use |
-|---|---|
-| it runs and completes its count | `auto-play` |
-| it stops on a win | `auto-stop-at-win` |
-| the player stops it | `auto-user-stop` |
-| a reload cancels it | `auto-reload-cancels` |
-| it stops when the money runs out | `auto-until-empty` |
-| it uses the bet chosen beforehand | `auto-change-bet-first` |
-| the Auto Play notification | `toggle-auto` |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| it runs and completes its count | `auto-play` | any | |
+| it stops on a win | `auto-stop-at-win` | any | |
+| the player stops it | `auto-user-stop` | any | |
+| a reload cancels it | `auto-reload-cancels` | any | |
+| it stops when the money runs out | `auto-until-empty` | any | |
+| it uses the bet chosen beforehand | `auto-change-bet-first` | any | |
+| the Auto Play notification | `toggle-auto` | any | |
 
-> Every one of these ends with `confirm_stopped()` — it watches for a further bet (**nothing
-> arriving is the evidence**), then holds so the still screen is filmed. Assert
-> `{facts.extra_round_after_stop} == False` and `{facts.auto_flag_after} == False`; a clip that
-> merely ends proves nothing (Rule 4).
+> Every one of these keeps watching for a while after auto-play ends and films the still screen,
+> so a case can check that no further spin started — a clip that merely ends proves nothing
+> ([Rule 4](scenario-rules/rule-04-prove-stopped.md)).
 
 ### Bonus rounds
 
-| I need to test | Use | Mechanism |
-|---|---|---|
-| a free-spin round end to end | `fs-complete` | any |
-| a cascade win inside free spins | `freespin-cascade` | cascade |
-| free spins with an empty wallet | `freespin-zero-balance` | any |
-| history after a bonus | `freespin-then-history` | any |
-| Hold & Spin, normal and full-grid | `hold-spin-complete` · `hold-spin-full-grid` | hold & spin |
-| buying the bonus | `buy-bonus` | needs `HAS_BUY_BONUS` |
-| buying a bonus that then offers a MULTIPLIER WHEEL | `buy-bonus-lucky-spin` | Joker. It CLICKS the wheel (`keep` / `spin`) — the bridge never answers it and `dismissPopups()` never closes it, so anything else leaves the game waiting |
-| a Hold & Spin bet WITH Ante Bet or a Premium Reel | `hold-spin-complete`, `feature: ante` / `"premium:<reelId>"` | hold & spin |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| a free-spin round end to end | `fs-complete` | free spins | |
+| a cascade win inside free spins | `freespin-cascade` | cascade + free spins | |
+| free spins with an empty wallet | `freespin-zero-balance` | free spins | |
+| Hold & Spin, normal and full-grid | `hold-spin-complete` · `hold-spin-full-grid` | hold & spin | |
+| buying the bonus | `buy-bonus` | Buy Bonus | plays the bought bonus out, free spins or Hold & Spin |
+| buying a bonus that then offers a multiplier wheel | `buy-bonus-lucky-spin` | Buy Bonus + multiplier wheel | Joker. Answers the wheel the way a player does (keep or spin), then plays the bonus |
+
+A bonus bet with Ante Bet or a Premium Reel is under **Paid spin features**; history after a bonus
+is under **Text, language and panels**.
 
 ### Paid spin features
 
-| I need to test | Use |
-|---|---|
-| Ante Bet charges base × multiplier, and switches off again | `ante-toggle` — a one-click toggle or a panel flow, both through `switch_feature`; `spin_after_off` adds the plain spin after |
-| a bonus bet with ante | `ante-freespins` (free spins, Chaos) · `hold-spin-complete` with `feature: ante` (Hold & Spin) |
-| every Premium Reel package: its stake, its echo, what it excludes | `premium-reel-spin` |
-| a Hold & Spin bet with a Premium Reel | `hold-spin-complete` with `feature: "premium:<reelId>"` |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| Ante Bet charges base × multiplier, and switches off again | `ante-toggle` | Ante Bet | switches ante on, spins, switches it off; `spin_after_off: true` adds one plain spin after |
+| a free-spin bet with ante | `ante-freespins` | Ante Bet + free spins | Chaos |
+| a Hold & Spin bet with ante | `hold-spin-complete`, `feature: ante` | hold & spin + Ante Bet | |
+| every Premium Reel package: its stake, its echo, what it excludes | `premium-reel-spin` | Premium Reel | |
+| a Hold & Spin bet with a Premium Reel | `hold-spin-complete`, `feature: "premium:<reelId>"` | hold & spin + Premium Reel | |
 
 ### Spin input, turbo, sound, popups
 
-| I need to test | Use |
-|---|---|
-| button / Space / hold / double-click | `spin-inputs` — `facts.click_rounds`, `key_rounds` count PAID rounds only |
-| turbo on/off and hold-to-turbo | `turbo-modes` — it SPINS, so "do the reels resolve faster" has something to time; `facts.speed_toggled` is exact via `getSpeedMode()` |
-| the Turbo notification | `toggle-turbo` — places NO bet, so use it only where the notification is the subject, never for reel speed |
-| sound / music toggles | `sound-toggles` — needs `HAS_SOUND_GETTERS` for the exact half |
-| several notifications at once | `stacked-popups` — `facts.max_concurrent_popups` |
-| an anticipation glow | `reels-glow` |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| button / Space / hold / double-click | `spin-inputs` | any | |
+| turbo on/off and hold-to-turbo | `turbo-modes` | any | spins, so "do the reels resolve faster" has something to compare |
+| the Turbo notification | `toggle-turbo` | any | places NO bet, so use it only where the notification is the subject, never for reel speed |
+| sound / music toggles | `sound-toggles` | any | the on/off state is checked exactly only on games that report it; elsewhere only on screen |
+| several notifications at once | `stacked-popups` | any | |
+| an anticipation glow | `reels-glow` | an anticipation glow | Mystic, Grandma |
 
 ### Text, language and panels
 
-| I need to test | Use |
-|---|---|
-| every surface in N languages | `language-tour` — the one place `image:` beats `video:` |
-| the language survives a relaunch | `language-switch` |
-| many languages, shallow | `language-sweep` |
-| the tutorial / info / game-help guide | `open-tutorial` — pages it and shoots each screen |
-| a paytable at two bet levels | `paytable-bet-scaling` — portable since `line_bet()` moved to `SlotGame`; the divisor is `LINE_DIVISOR` or, failing that, the payline count |
-| history rows and detail paging | `spin-then-history` · `freespin-then-history` |
-| **Last Bet — the game reopens showing the round last played** | `last-bet-restore` — plays a round, RELOADS, and checks the session comes back on that round's stake and win. This is what "Last Bet" means: a resume behaviour, not a panel. `outcome:` names WHICH round to leave on record — `win` · `lose` · `any` · `freespin_trigger` (a bonus reached from the base game, **not** a bought one: the two charge different amounts, so never call either merely "bonus") |
-| **a bonus RESUMED after the denomination changed on BO** — the bonus keeps its stake, the base game after it takes the new ladder's default | `bonus-resume-denomination-swap` — trigger, close at once (bonus still owed), swap to the automation ladder (11, 22, 33), reopen. A RESUME, not a restore. **Needs `teardown: reset-denomination`** |
-| Last Bet auto-displayed before each bonus round | `last-bet-before-rounds` — only where the build flashes it between rounds (Mystic's spec). It does NOT reload, so it cannot answer the re-entry question above |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| every surface in N languages | `language-tour` | any | the one place `image:` beats `video:` |
+| the language survives a relaunch | `language-switch` | any | |
+| many languages, shallow | `language-sweep` | any | |
+| the tutorial / info / game-help guide | `open-tutorial` | any | pages it and shoots each screen |
+| a paytable at two bet levels | `paytable-bet-scaling` | any | |
+| history rows and detail paging | `spin-then-history` | any | |
+| history after a bonus | `freespin-then-history` | free spins | |
+| **Last Bet — the game reopens showing the round last played** | `last-bet-restore` | any; `outcome: freespin_trigger` needs free spins | plays a round, RELOADS, and checks the session comes back on that round's stake and win. This is what "Last Bet" means: a resume behaviour, not a panel. `outcome:` names WHICH round to leave on record — `win` · `lose` · `any` · `freespin_trigger` (a bonus reached from the base game, **not** a bought one: the two charge different amounts, so never call either merely "bonus") |
+| **a bonus RESUMED after the denomination changed on BO** — the bonus keeps its stake, the base game after it takes the new ladder's default | `bonus-resume-denomination-swap` | free spins or hold & spin | trigger, close at once (bonus still owed), swap to the automation ladder (11, 22, 33), reopen. A RESUME, not a restore. **Needs `teardown: reset-denomination`** |
+| Last Bet auto-displayed before each bonus round | `last-bet-before-rounds` | free spins + a Last Bet display between rounds | Mystic's spec. It does NOT reload, so it cannot answer the re-entry question above |
 
 ### Resilience
 
-| I need to test | Use |
-|---|---|
-| a short disconnect | `reconnect-brief` |
-| a long one that ends the session | `reconnect-long` |
-| a disconnect during auto-play | `reconnect-during-auto` |
-| the same account in two tabs | `multi-tab-session` |
+| I need to test | Use | Needs | Notes |
+|---|---|---|---|
+| a short disconnect | `reconnect-brief` | any | |
+| a long one that ends the session | `reconnect-long` | any | |
+| a disconnect during auto-play | `reconnect-during-auto` | any | |
+| the same account in two tabs | `multi-tab-session` | any | |
 
 ---
 
@@ -155,58 +164,58 @@ Three mechanisms exist so far. A scenario is **portable** unless this table says
 contributes to `conservation`. `shots` = captures stills, so an `image:` assert has something to
 grade. `cap` = the profile flag that gates it.
 
-| Scenario | bets | shots | cap | Used by | Key facts |
-|---|:--:|:--:|---|---|---|
-| `ante-freespins` | ● | ● | `ANTE_BET` | chaos | `ante_clickable_in_fs` `ante_frozen` `ante_verifiable_in_fs` `expected_award` |
-| `ante-toggle` | ● | ● | `ANTE_BET` | chaos, dragon-vip | `stake_off/on` `base_off/on` `base_unchanged` `stake_ratio` `ante_engaged` `ante_switched_on/off` `feature_panel_blocked_while_on` `premium_blocked_while_on` `ante_off_spin_plain` |
-| `auto-change-bet-first` | | | | all 5 | `picked_bet` `picked_index` `auto_count` |
-| `auto-play` | ● | | | all 5 | `auto_count` `rounds_played` `completed` `stake_constant` + stop facts |
-| `auto-reload-cancels` | | | | all 5 | `auto_cancelled` `spins_before_reload` + stop facts |
-| `auto-stop-at-win` | | | | all 5 | `won_payout` `spins_to_win` `auto_stopped` + stop facts |
-| `auto-until-empty` | ● | | | all 5 | `stopped_on_empty` `spins_played` `funded_balance` + stop facts |
-| `auto-user-stop` | | | | all 5 | `spins_before_stop` `auto_stopped` + stop facts |
-| `base-cluster-win` | ● | | | mystic | `cascades` `multipliers` `multiplier_climbed` `balance_after_win` — **cascade only** |
-| `base-spin` | ● | | | mystic | `spin` |
-| `base-win` | ● | | | chaos, dragon, dragon-vip, zeus | `win_payout` `win_stake` `spins_to_win` · the readout's three values: `balance_before_spin` `balance_while_spinning` `balance_after_win` |
-| `bonus-resume-denomination-swap` | ● | ● | | all 5 | `trigger_base_stake` `swap_applied` `new_ladder` `new_default_bet` `client_on_new_ladder` `old_bet_on_new_ladder` `is_pending_freespin` `pending_stake_is_trigger` `resumed_rounds` `resume_bets` `bet_during_bonus_is_old` `bet_during_bonus_on_new_ladder` `bet_after_bonus` `bet_after_bonus_is_new_default` `bet_after_bonus_on_new_ladder` **(needs `teardown: reset-denomination`)** |
-| `buy-bonus-lucky-spin` | ● | ● | `BUY_BONUS` | joker | `price` `price_ratio` `paid_stake` `package_spins` `awarded` · the wheel: `wheel_shown` `wheel_choice` `lucky_multiplier` `multiplier_constant` · the bonus: `fs_rounds` `bonus_total` `expanded_rounds` `expanded_reels` `capped` (the feature's return to base is spread in from the shared settle helper) |
-| `boot-base` | | ● | | all 5 | `balance` `denom_count` `default_bet_level` · the first-session rule: `expected_open_bet` `opens_at_expected_bet` `first_session` `last_bet_stake` |
-| `browse-denominations` | | | `BET_POPUP` | all 5 | `denom_count` `min_bet` `max_bet` `list_shown` `closed` |
-| `buy-bonus` | ● | | `BUY_BONUS` | dragon, dragon-vip, zeus, grandma | `price` `price_ratio` `paid_stake` `packages` `confirmed` `capped` `bought_premium_id` `package_spins` `awarded` · Hold & Spin only: `trigger_coins` `final_coins` `coins_added` `grid_filled` · free spins: `fs_rounds` · with `sample_reveal: true`: `reveal_sampled` `reveal_stable` `reveal_distinct_grids` `reveal_bonus_reels` `reveal_max_bonus_per_reel` `reveal_wilds` `reveal_winning_run` `reveal_grid`. **The drain is chosen by `GAME.mechanism`** — Hold & Spin keeps its own drain (it grades `capped`), every other mechanism takes the free-spin drain, which also declines a Free Spin Extension |
-| `change-bet` | | | | all 5 | `picked_bet` `landed_bet` `bet_changed` |
-| `freespin-cascade` | ● | | | mystic | `fs_cascade` `fs_reset` — **cascade only** |
-| `freespin-then-history` | ● | | | mystic | `bet_count` `expected_pages` `paged_back` |
-| `freespin-zero-balance` | ● | | | chaos, mystic | `fs_rounds_resumed` `broke_at_trigger` |
-| `drama` | ● | | | grandma | `rounds_played` `dramas_played` `rounds_roll_failed` `skip_reasons` `fights_cat_vs_dog` `fights_same_row_adjacent` `fights_vertical` `fights_per_round_max` `rounds_with_multiple_candidates` `winner_is_real_cell` `winner_family_matches_rule` `loser_is_fake` `fakes_all_loser_family` `fakes_within_column_cap` `real_losers_survive` `winner_survives_on_grid` `grid_matches_view_rounds` `drama_animation_rounds` `fakes_when_not_played` `skipped_mode_excluded` `min_drama_ms` `dev_switch_on` `play_in_turbo_config` `speed_mode` `autoplay_ran` · marks: first_drama, last_drama. **Stops at N DRAMAS, not N spins** — the roll is 70% on a big win and 4% otherwise, so a spin count can end with nothing to grade. ⚠ FAILS on a build with a drama dev switch set |
-| `freespin-reload` | ● | | | grandma | `source` `awarded` `rounds_before_reload` `free_spins_before_reload` `pending_free_spins` `pending_game_state` `pending_is_bonus` `resumed_rounds` `first_resumed_free_spins` `buttons_polled` `buttons_flashed` `buttons_ever_enabled` `fs_rounds` · marks: reload, resume. `source: buy` reaches the bonus by purchase. ⚠ Unreached if the bonus ENDS before the requested number of rounds — a reload with nothing owed proves nothing |
-| `fs-complete` | ● | | | chaos, mystic, grandma | `free_spins_played` `capped` `total_rounds` `fs_rounds` `counter_matches_rounds` `counter_readings` `counter_offsets` `triggers_skipped` `trigger_bonus_reels` `trigger_max_bonus_per_reel` · otherwise bind `{trigger.*}` / `{terminal.*}`. `arrive_when: {bonus_reels, min_on_one_reel}` hunts a trigger of a PARTICULAR SHAPE and plays out the ones that do not match |
-| `hold-spin-complete` | ● | | | dragon, dragon-vip, zeus | `trigger_coins` `respins_played` `coins_added` `coin_total` `capped` · with `feature`: `feature_on_trigger` `trigger_stake_matches` `off_available_in_feature` — **hold & spin** |
-| `hold-spin-full-grid` | ● | | | dragon, dragon-vip, zeus | `filled_on_trigger` `grid_filled` `capped` — **hold & spin** |
-| `insufficient-balance` | | | | all 5 | `spin_balance` `chosen_bet` `min_bet` `mode` |
-| `language-sweep` | | ● | | *unused* | `language_count` `failed` |
-| `language-switch` | | ● | | chaos | `from_language` `to_language` `switched` |
-| `language-tour` | | ● | | all 5 | `language_count` `requested` `surfaces` `shot_count` |
-| `last-bet-before-rounds` | ● | | | chaos, dragon-vip, mystic | `trigger_stake` `fs_stake_zero` `fs_rounds` |
-| `last-bet-restore` | ● | ● | | all 5 | `played_stake` `played_base_stake` `played_payout` `restored_stake` `restored_base_stake` `restored_payout` `stake_restored` `payout_restored` `bet_opens_at_last_stake` `changed_bet_to` `bet_moved_after_round` · on `outcome: freespin_trigger`, `trigger_stake` `trigger_base_stake` `terminal_base_stake` (the stake is read off the TRIGGER — a bonus round's own stake is 0) · on `change_bet_after: true`, `changed_bet_to` `bet_moved_after_round` `bet_opens_at_changed_value` · the gates: `info_captured` `last_bet_present` `resumed_rounds` |
-| `multi-tab-session` | ● | | | all 5 | `second_opened` `wait_s` |
-| `open-tutorial` | | ● | `TUTORIAL_WEBVIEW` | all 5 | `tutorial_open` `scroll_steps` `shot_count` `is_webview` |
-| `p1-ways-win` | ● | | | chaos | `p1_ways` `illegal_reels` `expected_gross` `capped` — **line** |
-| `paytable-bet-scaling` | | ● | | chaos, dragon, dragon-vip, zeus | `bet_a` `bet_b` `line_bet_a/b` `divisor` |
-| `premium-reel-spin` | ● | | `PREMIUM_REEL` | dragon-vip | `packages_tested` `all_stakes_match` `all_ids_echoed` `all_bases_unchanged` `panel_blocked_while_on` `ante_blocked_while_on` `off_spin_plain` |
-| `raining-wild` | ● | | | chaos | `wilds` `expected_raining` `control_wilds` — **line** |
-| `random-multiplier` | ● | | | chaos | `base_multipliers` `fs_multipliers` `all_in_ladder` — **line** |
-| `reconnect-brief` | ● | | | all 5 | `recovered` `offline_s` `played_after_reconnect` |
-| `reconnect-during-auto` | ● | | | chaos, mystic | `recovered` `offline_s` |
-| `reconnect-long` | ● | | | all 5 | `offline_s` |
-| `reels-glow` | ● | | | mystic, grandma | `bonus_reels_hit` `bonus_reels` `p1_reels_hit` `p1_reels` `p1_on_reel2` `p1_on_reel3` · marks: spin. The facts are the FIXTURE GUARD: the glow itself has no bridge signal on any game, so they prove what landed before the video is asked what glowed |
-| `sound-toggles` | | | `SOUND_GETTERS` | dragon, dragon-vip, zeus | `sound_before/after_off` `music_after_off` `toggled` |
-| `walking-wild` | ● | | | grandma | `fs_rounds` `wild_counts` `wild_cells_match_view_rounds` `grid_matches_view_rounds` `walk_started_in_base` `fs_rounds_with_wilds` `multi_wild_rounds` `more_wild_rounds` `fewer_wild_rounds` `moved_wild_rounds` `wild_change_rounds` `walk_animation_rounds` `walk_overlapped_spin_rounds` `stand_in_rounds` `exit_animation_rounds` `wild_wins_use_parked_cells` `walk_finished_before_next_round` `min_walk_ms` `bonuses_played` `transitions_seen` `speed_mode` `stop_clicks` · marks: base_before, base_after, new_wild, more_wilds, fewer_wilds, moved_wild, multi_wild. Takes base spins BEFORE and AFTER on purpose — "a wild walks on only in free spins" needs the base game in the same recording |
-| `spin-inputs` | ● | | | all 5 | `click_rounds` `key_rounds` `hold_done` `dblclick_done` |
-| `spin-then-history` | ● | | | all 5 | `outcome_count` `outcomes_found` `missing` |
-| `stacked-popups` | | ● | | chaos, mystic | `toggles_landed` `max_concurrent_popups` `popup_order` |
-| `toggle-auto` | | | | chaos, mystic | `auto_started` `stop_clicked` `spins_played` `returned_to_idle` |
-| `toggle-turbo` | | | | chaos, mystic | `speed_before` `speed_after_on` `speed_changed_on` `toggled_off` |
-| `turbo-modes` | ● | | | all 5 | `speed_toggled` `has_speed_getter` `mouse_hold_done` `key_hold_done` |
+| Scenario | bets | shots | cap | Used by |
+|---|:--:|:--:|---|---|
+| `ante-freespins` | ● | ● | `ANTE_BET` | chaos |
+| `ante-toggle` | ● | ● | `ANTE_BET` | chaos, dragon-vip |
+| `auto-change-bet-first` | | | | all 5 |
+| `auto-play` | ● | | | all 5 |
+| `auto-reload-cancels` | | | | all 5 |
+| `auto-stop-at-win` | | | | all 5 |
+| `auto-until-empty` | ● | | | all 5 |
+| `auto-user-stop` | | | | all 5 |
+| `base-cluster-win` | ● | | | mystic |
+| `base-spin` | ● | | | mystic |
+| `base-win` | ● | | | chaos, dragon, dragon-vip, zeus |
+| `bonus-resume-denomination-swap` | ● | ● | | all 5 |
+| `buy-bonus-lucky-spin` | ● | ● | `BUY_BONUS` | joker |
+| `boot-base` | | ● | | all 5 |
+| `browse-denominations` | | | `BET_POPUP` | all 5 |
+| `buy-bonus` | ● | | `BUY_BONUS` | dragon, dragon-vip, zeus, grandma |
+| `change-bet` | | | | all 5 |
+| `freespin-cascade` | ● | | | mystic |
+| `freespin-then-history` | ● | | | mystic |
+| `freespin-zero-balance` | ● | | | chaos, mystic |
+| `drama` | ● | | | grandma |
+| `freespin-reload` | ● | | | grandma |
+| `fs-complete` | ● | | | chaos, mystic, grandma |
+| `hold-spin-complete` | ● | | | dragon, dragon-vip, zeus |
+| `hold-spin-full-grid` | ● | | | dragon, dragon-vip, zeus |
+| `insufficient-balance` | | | | all 5 |
+| `language-sweep` | | ● | | *unused* |
+| `language-switch` | | ● | | chaos |
+| `language-tour` | | ● | | all 5 |
+| `last-bet-before-rounds` | ● | | | chaos, dragon-vip, mystic |
+| `last-bet-restore` | ● | ● | | all 5 |
+| `multi-tab-session` | ● | | | all 5 |
+| `open-tutorial` | | ● | `TUTORIAL_WEBVIEW` | all 5 |
+| `p1-ways-win` | ● | | | chaos |
+| `paytable-bet-scaling` | | ● | | chaos, dragon, dragon-vip, zeus |
+| `premium-reel-spin` | ● | | `PREMIUM_REEL` | dragon-vip |
+| `raining-wild` | ● | | | chaos |
+| `random-multiplier` | ● | | | chaos |
+| `reconnect-brief` | ● | | | all 5 |
+| `reconnect-during-auto` | ● | | | chaos, mystic |
+| `reconnect-long` | ● | | | all 5 |
+| `reels-glow` | ● | | | mystic, grandma |
+| `sound-toggles` | | | `SOUND_GETTERS` | dragon, dragon-vip, zeus |
+| `walking-wild` | ● | | | grandma |
+| `spin-inputs` | ● | | | all 5 |
+| `spin-then-history` | ● | | | all 5 |
+| `stacked-popups` | | ● | | chaos, mystic |
+| `toggle-auto` | | | | chaos, mystic |
+| `toggle-turbo` | | | | chaos, mystic |
+| `turbo-modes` | ● | | | all 5 |
 
 ---
 

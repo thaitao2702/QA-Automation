@@ -22,6 +22,41 @@ import re
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 
 
+def _codes(codes, meaning: str) -> dict:
+    return {c: meaning for c in codes}
+
+
+# Negative `code`s the server returns with `status: 0` — the server API doc's "Errors you should
+# handle" (slots3x3 client guide, commit 56a55e18, read 2026-10-27). Shared by every engine. Used only
+# to NAME a refusal in an error message; nothing branches on the meaning.
+SERVER_ERRORS: dict = {
+    -4: "session invalid or taken over by a newer tab",
+    -6: "payload could not be parsed",
+    -505: "action not supported by this game",
+    -101: "stake sent during free spins (send 0)",
+    **_codes(range(-107, -101), "stake, min, max, denomination or lines invalid"),
+    -301: "bet while in BuyBonus (call luckyspin)",
+    -2002: "insufficient balance",
+    -2003: "another operation still running",
+    -108: "ante wrong or changed during free spins",
+    -109: "ante not supported",
+    -110: "ante during a promo",
+    **_codes(range(-116, -110), "premium reel mismatch, disabled, promo, with ante, buy bonus or malformed"),
+    **_codes((-200, -209), "promo completed or ended"),
+    **_codes((-201, -202, -205), "promo cannot start, failed or invalid"),
+    -208: "stake sent during a promo",
+    -210: "another promo is active",
+    **_codes((-303, -305), "package invalid, or free spins already pending"),
+    -309: "not allowed in the current state",
+    -310: "lucky spin already set",
+    **_codes(range(-316, -310), "extension off, promo, max win, not eligible, package missing or wrong type"),
+    -1989: "bets sent too fast",
+    -1990: "earlier attempt failed; retry refused",
+    -1000: "unknown action or game code",
+    **_codes((-502, -504), "gateway error or no answer from the server"),
+}
+
+
 class SlotGame:
     """The contract ANY slot must satisfy to reuse this suite.
 
@@ -295,6 +330,30 @@ class SlotGame:
         role = _DEFAULT_POPUP_ROLE.get(label)
         return self.POPUPS.get(role) if role is not None else label
 
+    def reply_error(self, raw) -> dict | None:
+        """`{status, code, msg, meaning}` when `raw` is a REJECTED server reply, else None.
+
+        The server answers a refused action with HTTP 200 and an envelope that has NO `result`:
+        `{status: 0, code: <negative>, msg, timestamp}` (server API doc §01). Grandma, Dragon and
+        Joker document that their bridges keep these out of the round stream; Zeus, Dragon VIP,
+        Mystic and Chaos do not say. Read as a round, one parses as stake 0 / payout 0 /
+        balance 0 — a phantom round every check would then grade as real. So the parser refuses it.
+
+        Detection is narrow on purpose: no round object carries `status` or `code` (checked on
+        every captured fixture), so a dict that has both and is not a success (`status == 1`,
+        `code >= 0`) is the envelope of a refusal."""
+        if not isinstance(raw, dict) or "status" not in raw or "code" not in raw:
+            return None
+        try:
+            status = int(raw.get("status"))
+            code = int(raw.get("code") or 0)
+        except (TypeError, ValueError):
+            return None
+        if status == 1 and code >= 0:
+            return None
+        return {"status": status, "code": code, "msg": raw.get("msg") or "",
+                "meaning": SERVER_ERRORS.get(code, "not in the server API doc")}
+
     def unwrap(self, raw: dict) -> dict:
         """The BET object the engine should read fields from.
 
@@ -393,15 +452,52 @@ class SlotGame:
         return int(p.get(self.F_PENDING_FREE_SPINS or self.F_FREE_SPINS) or 0)
 
     def pending_is_bonus(self, info: dict) -> bool:
-        """True when `pending` describes an unfinished bonus, by counter OR by state. Both are
-        checked for the same reason the drain loop checks both: `hasReachedMaxWin` can leave a
-        non-base state with the counter already at 0, and a max-win truncation leaves the counter
-        above 0 with the state already back at base."""
+        """True when `pending` describes an unfinished bonus the client will AUTO-PLAY after Start,
+        by counter OR by state. Both are checked for the same reason the drain loop checks both:
+        `hasReachedMaxWin` can leave a non-base state with the counter already at 0, and a max-win
+        truncation leaves the counter above 0 with the state already back at base.
+
+        Only the `freespins` kind of `pending_resume` — a session waiting on the Lucky Spin wheel,
+        an extension offer or a promo is waiting on the PLAYER, and no free-spin round will come."""
+        return self.pending_resume(info) == "freespins"
+
+    # Reload order the server API doc prescribes (§06): draw `lastBet`, apply `pending`, then
+    #   pending.gameState == 3     -> show Lucky Spin          (WildExpanding, Ways)
+    #   pending.canBuyExtension    -> show the Extension popup (Default, WildExpanding, Ways)
+    #   needToStartPromo           -> offer the promo          (every engine)
+    F_PENDING_CAN_EXTEND = "canBuyExtension"
+    F_NEED_TO_START_PROMO = "needToStartPromo"
+
+    def pending_resume(self, info: dict) -> str | None:
+        """What a reloaded session is WAITING ON, from `gameInfo.pending`:
+
+            "extension"  the last free spin ended on the Extension offer (`canBuyExtension`)
+            "lucky_spin" a bought bonus is parked on the Lucky Spin wheel (`gameState == 3`)
+            "promo"      a free-game promo is running (`gameState == 4`); its spins are CLICKED
+            "freespins"  an unfinished bonus the client auto-plays as soon as Start is clicked
+            None         nothing owed
+
+        Only "freespins" may be drained with `awaitFreespinRound`. The other three wait on the
+        player: draining them waits for rounds that never come, and the boot fails on a healthy
+        session. Order matters — an extension offer is reported in the free-game state with
+        `freeSpins: 0`, so it is checked before the counter/state rule would call it a bonus."""
         p = self.pending(info)
         if not p:
-            return False
+            return None
         state = p.get(self.F_PENDING_GAME_STATE or self.F_GAME_STATE)
-        return bool(self._pending_count(p)) or self.is_bonus_state(state)
+        if p.get(self.F_PENDING_CAN_EXTEND):
+            return "extension"
+        if state == self.BUYBONUS_STATE:
+            return "lucky_spin"
+        if state == self.PROMO_STATE:
+            return "promo"
+        if self._pending_count(p) or self.is_bonus_state(state):
+            return "freespins"
+        return None
+
+    def promo_offered(self, info: dict) -> bool:
+        """`gameInfo.needToStartPromo`: the client will OFFER a free-game promo after load."""
+        return bool(isinstance(info, dict) and info.get(self.F_NEED_TO_START_PROMO))
 
     def last_bet(self, info: dict) -> dict:
         """`gameInfo.lastBet` — the last completed round, in BET-response shape. Parseable by the
@@ -480,6 +576,87 @@ class SlotGame:
         # is 5.999999999999999 in binary — so a bare `>=` calls the 6x round a medium win, the
         # celebration plays, and the skip that was supposed to save the time never fires.
         return payout > 0 and (payout / base) >= float(threshold) - 1e-9
+
+    # ── Max-win cap ──────────────────────────────────────────────────────────────────────
+    # Server API doc, "Max-win cap" (every engine):
+    #     maxWin = min(MaxPayout, baseStake x MaxMultiplier)       a 0 in either = that half unset
+    # counted over the WHOLE round (`accumulatedWinAmount`, which INCLUDES the current spin), so
+    # the spin that crosses it pays only what is left. `rawPayout` is the win before the cap,
+    # `payout` after it. Proved on the captures: Mystic's capped lastBet has accumulated 10.00 ==
+    # maxPayout, payout 2.00, rawPayout 11.20 -> 8.00 already won, 2.00 left, 2.00 credited.
+    # The reply's own `maxWin` is 0 on WildExpanding and Cascading (Joker, Mystic) and on Grandma's
+    # purchase round, so the cap falls back to the launch settings, kept by `remember_launch`.
+    F_RAW_PAYOUT = "rawPayout"
+    F_ACCUMULATED = "accumulatedWinAmount"
+    F_MAX_WIN_CAP = "maxWin"
+    F_MAX_PAYOUT = "maxPayout"          # gameInfo.settings (Ways: settings.general)
+    F_MAX_MULTIPLIER = "maxMultiplier"
+    launch_caps: dict | None = None     # {max_payout, max_multiplier} from the latest gameInfo
+
+    def remember_launch(self, info: dict) -> None:
+        """Keep the max-win settings of the launch payload just read, so a round can be measured
+        against the cap the server applied. A payload with no settings block (a bridge that could
+        not answer) leaves the previous copy alone rather than wiping it.
+
+        Called on EVERY load: a run that pushes a `max_win_x` paytable changes `maxPayout`, and the
+        next load is where that change becomes visible. Each `Bet` freezes the cap at parse time,
+        so a round recorded before a reload keeps the cap it was played under."""
+        s = self.settings(info)
+        if not s:
+            return
+        general = s.get("general") if isinstance(s.get("general"), dict) else {}
+
+        def num(key):
+            v = s.get(key)
+            if v is None:
+                v = general.get(key)
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                return None
+            return f if f > 0 else None
+
+        self.launch_caps = {"max_payout": num(self.F_MAX_PAYOUT),
+                            "max_multiplier": num(self.F_MAX_MULTIPLIER)}
+
+    def max_win_cap(self, raw: dict):
+        """The round's max-win cap in currency, or `None` when neither the reply nor the launch
+        settings set one. The reply's own `maxWin` wins when it is filled (> 0)."""
+        try:
+            v = float(raw.get(self.F_MAX_WIN_CAP) or 0)
+        except (TypeError, ValueError):
+            v = 0.0
+        if v > 0:
+            return v
+        caps = self.launch_caps or {}
+        candidates = []
+        if caps.get("max_payout"):
+            candidates.append(caps["max_payout"])
+        base = self.base_stake(raw)
+        if caps.get("max_multiplier") and base > 0:
+            candidates.append(round(base * caps["max_multiplier"], 10))
+        return min(candidates) if candidates else None
+
+    def round_won_before(self, raw: dict) -> float:
+        """What the round had already won BEFORE this spin: `accumulatedWinAmount - payout`.
+        `0` where the reply carries no running total, which is right for a single-spin round."""
+        try:
+            acc = raw.get(self.F_ACCUMULATED)
+            if acc is None:
+                return 0.0
+            return max(float(acc) - float(raw.get(self.F_PAYOUT) or 0), 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def max_win_left(self, raw: dict, cap=None):
+        """What THIS spin may still credit under the cap (`cap - round_won_before`, never below 0),
+        or `None` when there is no cap. `cap` defaults to `max_win_cap(raw)`; pass the one a `Bet`
+        froze at parse time."""
+        if cap is None:
+            cap = self.max_win_cap(raw)
+        if cap is None:
+            return None
+        return max(round(cap - self.round_won_before(raw), 10), 0.0)
 
     def game_state(self, raw: dict):
         """The state this backend reports. A build without an explicit field DERIVES one, so the
@@ -1294,9 +1471,7 @@ class ChaosRunner(LineGame):
     F_PAYLINES = "paylines"          # [{symbols, payline, payoutRate, winType}]
     F_BET_LINES = "betLines"         # 20 in every sample
     F_WINLOSE = "winlose"            # payout - stake
-    F_ACCUMULATED = "accumulatedWinAmount"
-    F_RAW_PAYOUT = "rawPayout"
-    F_MAX_WIN_CAP = "maxWin"
+    # rawPayout / accumulatedWinAmount / maxWin: inherited from SlotGame (every engine sends them)
 
     # ── Bridge dialect ───────────────────────────────────────────────────────────────────
     # VERIFIED LIVE 2026-09-02 (scripts/probe_bridge.py --game chaos --env dev, plus a probe that
@@ -1541,21 +1716,16 @@ class ChaosRunner(LineGame):
             return None
         return round(self.expected_line_win(raw) + self.expected_scatter_win(raw), 10)
 
-    def max_win_cap(self, raw: dict):
-        """The round's max-win cap in currency, or `None` when unset/zero."""
-        try:
-            v = float(raw.get(self.F_MAX_WIN_CAP) or 0)
-        except (TypeError, ValueError):
-            return None
-        return v if v > 0 else None
-
     def expected_payout(self, raw: dict):
         """What this round SHOULD have CREDITED — the raw win, truncated at the max-win cap.
 
             lineWin    = randomMultiplier x SUM(payoutRate) x baseStake / betLines
             scatterWin = scatterMultiplier x baseStake          <- no divisor; see above
             rawPayout  = lineWin + scatterWin
-            payout     = min(rawPayout, maxWin)
+            payout     = min(rawPayout, cap left in the round)  <- SlotGame.max_win_left
+
+        The cap counts the WHOLE round, so a free spin late in a bonus may credit less than
+        `maxWin` itself; on a base spin (nothing won before it) the two are the same number.
 
         Verified exact on all six captured samples. The cap is not theoretical: one captured round
         earned `rawPayout: 12` against `maxWin: 10` and credited **10**, with `hasReachedMaxWin`
@@ -1565,8 +1735,8 @@ class ChaosRunner(LineGame):
         raw_win = self.expected_raw_payout(raw)
         if raw_win is None:
             return None
-        cap = self.max_win_cap(raw)
-        return round(min(raw_win, cap), 10) if cap is not None else raw_win
+        left = self.max_win_left(raw)
+        return round(min(raw_win, left), 10) if left is not None else raw_win
 
     def raining_wild_expected(self, raw: dict):
         """Whether Raining Wild MUST play for this result (2+ Wilds -> 100%, else 0%).

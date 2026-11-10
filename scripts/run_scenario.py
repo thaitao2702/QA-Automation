@@ -815,7 +815,9 @@ async def main() -> int:
     ap.add_argument("--headless", action="store_true")
     ap.add_argument("--slow-mo", type=int, default=0)
     ap.add_argument("--no-ai", action="store_true", help="skip video (AI) asserts, leave them pending")
-    ap.add_argument("--only", default=None, help="run only these scenarios from the suite (comma-separated)")
+    ap.add_argument("--only", default=None,
+                    help="run only these runs from the suite, by run `name:` (or by scenario name, "
+                         "which picks every run of it); comma-separated")
     ap.add_argument("--teardown", default=None, help="run-level teardown name for the ad-hoc --scenario path")
     args = ap.parse_args()
 
@@ -855,11 +857,16 @@ async def main() -> int:
     else:
         sys.exit("pass --suite <yaml> or --scenario <name>")
 
-    if args.only:                       # keep only the named scenario(s)
-        want = {s.strip() for s in args.only.split(",")}
-        runs = [r for r in runs if r.get("scenario") in want]
+    if args.only:                       # keep only the named run(s)
+        # A RUN NAME picks exactly that run; a SCENARIO NAME still works and picks every run of
+        # that scenario (the old behaviour). Comma-separated, either kind, mixed.
+        want = {s.strip() for s in args.only.split(",") if s.strip()}
+        runs = [r for r in runs if r.get("name") in want or r.get("scenario") in want]
         if not runs:
-            sys.exit(f"--only {args.only}: no matching scenario in the suite")
+            names = [r.get("name") or r.get("scenario") for r in
+                     ([x.get("run", x) for x in (doc.get("runs") or [])] if args.suite else [])]
+            sys.exit(f"--only {args.only}: no run with that name (or scenario) in the suite. "
+                     f"Run names: {', '.join(n for n in names if n)}")
 
     se.set_profile(args.game)          # per-game dialect: buttons, popups, states, capabilities
     url = resolve_url(args.game, args.env, args.url)
@@ -946,12 +953,25 @@ async def main() -> int:
                 cur_url, cur_lang, game_loaded = new_url, lang, True
                 return new_url
 
+            used_names: set = set()
             for run_doc in runs:
-                name = run_doc["scenario"]
+                scen_name = run_doc["scenario"]
+                # The RUN's name labels everything this run produces -- its result folder, its
+                # report section, its replay chapter. It used to be the scenario name, so two runs
+                # of one scenario (four `last-bet-restore` runs in gm-lastbet) wrote into ONE folder
+                # and each overwrote the last. A suite gives every run a `name:`; without one the
+                # scenario name is used, and a repeat gets a -2, -3... so nothing is overwritten.
+                name = str(run_doc.get("name") or scen_name)
+                if name in used_names:
+                    k = 2
+                    while f"{name}-{k}" in used_names:
+                        k += 1
+                    name = f"{name}-{k}"
+                used_names.add(name)
                 section = open_section(name)
-                scenario = se.REGISTRY.get(name)
+                scenario = se.REGISTRY.get(scen_name)
                 if scenario is None:
-                    print(f"  ! unknown scenario '{name}' -- skipping")
+                    print(f"  ! unknown scenario '{scen_name}' -- skipping")
                     processed.append({"name": name, "error": "unknown scenario"})
                     continue
                 # `params:` — build a FRESH instance with the run's arguments, so a scenario's
@@ -965,7 +985,7 @@ async def main() -> int:
                         print(f"  ! bad params for '{name}': {e} -- skipping")
                         processed.append({"name": name, "error": f"bad params: {e}"})
                         continue
-                print(f"\n=== scenario: {name} ==="
+                print(f"\n=== run: {name} (scenario: {scen_name}) ==="
                       + (f"\n  params: {params}" if params else "")
                       + f"\n  {scenario.description}")
                 run_dir = root / name

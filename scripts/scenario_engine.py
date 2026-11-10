@@ -70,6 +70,18 @@ FREESPIN_STATE = GAME.FREESPIN_STATE  # gameState: free spins
 VIEWPORT = GAME.VIEWPORT
 
 
+class BetRejected(RuntimeError):
+    """The bridge handed over a server REFUSAL where a round was expected. It is not a round, so it
+    must not reach `conservation` or any other round check; the run errors and names the code."""
+
+    def __init__(self, err: dict, seq: int):
+        self.err = err
+        super().__init__(
+            f"server rejected the bet at stream seq {seq}: code {err['code']} "
+            f"({err['meaning']}) status={err['status']} msg={err['msg']!r}. A refusal is not a "
+            f"round, so it was not recorded as one.")
+
+
 # ---------------------------------------------------------------------------
 # One BET response, reduced to the fields we drive/assert on. `.raw` keeps the
 # untouched server object so binding ({res.payout}) reads the real contract field.
@@ -95,6 +107,9 @@ class Bet:
     round_id: Optional[str]
     raw: dict
     phase: Optional[str] = None    # set by DriveContext: "base"/"trigger" (paid) vs "freespin" (auto)
+    # The max-win cap in force when this round was PARSED: the reply's `maxWin`, else the launch
+    # settings (GAME.max_win_cap). Frozen here because a later reload can change `maxPayout`.
+    max_win: Optional[float] = None
 
     @classmethod
     def parse(cls, r: dict, seq: int) -> "Bet":
@@ -106,7 +121,13 @@ class Bet:
         (Chaos's `awaitBetResponse` is documented to). Reading `payout` off an envelope finds
         nothing, so every round would parse as a zero-payout loss and `conservation` would fail on a
         game that is behaving perfectly. Profiles that already hand back the inner object are
-        unaffected — `unwrap` is identity for them."""
+        unaffected — `unwrap` is identity for them.
+
+        A REJECTED reply (`status: 0`, negative `code`, no `result`) is refused with `BetRejected`
+        instead of becoming a stake-0 / payout-0 / balance-0 round that every check would grade."""
+        err = GAME.reply_error(r)
+        if err is not None:
+            raise BetRejected(err, seq)
         r = GAME.unwrap(r)
         rem, awarded = GAME.free_spins(r)
         return cls(
@@ -123,6 +144,7 @@ class Bet:
             cascades=len(GAME.steps(r)),
             round_id=r.get(GAME.F_ROUND_ID),
             raw=r,
+            max_win=GAME.max_win_cap(r),
         )
 
     def row(self) -> dict:
@@ -212,7 +234,9 @@ async def read_game_info(page: Page) -> dict:
     only moment it can act on the answer: once `startGame()` has resolved and the resumed rounds are
     about to arrive. A bridge that re-queries the server here instead would report a `pending` block
     the resume has already cleared, and the framework would never know to drain it."""
-    return GAME.game_info(await page.evaluate(_GAME_INFO_JS) or {})
+    info = GAME.game_info(await page.evaluate(_GAME_INFO_JS) or {})
+    GAME.remember_launch(info)              # max-win settings for rounds parsed from here on
+    return info
 
 
 def _ladder_num(v):
@@ -393,6 +417,30 @@ async def drain_to_base(page: Page, bonus_open: bool, on_round=None,
     return rounds
 
 
+async def answer_lucky_spin(page: Page, timeout_ms: int = 30000) -> None:
+    """Answer the LUCKY SPIN wheel a reloaded session is parked on (`pending.gameState == 3`),
+    by KEEPING the multiplier it shows — the choice that changes nothing the next run depends on.
+
+    Page-level for the same reason as `answer_extension_offer`: the wheel is raised inside
+    `start_game`, before any scenario is driving. The wheel is clicked, never dismissed:
+    `dismissPopups()` deliberately leaves it open (Joker bridge-api.md §12.5).
+
+    Raises, naming the state, when the profile has no `lucky_keep` control or the wheel never
+    becomes clickable — the session cannot reach a base game any other way, and failing here beats
+    a 60 s `awaitFreespinRound` timeout that names the wrong thing."""
+    keep = GAME.button("lucky_keep")
+    if not keep:
+        raise RuntimeError(
+            "this session is parked on the Lucky Spin wheel (gameInfo.pending.gameState == 3) and "
+            f"profile '{GAME.name}' has no `lucky_keep` button to answer it. Add the role to the "
+            "profile, or clear the session, before running.")
+    call = f"b.waitForButtonClickable({json.dumps(keep)}, undefined, {int(timeout_ms)})"
+    rect = await _await(page, call, timeout_ms + 2000, f"waitForButtonClickable({keep})")
+    if not rect:
+        raise RuntimeError(f"waitForButtonClickable('{keep}') returned no rect")
+    await page.mouse.click(rect["centerX"], rect["centerY"])
+
+
 async def start_game(page: Page, timeout_ms: int = 60000, on_freespin=None,
                      fs_timeout_ms: int = 60000, cap: int = 500) -> dict:
     """Enter the game and leave it in a clean, spinnable base state, resuming any owed bonus.
@@ -433,19 +481,40 @@ async def start_game(page: Page, timeout_ms: int = 60000, on_freespin=None,
     await click_start(page, timeout_ms)                      # 1: resolves at the Start CLICK
     info_raw = await page.evaluate(_GAME_INFO_JS) or {}      # 2: the bridge's captured copy
     info = GAME.game_info(info_raw)
+    GAME.remember_launch(info)                               # max-win settings for this session
     owed = GAME.pending_free_spins(info)
-    bonus_open = GAME.pending_is_bonus(info)
-    if bonus_open:
-        print(f"  gameInfo.pending: {owed} free spin(s) owed "
-              f"(gameState={GAME.pending(info).get(GAME.F_GAME_STATE)!r}) -- the client is "
-              f"auto-playing them; playing out from the BET responses before any scenario runs.")
+    # What the session waits on decides HOW it is cleared (server API doc §06 reload order). Only
+    # an auto-playing bonus is drained; the wheel and the offer wait on a click, and draining them
+    # waits for free-spin rounds that never come.
+    resume = GAME.pending_resume(info)
+    state = GAME.pending(info).get(GAME.F_PENDING_GAME_STATE or GAME.F_GAME_STATE)
+    bonus_open = resume == "freespins"
+    if resume == "freespins":
+        print(f"  gameInfo.pending: {owed} free spin(s) owed (gameState={state!r}) -- the client "
+              f"is auto-playing them; playing out from the BET responses before any scenario runs.")
+    elif resume == "lucky_spin":
+        print("  gameInfo.pending: a bought bonus is parked on the LUCKY SPIN wheel "
+              "(gameState=3) -- keeping the shown multiplier, then playing the bonus out.")
+        await answer_lucky_spin(page, timeout_ms)
+        bonus_open = True                   # the wheel is answered: the bought spins play themselves
+    elif resume == "extension":
+        print("  gameInfo.pending: the last free spin ended on the EXTENSION offer "
+              "(canBuyExtension) -- declining it before the idle check.")
+        await answer_extension_offer(page, expect=True)
+    elif resume == "promo":
+        print("  gameInfo.pending: a free-game PROMO is running (gameState=4). Promo spins are "
+              "clicked by the player, so nothing is drained; the idle check below decides.")
+    if GAME.promo_offered(info):
+        print("  gameInfo.needToStartPromo: the client will OFFER a promo. The framework never "
+              "accepts one; if its popup blocks the spin button the idle check below says so.")
     # 3 + 4: the shared core -- play the bonus out, then assert the base. Identical to what a run
     # start does; only the evidence that a bonus is open differs (pending here, last_bet there).
     resumed = await drain_to_base(page, bonus_open, on_freespin, fs_timeout_ms, cap)
     if bonus_open:
         print(f"  played out {len(resumed)} resumed free-spin round(s) at load")
     return {"game_info": info, "game_info_raw": info_raw, "pending": GAME.pending(info),
-            "pending_free_spins": owed, "resumed": resumed, "resumed_terminal": bool(resumed) or None}
+            "pending_free_spins": owed, "pending_resume": resume, "resumed": resumed,
+            "resumed_terminal": bool(resumed) or None}
 
 
 # ---------------------------------------------------------------------------
@@ -1505,6 +1574,8 @@ async def confirm_stopped(ctx: DriveContext, watch_ms: int = 6000, dwell_ms: int
         raw = await await_bet_response(ctx.page, watch_ms)
         extra = True                                   # something bet again -> it did NOT stop
         ctx._record(Bet.parse(raw, len(ctx.events)), "auto", t0)
+    except BetRejected:                # a bet WAS sent (and refused): never read that as "stopped"
+        raise
     except Exception:  # noqa: BLE001 -- nothing bet in the window = stopped
         extra = False
     # POLL the auto flag, do not sample it once. The client clears `isAutoPlay` when it has finished
@@ -3903,6 +3974,8 @@ class SpinInputs(Scenario):    # Mah_035-040
             nb = Bet.parse(raw, len(ctx.events))
             ctx._record(nb, "base" if nb.stake > 0 else "freespin", ctx.now_s())
             after_release.append(nb)
+        except BetRejected:            # a bet WAS sent (and refused): never read that as "stopped"
+            raise
         except Exception:  # noqa: BLE001 -- nothing came: auto stopped with the release
             pass
         held = hold_bets + after_release
@@ -3932,6 +4005,8 @@ class SpinInputs(Scenario):    # Mah_035-040
             extra = Bet.parse(raw, len(ctx.events))
             ctx._record(extra, "base", ctx.now_s())
             r4 = r4 + await finish_round(ctx, extra)
+        except BetRejected:            # a bet WAS sent (and refused): never read that as "no double-fire"
+            raise
         except Exception:  # noqa: BLE001 -- no extra spin: the double-click did not double-fire
             pass
         rounds = r1 + r2 + r_hold + r3 + r4
@@ -5685,6 +5760,8 @@ async def settle_to_base(ctx: DriveContext, label: str = "", dwell_ms: int = 200
             raw = await await_bet_response(ctx.page, watch_ms)
             extra = True                    # something bet again -> it did not settle to idle
             ctx._record(Bet.parse(raw, len(ctx.events)), "base", ctx.now_s())
+        except BetRejected:            # a bet WAS sent (and refused): never read that as "idle"
+            raise
         except Exception:  # noqa: BLE001 -- nothing bet in the window = idle, which is the point
             extra = False
         # the same text either way: a mark that said "a further round was wagered" told the model
@@ -7096,7 +7173,8 @@ class P1WaysWin(Scenario):    # CR_045 / 062 / 063
 
         raw = win.raw or {}
         p1_ways_count, base_stake = GAME.p1_ways(raw), GAME.base_stake(raw)
-        cap = GAME.max_win_cap(raw)
+        cap = win.max_win if win.max_win is not None else GAME.max_win_cap(raw)
+        left = GAME.max_win_left(raw, cap)            # the cap counts the whole round
         gross = raw.get(GAME.F_RAW_PAYOUT)
         gross = float(gross) if gross is not None else None
         facts.update({"p1_ways": p1_ways_count,
@@ -7110,7 +7188,7 @@ class P1WaysWin(Scenario):    # CR_045 / 062 / 063
                       "actual_payout": win.payout,
                       "expected_credited": GAME.expected_payout(raw),
                       "max_win": cap,
-                      "capped": bool(gross is not None and cap is not None and gross > cap + 1e-9),
+                      "capped": bool(gross is not None and left is not None and gross > left + 1e-9),
                       # The DOCUMENTED formula, split out so a case can check the figure the player
                       # actually sees: design doc \u00a74 gives
                       #   Total Payout = Total Ways x Symbol Multiplier x Bet base
@@ -8579,18 +8657,27 @@ def scatter_pay_matches_p1_ways(rounds: list) -> dict:
 
 
 def max_win_cap_applied(rounds: list) -> dict:
-    """A round credits `min(rawPayout, maxWin)`, and flags `hasReachedMaxWin` exactly when it was
-    truncated.
+    """A spin credits `min(rawPayout, cap left in the round)`, and flags `hasReachedMaxWin`
+    exactly when it was truncated.
+
+    The cap counts the WHOLE round (server API doc, "Max-win cap"): the spin that crosses it pays
+    only the rest. `left = cap - (accumulatedWinAmount - payout)`; on a base spin nothing was won
+    before it, so `left == cap`. The cap is the reply's `maxWin`, or — where the reply leaves it 0
+    (Joker, Mystic) — `min(maxPayout, baseStake x maxMultiplier)` from the launch settings, frozen
+    on the `Bet` when it was parsed.
 
     Both halves matter. Credit above the cap is a payout defect; `hasReachedMaxWin` set without a
     truncation (or missing after one) is a reporting defect that would mislead the free-spin drain,
-    which treats max-win as a legitimate reason for a bonus to end early.
+    which treats max-win as a legitimate reason for a bonus to end early. A spin whose gross lands
+    EXACTLY on what was left (within half a cent) reaches the cap without being cut, so either
+    flag value is accepted there.
 
-    Confirmed on a real round: `rawPayout: 12`, `maxWin: 10`, `payout: 10`, flag true."""
+    Confirmed on real rounds: Chaos base `rawPayout: 12`, `maxWin: 10`, `payout: 10`, flag true;
+    Mystic free spin `rawPayout: 11.20`, accumulated 10.00 of cap 10.00, `payout: 2.00`, flag true."""
     v, checked = [], 0
     for b in _line_rounds(rounds):
         raw = b.raw or {}
-        cap = GAME.max_win_cap(raw)
+        cap = b.max_win if b.max_win is not None else GAME.max_win_cap(raw)
         if cap is None or GAME.F_RAW_PAYOUT not in raw:
             continue
         try:
@@ -8598,14 +8685,19 @@ def max_win_cap_applied(rounds: list) -> dict:
         except (TypeError, ValueError):
             continue
         checked += 1
-        want = min(gross, cap)
+        before = GAME.round_won_before(raw)
+        left = GAME.max_win_left(raw, cap)
+        want = round(min(gross, left), 10)
         if abs(want - b.payout) > 0.005:
-            v.append(f"seq {b.seq}: rawPayout {gross} against cap {cap} should credit {want}, "
-                     f"but payout is {b.payout}")
-        truncated = gross > cap + 1e-9
-        if bool(raw.get(GAME.F_MAX_WIN)) != truncated:
-            v.append(f"seq {b.seq}: hasReachedMaxWin is {bool(raw.get(GAME.F_MAX_WIN))} but "
-                     f"rawPayout {gross} vs cap {cap} says it should be {truncated}")
+            v.append(f"seq {b.seq}: rawPayout {gross} against cap {cap} ({before} already won "
+                     f"this round, {left} left) should credit {want}, but payout is {b.payout}")
+        flag = bool(raw.get(GAME.F_MAX_WIN))
+        if abs(gross - left) <= 0.005:
+            continue                               # exactly on the cap: reached, not cut
+        truncated = gross > left
+        if flag != truncated:
+            v.append(f"seq {b.seq}: hasReachedMaxWin is {flag} but rawPayout {gross} vs "
+                     f"{left} left of cap {cap} says it should be {truncated}")
     if not checked:
         return {"valid": False, "violations": [
             "no round reported both a max-win cap and a rawPayout — nothing was checked"]}

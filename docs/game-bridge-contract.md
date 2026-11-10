@@ -267,12 +267,20 @@ Every entry point — first load, `reload_and_start`, the second multi-tab sessi
 ```
 1. startGame()                  -> resolves at the Start CLICK; nothing else is expected of it
 2. getGameInfo()                -> the bridge's CAPTURED copy; the click has not invalidated it
-3. if pending is an unfinished bonus:
+3. what is pending waiting on?  (profile.pending_resume, server API doc §06 reload order)
+     freespins   an unfinished bonus the client auto-plays:
        awaitFreespinRound() ... -> play it out from the API side until a round is TERMINAL:
                                    freeSpins == 0 OR gameState == base
                                    (both -- hasReachedMaxWin can truncate either way)
+     lucky_spin  pending.gameState == 3: keep the wheel's multiplier, then drain as above
+     extension   pending.canBuyExtension: decline the offer; nothing to drain
+     promo       pending.gameState == 4: promo spins are CLICKED; nothing to drain
 4. waitForSpinClickable()       -> the game is back to a clean, spinnable base
 ```
+
+Only `freespins` may be drained. The other three wait on the PLAYER, so `awaitFreespinRound` would
+wait for rounds that never come and fail the boot of a healthy session. `needToStartPromo` is only
+logged: the framework never accepts a promo, and if its popup blocks the spin button step 4 says so.
 
 **Every step has exactly one authority.** Nothing is cross-checked against a second signal. Two
 judgements of the same fact can disagree, and whichever one is allowed to break the tie quietly
@@ -540,6 +548,16 @@ Two rules the whole suite leans on:
    a bridge must not do is send a sentinel that could pass for a real value — a balance of `0` on a
    round that did not report one is indistinguishable from a player who is broke. **Prefer omitting
    the field, or documenting the sentinel in `games/<game>/bet-response.md`.**
+4. **A refused bet is not a round.** The server answers a refusal with HTTP 200 and
+   `{status: 0, code: <negative>, msg}` with no `result`. A bridge should keep these out of the
+   round stream (Grandma, Dragon and Joker document that they do); if one gets through anyway,
+   `Bet.parse` raises `BetRejected` naming the code instead of grading a stake-0 / payout-0 round.
+5. **The max-win cap counts the whole round.** `cap = maxWin`, or where the reply leaves it `0`
+   (WildExpanding, Cascading: Joker, Mystic) `min(settings.maxPayout, baseStake ×
+   settings.maxMultiplier)`, a `0` in either meaning unset. The spin that crosses it credits only
+   what is left: `payout = min(rawPayout, cap − (accumulatedWinAmount − payout))`, and
+   `accumulatedWinAmount` includes the current spin. `max_win_cap_applied` checks exactly this on
+   every profile.
 
 **Paid features in the response.** Where a build ships Ante Bet or Premium Reel, every round bet with
 one echoes it — `anteMultiplier`, or `premiumReelId` + `premiumReelMultiplier` — and `0` means the

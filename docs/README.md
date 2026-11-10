@@ -18,8 +18,9 @@ Read this page, then open only what you need. Every doc is listed once, under th
 | Doc | Read it when |
 |---|---|
 | [scenario-assert-authoring.md](scenario-assert-authoring.md) | **Writing test cases** — the YAML `scenario:` + `assert:` layer. §2 is the one to read before writing any `video:` prompt: a response value is not what the screen shows at that moment. |
+| [assert-traps.md](assert-traps.md) | **Before writing any assert.** Real failures (balance, counting, inverse pair, per-round window) and the rules each one taught. Add new ones here. |
 | [scenario-toolkit.md](scenario-toolkit.md) | **Writing scenario code — start here.** Every helper a scenario may call, grouped by job, with signatures, the facts each returns, a scenario template, and the ones never to call. Checked against the engine, so it is complete. |
-| [scenario-authoring-rules.md](scenario-authoring-rules.md) | **Writing scenario code** (`scripts/scenario_engine.py`). Opens with **the toolkit** — the shared, game-agnostic helpers to reuse instead of re-implementing (`spin_and_finish`, `play_out_freespins`, `confirm_stopped`, `is_terminal`, …) — then five rules. Rule 1 first: any bet response may be a free-spin trigger, and ignoring one hangs the run. |
+| [scenario-authoring-rules.md](scenario-authoring-rules.md) | **Writing scenario code** (`scripts/scenario_engine.py`). An **index**: the toolkit, then all 21 rules with a summary and "read it when" each, linking to one file per rule in [scenario-rules/](scenario-rules/). Read the index, open only the rules you need. |
 | [authoring-flow.md](authoring-flow.md) | Writing cases in the readable `.flow.yml` form. |
 
 ## The bridge (what the game must expose)
@@ -74,8 +75,8 @@ design got here.
 |---|---|
 | What is this platform? | [qa-guide.md](qa-guide.md) |
 | How do I add tests for a mechanic? | [scenario-assert-authoring.md](scenario-assert-authoring.md) |
-| Why did my `video:` assert fail when the game looked fine? | [scenario-assert-authoring.md §2](scenario-assert-authoring.md) |
-| My scenario hung on `waitForSpinClickable` | [scenario-authoring-rules.md](scenario-authoring-rules.md) Rule 1 |
+| Why did my `video:` assert fail when the game looked fine? | [assert-traps.md](assert-traps.md) |
+| My scenario hung on `waitForSpinClickable` | [Rule 1](scenario-rules/rule-01-freespin-trigger.md) |
 | What must the game team implement? | [game-bridge-contract.md](game-bridge-contract.md) §2, §9 |
 | What breaks if the bridge omits function X? | [game-bridge-contract.md](game-bridge-contract.md) §7 |
 | How do I onboard a new game? | [session-summary-scenario-qa-3.md](session-summary-scenario-qa-3.md), then [game-bridge-contract.md](game-bridge-contract.md) §12 (profile) and §8 (where system buttons live) |
@@ -86,6 +87,6 @@ design got here.
 | A run failed in "prepare" / "cleanup" — what is that? | [run-lifecycle.md](run-lifecycle.md) §3, §7 |
 | Does the framework play out free spins for me? | [run-lifecycle.md](run-lifecycle.md) §3 — between runs yes, inside a run no |
 | Is there already a helper for this? | [scenario-toolkit.md](scenario-toolkit.md) |
-| How do I prove something STOPPED? | [scenario-authoring-rules.md](scenario-authoring-rules.md) Rule 4 — `confirm_stopped()` |
+| How do I prove something STOPPED? | [Rule 4](scenario-rules/rule-04-prove-stopped.md) — `confirm_stopped()` |
 | How do I prove a bonus returned to the base game? | [scenario-toolkit.md](scenario-toolkit.md) §3 — `settle_to_base()` |
 | How should a new scenario be laid out? | [scenario-toolkit.md](scenario-toolkit.md) §0 — the template |

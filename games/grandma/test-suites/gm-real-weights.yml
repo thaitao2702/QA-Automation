@@ -38,6 +38,7 @@ runs:
   #   (bet-response.md §9), so the sampled grid is the only exact record of what the player saw.
   #   It has to be read between the response and the first free spin — after the drain it is gone.
   - run:
+      name: buy-bonus
       scenario: buy-bonus
       params: { package: 0, sample_reveal: true }
       teardown: return-to-base
@@ -154,6 +155,7 @@ runs:
   #   pending", and Lucky Spin is disabled here — a 3 would mean the client parked the resume in a
   #   state it has no UI to leave.
   - run:
+      name: freespin-reload
       scenario: freespin-reload
       params: { source: buy, after_rounds: 2 }
       teardown: return-to-base
@@ -249,6 +251,7 @@ runs:
   #   `more_wilds`, `fewer_wilds`, `moved_wild`, `multi_wild`). No transition → no mark → the
   #   assert reports UNREACHED rather than passing on no evidence.
   - run:
+      name: walking-wild
       scenario: walking-wild
       # ⚠ `max_bonuses: 3`. TC-151/152/153 each need a transition the SERVER decides — a
       # wild arriving, leaving, moving — and none is guaranteed in one bonus (a live run
@@ -501,6 +504,7 @@ runs:
   # ⚠ Free spins play themselves. If `stop` never resolves during one, the sudden-stop half is
   #   UNREACHED, not passed — `facts.stop_clicks` says which.
   - run:
+      name: walking-wild-turbo-stop
       scenario: walking-wild
       params: { source: buy, turbo: true, sudden_stop: true }
       teardown: return-to-base

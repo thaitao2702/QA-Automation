@@ -21,6 +21,7 @@ runs:
   # PARAMS (boot-base):
   #  - dwell_s: 2 (default) — seconds the idle base screen is left on screen for the clip
   - run:
+      name: boot-base
       scenario: boot-base
       video:
         assets: []
@@ -76,6 +77,7 @@ runs:
   #  - afterwards: the game is brought back to the base game
   # PARAMS (browse-denominations): none
   - run:
+      name: browse-denominations
       scenario: browse-denominations
       teardown: return-to-base
       video:
@@ -137,6 +139,7 @@ runs:
   #  - target_index: none (default) — which bet to pick, counted from the smallest (0 = smallest);
   #    none = the 4th-smallest, as above
   - run:
+      name: change-bet
       scenario: change-bet
       teardown: return-to-base
       video:
@@ -187,6 +190,7 @@ runs:
   #  - skip_big_win: false (set here) — a big-win celebration plays out instead of being tapped
   #    away (TC-007 asks whether the balance counts up)
   - run:
+      name: base-win
       scenario: base-win
       params: { skip_big_win: false }
       teardown: return-to-base
@@ -257,6 +261,7 @@ runs:
   #  - afterwards: the wallet is put back to what it was
   # PARAMS (insufficient-balance): none
   - run:
+      name: insufficient-balance
       scenario: insufficient-balance
       teardown: restore-balance       # ⚠ mandatory: this run MOVES the player's money
       video:
@@ -322,6 +327,7 @@ runs:
   #  - reload_mid_bonus: false (set here) — true = play one free spin, then reload the game with
   #    the rest owed; false = no reload, the whole bonus plays straight through
   - run:
+      name: freespin-zero-balance
       scenario: freespin-zero-balance
       params: { reload_mid_bonus: false }
       teardown: [restore-balance, return-to-base]
@@ -385,6 +391,7 @@ runs:
   #  - outcomes: [normal_win] (set here) — which kind of round to look up in History; only a
   #    normal (non-bonus) win here, not a losing spin
   - run:
+      name: spin-then-history
       scenario: spin-then-history
       params: { outcomes: [normal_win], detail_scroll_steps: 0 }
       teardown: return-to-base
@@ -446,6 +453,7 @@ runs:
   #  - index_a: 0 (set here) — the first bet picked, counted from the smallest (0 = smallest)
   #  - index_b: 3 (set here) — the second bet picked (3 = 4th-smallest)
   - run:
+      name: paytable-bet-scaling
       scenario: paytable-bet-scaling
       params: { index_a: 0, index_b: 3 }
       teardown: return-to-base
@@ -526,6 +534,7 @@ runs:
   #  - scroll_back: false (default) — true = also scroll back up to the top afterwards
   #  - shots: true (default) — save a full-resolution still of every screenful (what the AI grades)
   - run:
+      name: open-tutorial
       scenario: open-tutorial
       params: { scroll_steps: 10, scroll_dwell_ms: 2000 }
       teardown: return-to-base
@@ -620,6 +629,7 @@ runs:
   #  - include: none (default) — languages always added to a random pick; unused with a fixed list
   #  - surfaces: none (default) — which screens to visit; none = all six listed above
   - run:
+      name: language-tour
       scenario: language-tour
       params:
         languages: [en, my, zh, ru]

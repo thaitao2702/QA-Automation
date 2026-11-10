@@ -153,7 +153,7 @@ diagnostics only.
 `marks` map a name to a **round seq**, not a moment. A round's window runs from its response to the
 next round's response, so on a bonus whose rounds arrive milliseconds apart a single-round `at:` is
 nearly empty. For a whole feature, omit `at:` or span `[trigger, terminal]`
-(`docs/scenario-assert-authoring.md`, *the per-round window trap*).
+(`docs/assert-traps.md`, *the per-round window trap*).
 
 ## 8. Money, network, sessions, language
 
@@ -181,12 +181,13 @@ nearly empty. For a whole feature, omit `at:` or span `[trigger, terminal]`
 | Helper | Use it when |
 |---|---|
 | `Unreached(reason)` | A precondition this scenario cannot get past. Raise it; one `except Unreached` at the end of `run` clears the screen and returns `reached=False` with the message as the reason. **Catch this type only — never bare `Exception`**, or a real bug is filed as "the build does not support this". Keep the message to one line with the value that identifies the failure. |
+| `BetRejected` | **Never raise it yourself; never swallow it.** `Bet.parse` raises it when the bridge hands over a server REFUSAL (`status: 0`, negative `code`, no `result`) where a round was expected — it is not a round, and as one it would read stake 0 / payout 0 / balance 0. The run errors with the code named (`-2002` insufficient balance, …). ⚠ A "watch for a further bet" block that catches `Exception` to mean *nothing came* must re-raise it first (`except BetRejected: raise`): a refused bet was still a bet SENT, so reading it as "stopped" / "idle" is a false green. |
 
 ## 10. Do not call these from a scenario
 
 | Group | Names | Why |
 |---|---|---|
-| Framework-owned, run boundaries | `start_game` `click_start` `assert_idle` `drain_to_base` `return_to_base` `ensure_base` `stop_autoplay` `restore_balance` `deposit_10000` `missing_api` `read_game_info` `set_profile` `bridge_is_live` | Run before and after every run (`docs/run-lifecycle.md`). A scenario handles its own bonus and leaves the game spinnable; it does not invoke repair. `deposit_10000` is deprecated — use `restore-balance`. **`bridge_is_live(ctx)`** answers whether there is still a page with a bridge on it: a scenario may legitimately end with the client torn down (`bonus-resume-denomination-swap` calls `stop_client()` so a reopen can prove the resume), and if it then raises before reopening, every teardown that drives the bridge fails with `Cannot read properties of undefined` — which `run_teardowns` treats as fatal, losing every later run. `return_to_base` checks it and no-ops. |
+| Framework-owned, run boundaries | `start_game` `click_start` `assert_idle` `drain_to_base` `return_to_base` `ensure_base` `stop_autoplay` `restore_balance` `deposit_10000` `missing_api` `read_game_info` `set_profile` `bridge_is_live` `answer_lucky_spin` | Run before and after every run (`docs/run-lifecycle.md`). A scenario handles its own bonus and leaves the game spinnable; it does not invoke repair. `deposit_10000` is deprecated — use `restore-balance`. **`answer_lucky_spin(page)`** is boot-only: `start_game` calls it when `pending.gameState == 3` (a bought bonus parked on the wheel), keeping the shown multiplier before the drain — a scenario that buys a bonus answers its own wheel (`buy-bonus-lucky-spin`). **`bridge_is_live(ctx)`** answers whether there is still a page with a bridge on it: a scenario may legitimately end with the client torn down (`bonus-resume-denomination-swap` calls `stop_client()` so a reopen can prove the resume), and if it then raises before reopening, every teardown that drives the bridge fails with `Cannot read properties of undefined` — which `run_teardowns` treats as fatal, losing every later run. `return_to_base` checks it and no-ops. |
 | Runner-side | `resolve_window` `resolve_each` `resolve_tokens` `eval_inline_stream` `run_stream_assert` | Turn a suite's `at:` / `each:` / `{facts.*}` / `stream:` into results. |
 | Bridge primitives | `wait_spin_clickable` `click_spin` `await_bet_response` `await_freespin_round` | For **helpers** that need a raw call (`confirm_stopped`, `settle_to_base`). A scenario uses the `ctx.*` wrappers, which record the round. |
 

@@ -35,6 +35,7 @@ runs:
   #  - stop_dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
   #  - setup_dwell_ms: 2000 (default) — pause after each panel click and after confirm
   - run:
+      name: auto-play
       scenario: auto-play
       params: { count: 10 }
       teardown: return-to-base
@@ -151,6 +152,7 @@ runs:
   #  Graded from the responses only, like DR-15: the win, the stop and "no spin after it" are all
   #  exact facts, so there is nothing an AI read would add.
   - run:
+      name: auto-stop-at-win
       scenario: auto-stop-at-win
       params: { stop_on: base_win }
       teardown: return-to-base
@@ -192,6 +194,7 @@ runs:
   #  - dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
   #  Needs PLAYSITE_*. Teardown puts the wallet back (that reloads too) before return-to-base.
   - run:
+      name: auto-until-empty
       scenario: auto-until-empty
       params: { fund_spins: 2 }
       teardown: [restore-balance, return-to-base]
@@ -258,6 +261,7 @@ runs:
   #  - watch_ms: 6000 (default) — how long to watch for another spin after the stop
   #  - dwell_ms: 3000 (default) — how long to hold on the stopped game at the end
   - run:
+      name: auto-user-stop
       scenario: auto-user-stop
       params: { spins_before_stop: 3 }
       teardown: return-to-base
@@ -312,6 +316,7 @@ runs:
   #  - watch_ms: 6000 (default) — how long to watch for a spin after the game comes back
   #  - dwell_ms: 3000 (default) — how long to hold on the game at the end
   - run:
+      name: auto-reload-cancels
       scenario: auto-reload-cancels
       params: { spins_before_reload: 2 }
       teardown: return-to-base
@@ -368,6 +373,7 @@ runs:
   #  - target_index: None (default) — which row of the denomination list is picked (0 = lowest
   #    bet); unset means the 4th-lowest (or the lowest on a list of 3 or fewer)
   - run:
+      name: auto-change-bet-first
       scenario: auto-change-bet-first
       params: { count: 10 }
       teardown: return-to-base
@@ -401,6 +407,7 @@ runs:
   #  - spins_before_stop: 1 (set here) — how many paid auto spins play before the stop click
   #  - dwell_ms: 2000 (default) — pause after the confirm click and after the stop click
   - run:
+      name: toggle-auto
       scenario: toggle-auto
       params: { count_index: 0, spins_before_stop: 1 }
       teardown: return-to-base

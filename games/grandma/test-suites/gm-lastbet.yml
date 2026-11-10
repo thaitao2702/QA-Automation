@@ -34,6 +34,7 @@ runs:
   # note: the stored round is read through the game's profile, never by raw field name: it does
   # not spell its fields the same way a spin response does
   - run:
+      name: lastbet-lose
       scenario: last-bet-restore
       params: { outcome: lose, dwell_s: 2 }
       teardown: return-to-base
@@ -99,6 +100,7 @@ runs:
   #  - change_bet_after: false (default) — the bet is not touched between the round and the reload
   #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before reload
   - run:
+      name: lastbet-win
       scenario: last-bet-restore
       params: { outcome: win, dwell_s: 3 }
       teardown: return-to-base
@@ -174,6 +176,7 @@ runs:
   #  - change_bet_after: true (set here) — pick a different bet after the round, before reloading
   #  - result_hold_s: 2.0 (default) — seconds the finished round is held on screen before reload
   - run:
+      name: lastbet-bet-changed
       scenario: last-bet-restore
       params: { outcome: any, change_bet_after: true, dwell_s: 3 }
       teardown: return-to-base
@@ -250,6 +253,7 @@ runs:
   # ⚠ `teardown: reset-denomination` is mandatory: the bet list is shared back-office state, and
   #   leaving it on 11/22/33 would poison every later run's bet asserts.
   - run:
+      name: lastbet-bet-list-changed
       scenario: last-bet-restore
       params: { outcome: any, swap_denomination: true, dwell_s: 3 }
       teardown: [reset-denomination, return-to-base]
@@ -326,6 +330,7 @@ runs:
   # ⚠ `teardown: reset-denomination` is mandatory: the swap is a BO write, and leaving the agent on
   #   the automation ladder would change the bet every later run opens at.
   - run:
+      name: bonus-resume-denomination-swap
       scenario: bonus-resume-denomination-swap
       teardown: [reset-denomination, return-to-base]
       paytable: { ref: gm-fs-easy, max_win_x: 50 }

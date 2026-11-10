@@ -2156,6 +2156,7 @@
    "expected_payout",
    "expected_scatter_win",
    "max_win_cap",
+   "max_win_left",
    "p",
    "reels_with",
    "scatter_multiplier"

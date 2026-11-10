@@ -255,10 +255,24 @@ def main(game):
         if not doc or "runs" not in doc:
             ERRORS.append("%s: no `runs:` key" % short)
             continue
+        run_names: dict = {}
         for i, entry in enumerate(doc["runs"]):
             run = entry.get("run") if "run" in entry else entry
             sname = run.get("scenario")
             where = "%s run[%d] (%s)" % (short, i, sname)
+
+            # (1b) run `name:` — what `--only` selects and what the result folder is called. Must be
+            # unique in the suite (a repeat would make `--only` pick two runs) and folder-safe.
+            rname = run.get("name")
+            if rname is not None:
+                if not (isinstance(rname, str) and re.fullmatch(r"[a-z0-9][a-z0-9._-]*", rname)):
+                    ERRORS.append("%s: run name %r must be lower-case letters, digits, '-', '_' or "
+                                  "'.' (it becomes a folder name)" % (where, rname))
+                elif rname in run_names:
+                    ERRORS.append("%s: run name '%s' is already used by run[%d] -- names must be "
+                                  "unique in a suite" % (where, rname, run_names[rname]))
+                else:
+                    run_names[rname] = i
 
             # (2) scenario resolves
             # `video.at` is either one target or a SPAN OF EXACTLY TWO (resolve_window takes

@@ -28,6 +28,7 @@ runs:
   # at turbo speed until the mouse is released. The matrix: while held the Turbo control is lit and
   # Stop Now is active; on release Turbo goes off and the game is back to normal.
   - run:
+      name: turbo-modes
       scenario: turbo-modes
       teardown: return-to-base
       video:
@@ -122,6 +123,7 @@ runs:
   # PARAMS (toggle-turbo):
   #  - dwell_ms: 2000 (default) — how long the screen is left alone after each turbo click, in ms
   - run:
+      name: toggle-turbo
       scenario: toggle-turbo
       teardown: return-to-base
       video:
@@ -180,6 +182,7 @@ runs:
   # PARAMS (spin-inputs):
   #  - hold_ms: 3000 (set here) — how long the spin button is held for the hold-to-spin part
   - run:
+      name: spin-inputs
       scenario: spin-inputs
       params: { hold_ms: 3000 }
       teardown: return-to-base
@@ -268,6 +271,7 @@ runs:
   # PARAMS (reconnect-brief):
   #  - off_s: 6.0 (set here) — how long the network stays cut, in seconds
   - run:
+      name: reconnect-brief
       scenario: reconnect-brief
       params: { off_s: 6.0 }
       teardown: return-to-base
@@ -319,6 +323,7 @@ runs:
   # and the claim is what it does then. (TC-045, a tab hidden for 30-45 min, is NOT the same:
   # the browser throttles a hidden tab, which a network cut does not reproduce. Not covered.)
   - run:
+      name: reconnect-long
       scenario: reconnect-long
       params: { off_s: 25.0 }
       teardown: return-to-base
@@ -385,6 +390,7 @@ runs:
   #    carry on before deciding it stopped
   #  - rounds_after: 2 (default) — how many auto spins after the reconnect are watched and recorded
   - run:
+      name: reconnect-during-auto
       scenario: reconnect-during-auto
       params: { count: 10, off_s: 6.0 }
       teardown: return-to-base
@@ -436,6 +442,7 @@ runs:
   #    (the recording is the FIRST tab, which is where the takeover message appears)
   # PARAMS (multi-tab-session): none
   - run:
+      name: multi-tab-session
       scenario: multi-tab-session
       teardown: return-to-base
       video:

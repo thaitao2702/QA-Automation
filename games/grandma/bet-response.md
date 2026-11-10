@@ -404,7 +404,7 @@ Grandma needs a **new `WaysGame` base class** — `scripts/game_profile.py` has 
 | ways | 1024 fixed; `PAYLINES` / `LINE_DIVISOR` are meaningless — **there is no per-line divisor**, the formula multiplies by `baseStake` directly |
 | `F_STEPS` | none — one grid per round. Wrap `view` so `Bet.cascades == 1`, as Joker does |
 | `F_STEP_GRID` | **`"view"`** — the base class's `"views"` reads nothing |
-| `F_GAME_STATE` | **`"state"`** (default `"gameState"` is absent). Bonus entry is `nextState`, §7 |
+| `F_GAME_STATE` | **`"nextState"`** (default `"gameState"` is absent). `nextState` is the state AFTER the round, which is what `gameState` means in the other engines; `state` is where it was played, so the Buy Bonus purchase would read as base. §7 |
 | `F_FREE_SPINS` | `"freeSpins"` (remaining) ✓ default |
 | `F_TOTAL_FREE_SPINS` | `"totalFreeSpin"` ✓ default |
 | awarded-this-round | **`wonFreeSpins`** — a field no existing profile has. `is_trigger()` is `wonFreeSpins > 0` |

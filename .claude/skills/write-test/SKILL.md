@@ -59,29 +59,39 @@ reachable state enumeration, deterministic test path, idle state baseline, clean
 **The definitive list of actions, their params, assert formats, and suite structure is in
 `framework/schema_reference.md` + `framework/schema_reference.yml`** (auto-generated from the
 framework source — read both in Step 1). Do **not** keep a copy of the action table here: always
-use the action names and params from those files (they win on any conflict). For mapping a test
-*intent* to the right action, use the table below.
+use the action names and params from those files (they win on any conflict).
 
 *See "Deterministic Results via Back-Office Paytable" below for how to group test cases by paytable.*
 *See "Saving Values and Asserting Them via the Bridge" below for the `save:` field + `bridge_assert` `args` pattern.*
 
-### Common Intent → Correct Action
+### Only Use Exposed Actions and Bridge Methods — Never Invent
 
-| What you want to do | WRONG (invented) | CORRECT |
+Everything you may write comes from exactly **two published surfaces**. Read both in Step 1 and
+treat them as your entire vocabulary: **if a name is not in them, it does not exist.**
+
+| Surface | Authoritative source (read in Step 1) | Defines |
 |---|---|---|
-| Press an on-screen game button (spin, auto, bet ±, buy bonus, popup confirm/cancel) | `bridge_action` invoking the method (`spin()`, `nextBet()`, `confirmBuyBonus()`); or a bare `click_button` with no readiness wait / settle | `waitForButtonClickable` → `click_button { name }` → `wait_ms 300` (see "Prefer real taps" below); `bridge_action` to invoke the method only as a last resort |
-| Loop a bridge call until condition | `bridge_action_until` | Multiple `bridge_action` steps, or a `script` step |
-| Read a bridge value without asserting | `bridge_query` | `bridge_action` (runner stores the return value) |
-| Reload the game page | `reload` | `navigate` + `wait_for_state ready` + `click #start-button` + `wait_for_state idle` |
-| Pause for N milliseconds | `wait` | `wait_ms` with `params: { ms: N }` |
-| Assert on a value captured earlier | `script` with `assert_equal(steps[...])` | `save: <name>` on the producing step, then `bridge_assert` with `args: ["$name"]` calling a bridge function that judges it |
-| Compare two captured values | `script` comparing `steps[...]` | `save:` both, then `bridge_assert` `args: ["$before", "$after"]` to a bridge function that compares them |
-| Put a captured value into an AI prompt | hardcode it, or ask vaguely "is a value shown?" | `save: <name>`, then a `{{name}}` placeholder in the `ai` block's `prompt` / `expected` — replaced with the real value at run time |
-| Verify a bridge value is shown on screen | Bridge-only assertion | `bridge_assert` + `capture` + AI assertion with the concrete value in the prompt |
-| Force the player's server-side balance (e.g. test "can't bet when balance < bet") | a `setBalance` bridge call; `setDevModeResult` | `wallet_set { amount }` (reads current, applies the delta) — see "Manipulating Player Balance (Wallet)" |
-| Restore the balance a test changed | a fixed reverse `wallet_deposit`/`withdraw` | snapshot with `wallet_balance save: orig` in setup, then `wallet_set { amount: "$orig" }` in the test's teardown |
+| **Action types** | `framework/schema_reference.md` + `framework/schema_reference.yml` (auto-generated from the framework source) | every `action:` value, its required/optional `params`, the `assert` block shape, and suite/group/run/step structure |
+| **Bridge methods** | `games/{game}/bridge-api.md` (+ the bridge surface documented in `games/{game}/docs/final/game-knowledge.md`) | every method callable from `bridge_action` / `bridge_assert` — its exact name, arguments, and return shape |
 
-**NEVER invent action type names.** If no supported action (see `schema_reference.yml`) fits, use `script` to run custom logic.
+**Rules — no exceptions:**
+
+1. **Use an `action:` value only if it appears in `schema_reference.yml`.** There are no other actions.
+2. **Call a bridge method only if it appears in the bridge API surface** — with the documented name,
+   argument order, and return shape.
+3. **Never invent, guess, or infer a name** — not an action, not a bridge method, not an assert
+   field, not a param. A plausible-sounding name that isn't published fails at run time.
+4. **Copy identifiers exactly; never paraphrase or "tidy" them.** `getFreeSpinsRemaining` is not
+   `getRespinCount`; `previousBet` is not `prevBet`.
+5. **A feature existing in the game does not mean the bridge exposes it.** Verify the method is
+   documented before you write it — never reason "the game clearly has X, so `getX()` must exist."
+6. **IF nothing exposed covers the intent:** STOP and flag it — skip the test, or add the method to
+   `bridge-api.md` first (see **Rule 6 — Bridge Method Validation** in Step 4). Never paper over a
+   missing bridge method with `script`.
+
+IF no supported **action** fits a step (and the bridge method itself does exist), `script` is the
+documented escape hatch — but it is a genuine last resort, not a shortcut (see the `script`
+guidance and anti-patterns below).
 
 ### Prefer real taps (`click_button`) over invoking the method
 

@@ -63,6 +63,7 @@ runs:
   # ⚠ TC-103a's point is that the award counts REELS, not ways — hence `min_on_one_reel: 2`, the
   #   shape a ways-based count would get wrong. The award must be 8 whatever is stacked.
   - run:
+      name: fs-complete-3-reels
       scenario: fs-complete
       # ⚠ `min_on_one_reel: 2` is what makes TC-103a's real claim reachable rather than lucky.
       # The case needs a trigger carrying TWO BONUS on one reel -- the shape a ways-based award
@@ -153,6 +154,7 @@ runs:
   #    (B2 in gm-real-weights.yml is the same thing with a BOUGHT bonus; kept apart so a reload
   #     defect cannot show up as a purchase failure)
   - run:
+      name: freespin-reload
       scenario: freespin-reload
       params: { source: natural, after_rounds: 2 }
       teardown: return-to-base
@@ -222,6 +224,7 @@ runs:
   #  - a trigger on the wrong number of reels is played out and ignored, not graded as a failure
   #  - only the trigger and its award popup are filmed — the free spins themselves are A1's subject
   - run:
+      name: fs-complete-4-reels
       scenario: fs-complete
       params: { arrive_when: { bonus_reels: 4 }, max_spins: 10 }
       teardown: return-to-base
@@ -269,6 +272,7 @@ runs:
             - stream: conservation
 
   - run:
+      name: fs-complete-5-reels
       scenario: fs-complete
       params: { arrive_when: { bonus_reels: 5 }, max_spins: 10 }
       teardown: return-to-base
@@ -341,6 +345,7 @@ runs:
   # ⚠ SAME TYPE. A white cat on one reel and a BONUS paw on another are NOT a pair — that is all
   #   of TC-132, and why G3 exists as a separate run.
   - run:
+      name: reels-glow-bonus
       scenario: reels-glow
       params: { spins: 3 }
       teardown: return-to-base
@@ -437,6 +442,7 @@ runs:
   #      reel 3 lands without P1, no win is possible any more.
   #      TC-131 is green only if BOTH halves pass: this run and G1.
   - run:
+      name: reels-glow-p1
       scenario: reels-glow
       params: { spins: 3 }
       teardown: return-to-base
@@ -504,6 +510,7 @@ runs:
   #   mixed pair counted (TC-132 fails); one on reel 4 or 5 means the unconnectable P1 pair counted
   #   (TC-133b fails). That is why the AI is asked for reel NUMBERS, not a yes/no.
   - run:
+      name: reels-glow-negative
       scenario: reels-glow
       params: { spins: 3 }
       teardown: return-to-base
@@ -590,6 +597,7 @@ runs:
   # THE ROLL: 70% on a big win (`winType >= 4`), 70% on a free-spin trigger, 4% otherwise. The
   # fixture makes nearly every spin a big win, which is the only reason this run is short enough.
   - run:
+      name: drama
       scenario: drama
       params: { dramas: 4, max_spins: 40 }
       teardown: return-to-base
@@ -779,6 +787,7 @@ runs:
   #   switched OFF, this build disables the drama in turbo — that is not a test problem to route
   #   around, it IS TC-120's failure, and the first assert says so directly.
   - run:
+      name: drama-turbo-auto
       scenario: drama
       params: { dramas: 3, max_spins: 20, turbo: true, autoplay: 10 }
       teardown: return-to-base
