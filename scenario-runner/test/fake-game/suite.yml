@@ -1,0 +1,103 @@
+# Runs both scenario runners against test/fake-game/index.html, so their outputs can be compared
+# without a real build. Run with --game fake --env fake (no BO, wallet or game config is touched).
+runs:
+  - run:
+      name: boot
+      scenario: boot-base
+      params: { dwell_s: 0.5 }
+      cases:
+        - id: FK-01
+          title: boot facts
+          assert:
+            - stream: "{facts.denom_count} == 6"
+            - stream: "{facts.bet_amount} == {facts.expected_open_bet}"
+            - stream: "{facts.first_session} == True"
+  - run:
+      name: one-spin
+      scenario: base-spin
+      cases:
+        - id: FK-02
+          title: a base spin debits the stake
+          assert:
+            - stream: conservation
+            - stream: "{res.payout} == 0"
+            - stream: "{res.stake} == 0.6"
+  - run:
+      name: win
+      scenario: base-win
+      cases:
+        - id: FK-03
+          title: base win
+          assert:
+            - stream: conservation
+            - stream: "{facts.win_payout} > 0"
+            - stream: "{facts.spins_to_win} >= 1"
+  - run:
+      name: cascade
+      scenario: base-cluster-win
+      cases:
+        - id: FK-04
+          title: cascade climbs and resets
+          assert:
+            - stream: cascade_multiplier_climbs
+            - stream: cascade_multiplier_resets
+            - stream: "{facts.multiplier_climbed} == True"
+  - run:
+      name: bonus
+      scenario: fs-complete
+      cases:
+        - id: FK-05
+          title: free spins play out
+          assert:
+            - stream: conservation
+            - stream: stake_zero_in_freespins
+            - stream: terminal_reached
+  - run:
+      name: change-bet
+      scenario: change-bet
+      cases:
+        - id: FK-06
+          title: change bet
+          assert:
+            - stream: conservation
+  - run:
+      name: browse
+      scenario: browse-denominations
+      cases:
+        - id: FK-07
+          title: browse denominations
+          assert:
+            - stream: conservation
+  - run:
+      name: turbo
+      scenario: toggle-turbo
+      cases:
+        - id: FK-08
+          title: turbo toggles
+          assert:
+            - stream: conservation
+  - run:
+      name: fs-cascade
+      scenario: freespin-cascade
+      cases:
+        - id: FK-09
+          title: free-spin cascade
+          assert:
+            - stream: conservation
+  - run:
+      name: history
+      scenario: spin-then-history
+      cases:
+        - id: FK-10
+          title: history
+          assert:
+            - stream: conservation
+  - run:
+      name: spin-teardown
+      scenario: base-spin
+      teardown: return-to-base
+      cases:
+        - id: FK-11
+          title: teardown
+          assert:
+            - stream: conservation

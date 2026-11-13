@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fake slot</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #101418; color: #e8e8e8; font: 14px system-ui, sans-serif; }
+  #stage { position: relative; width: 531px; height: 919px; overflow: hidden; }
+  .btn { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 10px;
+         background: #2a3542; border: 1px solid #47586b; font-size: 12px; }
+  .btn.off { opacity: 0.35; }
+  #reels { position: absolute; left: 40px; top: 120px; width: 451px; height: 420px; background: #1b222b;
+           display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px; box-sizing: border-box; }
+  .cell { background: #26303b; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  #hud { position: absolute; left: 20px; top: 20px; right: 20px; display: flex; justify-content: space-between; font-size: 16px; }
+  #popup { position: absolute; left: 60px; top: 300px; width: 411px; height: 260px; background: #34404d;
+           border: 2px solid #8aa; border-radius: 14px; display: none; text-align: center; padding-top: 20px; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="hud"><span id="bal"></span><span id="state"></span><span id="bet"></span></div>
+  <div id="reels"></div>
+  <div id="popup"></div>
+</div>
+<script>
+/*
+ * A FAKE GAME for testing the scenario runners without a real build. It implements the bridge
+ * contract (docs/game-bridge-contract.md) closely enough for the base-game scenarios, speaks the
+ * Mystic (cascade reference) dialect, and plays a FIXED, repeating script of outcomes, computing
+ * balances, round ids and free-spin counters itself so `conservation` holds. Deterministic: every
+ * page load starts from the same state, so two runners driving it the same way see the same rounds.
+ *
+ *   ?script=basic   (default)
+ */
+(function () {
+  const params = new URLSearchParams(location.search);
+  const SCRIPT = params.get("script") || "basic";
+
+  const lose = { payout: 0, steps: [{ payout: 0, winnings: [], multiplierLevel: 1, views: [] }] };
+  const cluster = { payout: 2.0, steps: [
+    { payout: 1.2, winnings: [{ symbol: "A", count: 8 }], multiplierLevel: 1, views: [] },
+    { payout: 0.8, winnings: [{ symbol: "K", count: 8 }], multiplierLevel: 2, views: [] },
+    { payout: 0, winnings: [], multiplierLevel: 3, views: [] }] };
+  const plain = { payout: 0.6, steps: [{ payout: 0.6, winnings: [{ symbol: "Q", count: 8 }], multiplierLevel: 1, views: [] }] };
+  const trigger = { payout: 0, steps: [{ payout: 0, winnings: [], multiplierLevel: 1, views: [] }], award: 3,
+    fs: [{ payout: 0.5 }, { payout: 0 }, { payout: 1.0 }] };
+  const SCRIPTS = { basic: [lose, cluster, lose, trigger, plain] };
+  const OUTCOMES = SCRIPTS[SCRIPT] || SCRIPTS.basic;
+
+  const DENOMS = [0.2, 0.4, 0.6, 1, 2, 4];
+  const st = {
+    app: "READY", ready: false, balance: 1000, betIndex: 2, cursor: 0, roundId: 900000000000000000n,
+    busy: [], popups: [], fsMode: false, fsLeft: 0, betQueue: [], fsQueue: [], speed: "NORMAL",
+  };
+  const bet = () => DENOMS[st.betIndex];
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+
+  const BUTTONS = {
+    spin: { x: 206, y: 760, w: 120, h: 120 },
+    stakeIncrease: { x: 400, y: 790, w: 80, h: 60 },
+    stakeDecrease: { x: 50, y: 790, w: 80, h: 60 },
+    turbo: { x: 50, y: 880, w: 70, h: 32 },
+    auto: { x: 410, y: 880, w: 70, h: 32 },
+    settings: { x: 450, y: 60, w: 60, h: 40 },
+    history: { x: 380, y: 60, w: 60, h: 40 },
+    info: { x: 310, y: 60, w: 60, h: 40 },
+    sound: { x: 240, y: 60, w: 60, h: 40 },
+  };
+  for (let i = 0; i < DENOMS.length; i++) BUTTONS[`bet:row:${i}`] = { x: 90, y: 330 + i * 34, w: 350, h: 30, popup: "denominations" };
+  BUTTONS["bet:close"] = { x: 430, y: 305, w: 34, h: 30, popup: "denominations" };
+
+  const visibleNow = (name) => {
+    const b = BUTTONS[name];
+    if (!b) return false;
+    if (b.popup) return st.popups.includes(b.popup);
+    return st.popups.length === 0;
+  };
+  const interactableNow = (name) => {
+    if (!visibleNow(name)) return false;
+    if (BUTTONS[name].popup) return true;
+    return st.app === "IDLE" && !st.busy.length && !st.fsMode;
+  };
+  const rectOf = (name) => {
+    const b = BUTTONS[name];
+    if (!b) return null;
+    return { x: b.x, y: b.y, width: b.w, height: b.h, centerX: b.x + b.w / 2, centerY: b.y + b.h / 2,
+             visible: visibleNow(name), interactable: interactableNow(name) };
+  };
+
+  const snapshot = () => ({
+    appState: st.app, sceneReady: st.ready, visiblePopups: [...st.popups], busyOps: [...st.busy],
+    isFreeSpinMode: st.fsMode, freeSpinsRemaining: st.fsLeft, autoSpinsRemaining: 0, isAutoPlay: false,
+    balance: st.balance, betAmount: bet(), betIndex: st.betIndex, denominations: [...DENOMS],
+  });
+
+  function render() {
+    document.getElementById("bal").textContent = `Balance ${st.balance.toFixed(2)}`;
+    document.getElementById("bet").textContent = `Bet ${bet().toFixed(2)}`;
+    document.getElementById("state").textContent = st.fsMode ? `FREE SPINS ${st.fsLeft}` : st.busy.length ? "SPINNING" : st.app;
+    const pop = document.getElementById("popup");
+    pop.style.display = st.popups.length ? "block" : "none";
+    pop.textContent = st.popups.join(", ");
+    for (const [name, el] of Object.entries(els)) {
+      el.style.display = visibleNow(name) ? "flex" : "none";
+      el.classList.toggle("off", !interactableNow(name));
+    }
+  }
+
+  const stage = document.getElementById("stage");
+  const els = {};
+  for (const [name, b] of Object.entries(BUTTONS)) {
+    const el = document.createElement("div");
+    el.className = "btn";
+    Object.assign(el.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
+    el.textContent = name;
+    stage.appendChild(el);
+    els[name] = el;
+  }
+  const reels = document.getElementById("reels");
+  for (let i = 0; i < 25; i++) {
+    const c = document.createElement("div");
+    c.className = "cell";
+    c.textContent = "AKQJ10"[i % 5];
+    reels.appendChild(c);
+  }
+
+  const nextId = () => { st.roundId += 1n; return st.roundId.toString(); };
+
+  function baseRound(o) {
+    const stake = bet();
+    st.balance = r3(st.balance - stake + o.payout);
+    const awarded = o.award || 0;
+    return {
+      gameState: awarded ? 2 : 1, freeSpins: awarded, totalFreeSpin: awarded, payout: o.payout, stake,
+      baseStake: stake, balance: st.balance, roundId: nextId(), hasReachedMaxWin: false,
+      rawPayout: o.payout, accumulatedWinAmount: o.payout, maxWin: 0, result: JSON.parse(JSON.stringify(o.steps)),
+    };
+  }
+
+  function freeRound(fr, left, total, acc) {
+    st.balance = r3(st.balance + fr.payout);
+    return {
+      gameState: left ? 2 : 1, freeSpins: left, totalFreeSpin: total, payout: fr.payout, stake: 0,
+      baseStake: bet(), balance: st.balance, roundId: nextId(), hasReachedMaxWin: false,
+      rawPayout: fr.payout, accumulatedWinAmount: acc, maxWin: 0,
+      result: [{ payout: fr.payout, winnings: fr.payout ? [{ symbol: "A", count: 8 }] : [], multiplierLevel: 1, views: [] }],
+    };
+  }
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function doSpin() {
+    if (!interactableNow("spin")) return;
+    const o = OUTCOMES[st.cursor % OUTCOMES.length];
+    st.cursor += 1;
+    st.busy = ["spin"];
+    render();
+    const resp = baseRound(o);
+    st.betQueue.push(resp);
+    await wait(300);
+    if (o.award) {
+      st.fsMode = true;
+      st.fsLeft = o.award;
+      st.busy = [];
+      render();
+      let acc = 0;
+      for (let i = 0; i < o.fs.length; i++) {
+        await wait(300);
+        st.fsLeft = o.award - i - 1;
+        acc = r3(acc + o.fs[i].payout);
+        st.fsQueue.push(freeRound(o.fs[i], st.fsLeft, o.award, acc));
+        render();
+      }
+      await wait(300);
+      st.fsMode = false;
+    }
+    st.busy = [];
+    render();
+  }
+
+  stage.addEventListener("click", (ev) => {
+    const r = stage.getBoundingClientRect();
+    const x = ev.clientX - r.left;
+    const y = ev.clientY - r.top;
+    for (const name of Object.keys(BUTTONS)) {
+      const b = BUTTONS[name];
+      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h && interactableNow(name)) {
+        press(name);
+        return;
+      }
+    }
+  });
+
+  function press(name) {
+    if (name === "spin") return void doSpin();
+    if (name === "stakeIncrease" || name === "stakeDecrease") st.popups = ["denominations"];
+    else if (name.startsWith("bet:row:")) { st.betIndex = Number(name.split(":")[2]); st.popups = []; }
+    else if (name === "bet:close") st.popups = [];
+    else if (name === "turbo") st.speed = st.speed === "NORMAL" ? "TURBO" : "NORMAL";
+    render();
+  }
+
+  async function poll(test, t, reason) {
+    const deadline = Date.now() + (t || 60000);
+    while (Date.now() < deadline) {
+      if (test()) return true;
+      await wait(25);
+    }
+    const e = new Error(reason());
+    e.reason = reason();
+    e.snapshot = snapshot();
+    throw e;
+  }
+
+  const gameInfo = () => ({
+    currency: "TKN", pending: null, lastBet: null,
+    settings: { denominations: [...DENOMS], defaultBetLevel: 2, minBet: DENOMS[0], maxBet: DENOMS[DENOMS.length - 1],
+      maxPayout: 100000, maxMultiplier: 0,
+      winFormula: [{ name: "SLIM", min: 0, max: 1 }, { name: "SMALL", min: 1, max: 2.5 }, { name: "BIG", min: 15, max: 40 }] },
+  });
+
+  window.__gameTestBridge = {
+    version: "fake-1",
+    startGame: async () => { st.app = "IDLE"; st.ready = true; render(); return true; },
+    getGameInfo: () => gameInfo(),
+    isGameInfoCaptured: () => true,
+    getSnapshot: () => snapshot(),
+    getButtonRect: (name) => rectOf(name),
+    getAllButtonRects: () => Object.fromEntries(Object.keys(BUTTONS).filter(visibleNow).map((n) => [n, rectOf(n)])),
+    waitForButtonClickable: async (name, _opts, t) => {
+      if (!BUTTONS[name]) { const e = new Error(`unknown_control:${name}`); e.reason = e.message; throw e; }
+      await poll(() => interactableNow(name), t, () => `not_available:${name}`);
+      return rectOf(name);
+    },
+    waitForSpinClickable: async (_opts, t) => {
+      await poll(() => interactableNow("spin"), t, () => (st.fsMode ? "free_spin_mode" : st.popups.length ? `popup:${st.popups[0]}` : "busy"));
+      return rectOf("spin");
+    },
+    awaitBetResponse: async (t) => {
+      await poll(() => st.betQueue.length > 0, t, () => "no_bet_response");
+      return st.betQueue.shift();
+    },
+    awaitFreespinRound: async (t) => {
+      await poll(() => st.fsQueue.length > 0, t, () => "no_freespin_round");
+      return st.fsQueue.shift();
+    },
+    canDo: (action) => ({ ok: true, action }),
+    dismissPopups: async () => { const was = [...st.popups]; st.popups = []; render(); return was; },
+    getBetAmount: () => bet(),
+    getBetIndex: () => st.betIndex,
+    getDenominations: () => [...DENOMS],
+    getMultiplierLevels: () => ({ baseGame: [1, 2, 3, 5, 8, 10] }),
+    getSpeedMode: () => st.speed,
+    getHistoryRows: () => [],
+    getHistoryDetailState: () => ({ open: false }),
+  };
+  render();
+})();
+</script>
+</body>
+</html>

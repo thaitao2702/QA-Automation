@@ -504,13 +504,15 @@ runs:
   # deliberate: a few NORMAL spins first, then the bonus, so one recording holds both halves of the
   # claim and the AI can compare them.
   #
-  # `base_spins: 3` is a TARGET, not a guarantee — we cannot choose which spin triggers. At ~37% a
-  # spin the mean is ~2.7 before the bonus, and if the very first spin triggers the base sample is 1
-  # (which `{facts.base_spins} >= 1` accepts). If no trigger has arrived by spin 3 the loop keeps
+  # `base_spins: 3` is a MINIMUM — we cannot choose which spin triggers (~37% a spin), so when the
+  # bonus comes first the run goes back to the base game after it until 3 base spins are in. The
+  # clip can therefore hold base spins on BOTH sides of the bonus; the prompt says how many come
+  # after it ({facts.base_spins_after_bonus}). If no trigger has arrived by spin 3 the loop keeps
   # going; extra base rounds are extra evidence.
   #
-  # 10x cap: a capped round ends the bonus cleanly (Rule 9). CR_058 needs only
-  # `{facts.fs_spins} >= 1`, so even a bonus cut to one round still answers it.
+  # 10x cap: a capped round ends the bonus cleanly (Rule 9). CR_058 needs only one free spin that
+  # reported a multiplier (`{facts.fs_multiplier_count} >= 1`), so even a bonus cut to one round
+  # still answers it. `{facts.fs_spins}` is every free spin PLAYED, which is what the prompt states.
   - run:
       scenario: random-multiplier
       params: { base_spins: 3 }
@@ -533,7 +535,7 @@ runs:
             # Both halves of the claim, each proven separately. Asserting only "a multiplier was
             # seen" would pass on a build that never showed one during the bonus.
             - stream: "{facts.reached_freespins} == True"
-            - stream: "{facts.fs_spins} >= 1"
+            - stream: "{facts.fs_multiplier_count} >= 1"
 
       # ONE AI CALL FOR BOTH CASES (Rule 16), over the WHOLE clip — base spins and bonus together,
       # which is the point: CR_058's claim is that the multiplier appears in both, so its evidence
@@ -551,10 +553,11 @@ runs:
         prompt: >-
           Chaos Runner, a 5x3 line slot with a RANDOM MULTIPLIER: before each spin resolves, an
           indicator animates across a ladder of values and settles on one. The configured values are
-          {facts.ladder}. This clip contains {facts.base_spins} normal base-game spin(s) FIRST and
-          then a FREE-SPIN round of {facts.fs_spins} spin(s) — the ACTION TIMELINE below marks where
-          the base sampling ends and the free spins begin. Watch the multiplier indicator throughout
-          and answer:
+          {facts.ladder}. This clip contains {facts.base_spins} normal base-game spin(s) and a
+          FREE-SPIN round of {facts.fs_spins} spin(s); {facts.base_spins_after_bonus} of the base-game
+          spins come AFTER the free spins, the rest before them. The ACTION TIMELINE below marks where
+          the free spins begin and where the base game resumes. Watch the multiplier indicator
+          throughout and answer:
 
           (1) during the NORMAL base-game spins, is a multiplier indicator shown and does it settle
           on a value (multiplier_shown_in_base)?

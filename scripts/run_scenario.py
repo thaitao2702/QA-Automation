@@ -283,6 +283,12 @@ def _image_spec(d, result: "se.ScenarioResult") -> dict:
                     output_schema=d.get("output_schema", {}),
                     expected={k: (rt(v) if isinstance(v, str) else v)
                               for k, v in (d.get("expected") or {}).items()})
+        # `compare_shots: {field, ratio, tol}` -- a figure that must SCALE between the two shots
+        # (ai_video.compare_shots). `ratio` is usually a fact, so it is token-resolved.
+        cs = d.get("compare_shots")
+        if isinstance(cs, dict):
+            spec["compare_shots"] = {"field": cs.get("field"), "ratio": rt(cs.get("ratio", "")),
+                                     "tol": cs.get("tol", 0.02)}
     return spec
 
 

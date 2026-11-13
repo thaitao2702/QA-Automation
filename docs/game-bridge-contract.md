@@ -274,13 +274,21 @@ Every entry point — first load, `reload_and_start`, the second multi-tab sessi
                                    (both -- hasReachedMaxWin can truncate either way)
      lucky_spin  pending.gameState == 3: keep the wheel's multiplier, then drain as above
      extension   pending.canBuyExtension: decline the offer; nothing to drain
-     promo       pending.gameState == 4: promo spins are CLICKED; nothing to drain
+     promo       pending.gameState == 4: CLICK its spins until a round leaves state 4
 4. waitForSpinClickable()       -> the game is back to a clean, spinnable base
 ```
 
 Only `freespins` may be drained. The other three wait on the PLAYER, so `awaitFreespinRound` would
-wait for rounds that never come and fail the boot of a healthy session. `needToStartPromo` is only
-logged: the framework never accepts a promo, and if its popup blocks the spin button step 4 says so.
+wait for rounds that never come and fail the boot of a healthy session. A running promo is played
+out by clicking spin (test accounts only — it spends the player's promo).
+
+**Promo dialogs** (games whose profile names them, e.g. Grandma `Promo:receive` / `Promo:list` /
+`Promo:message`): the framework **never claims or discards a promo**. `waitForSpinClickable` is
+waited in slices, and between slices `clearPromoPopups` closes any promo dialog — `cancel` on the
+claim dialog, `confirm` only on the end-of-promo result (no `cancel` shown), the list's close, the
+message's OK. Because every boot, settle and spin goes through that wait, a dialog at boot or on the
+return to base after free spins is handled in one place. Popup readers (`ctx.popups()`, the
+extension-offer and big-win waits) leave promo dialogs out.
 
 **Every step has exactly one authority.** Nothing is cross-checked against a second signal. Two
 judgements of the same fact can disagree, and whichever one is allowed to break the tie quietly

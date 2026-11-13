@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -397,6 +398,43 @@ def _plan_image(pool, provider, cases: list) -> list:
     return plan
 
 
+_NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+
+
+def read_number(v):
+    """The first number in an AI-read text ("$1,250.00" -> 1250.0), or None when there is none."""
+    m = _NUMBER.search("" if v is None else str(v))
+    if not m:
+        return None
+    try:
+        return float(m.group(0).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def compare_shots(cmp: dict, rows: list) -> tuple:
+    """`compare_shots: {field, ratio, tol}` on a per-shot `image:` assert: the number the AI read
+    in `field` on the SECOND shot, divided by the one on the FIRST, must equal `ratio` within `tol`
+    (relative, default 0.02). It says what no per-shot `expected` can: that a figure SCALED between
+    two captures (a paytable shot at two bets). Returns (ok, note)."""
+    field = cmp.get("field")
+    if len(rows) != 2:
+        return False, f"compare_shots needs exactly 2 screens, got {len(rows)}"
+    first_text = (rows[0].get("data") or {}).get(field)
+    second_text = (rows[1].get("data") or {}).get(field)
+    first, second = read_number(first_text), read_number(second_text)
+    want = read_number(cmp.get("ratio"))
+    tol = float(cmp.get("tol", 0.02))
+    if want is None:
+        return False, f"compare_shots: ratio {cmp.get('ratio')!r} is not a number"
+    if first is None or second is None or first == 0:
+        return False, f"{field}: could not read two numbers ({first_text!r}, {second_text!r})"
+    got = second / first
+    ok = abs(got - want) <= tol * abs(want)
+    return ok, (f"{field}: {first_text!r} -> {second_text!r}, ratio {round(got, 4)} "
+                f"{'matches' if ok else 'does not match'} {want} (tol {tol})")
+
+
 def _finish_image(plan: list, cases: list) -> None:
     """Fold the finished image calls into their specs. The assert passes only if EVERY shot passes,
     and the note names the ones that didn't — otherwise a single bad surface would disappear into
@@ -421,9 +459,16 @@ def _finish_image(plan: list, cases: list) -> None:
             rows.append(r)
             if r["status"] != "pass":
                 failed.append(f"{shot['label']}: {r.get('note', '')}")
+        cmp_note = None
+        if spec.get("compare_shots"):
+            cmp_ok, cmp_note = compare_shots(spec["compare_shots"], rows)
+            spec["compare_shots_ok"] = cmp_ok
+            if not cmp_ok:
+                failed.append(cmp_note)
         spec["shot_results"] = rows
         spec["status"] = "pass" if not failed else "orange"
-        spec["note"] = ("all %d screens matched" % len(rows)) if not failed else " | ".join(failed)
+        spec["note"] = (("all %d screens matched" % len(rows)) + (f"; {cmp_note}" if cmp_note else "")
+                        if not failed else " | ".join(failed))
         spec["tokens"] = [sum(r.get("tokens", [0, 0])[0] for r in rows),
                           sum(r.get("tokens", [0, 0])[1] for r in rows)]
     for c in cases:

@@ -450,9 +450,10 @@ runs:
   # STATES, and the whole case is that they differ. Combining them would average the very
   # difference under test into one answer.
   #
-  # The AI READS the printed figures; nothing about them is `expected`, because a wrong number
-  # could be a display bug or a misread and the response holds no copy of what the paytable prints.
-  # The exact half below is what makes the comparison meaningful at all.
+  # The AI READS the printed figures without being told the bet; no figure is `expected`, because
+  # the response holds no copy of what the paytable prints. `compare_shots` then checks the top
+  # payout moved by exactly bet_b / bet_a between the two shots, and the scenario reads the bet back
+  # from the game after each pick, so the two shots really are at two different bets.
   - run:
       scenario: paytable-bet-scaling
       teardown: return-to-base
@@ -469,15 +470,13 @@ runs:
             - image:
                 at: paytable-bet-
                 prompt: >-
-                  A Zeus paytable screen. Zeus is a 3x3 slot with 5 paylines whose per-line payout
-                  is (total bet / 5) x the symbol's multiplier. Two captures exist: one at bet
-                  {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet {facts.bet_b}
-                  (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the bet or total
+                  A Zeus paytable screen (a 3x3 slot with 5 paylines). For THIS image, answer: (1) read the bet or total
                   bet value shown on it (bet_text). (2) read the payout printed for the
                   highest-paying symbol's 3-of-a-kind row (top_payout_text). (3) are the payout
                   values shown as currency amounts rather than bare multipliers (shows_currency)?
                   (4) is the table fully rendered — every symbol row present, no blank or
                   placeholder values (table_renders)?
+                compare_shots: { field: top_payout_text, ratio: "{facts.bet_ratio}", tol: 0.02 }
                 output_schema:
                   bet_text: { type: string }
                   top_payout_text: { type: string }

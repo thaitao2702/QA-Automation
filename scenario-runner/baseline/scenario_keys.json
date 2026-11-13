@@ -1,0 +1,1243 @@
+{
+ "base-win": {
+  "class": "BaseWin",
+  "keys": [
+   "balance_after_win",
+   "balance_after_win_display",
+   "balance_before_spin",
+   "balance_while_spinning",
+   "spins_played",
+   "spins_to_win",
+   "win",
+   "win_payout",
+   "win_payout_display",
+   "win_stake"
+  ],
+  "description": "Spin the base game until a round PAYS, then settle. Mechanism-agnostic: it asks only `payout > 0`, so it works on a payline game as readily as a cascade one — use it for the balance-credit check. (`base-cluster-win` is the cascade-specific cousin: it additionally requires >= 2 cascade steps, which a payline game never produces.) Exposes res = the winning round + facts.spins_to_win / win_payout / win_stake. Unreached if nothing pays inside the spin budget.\nIt also publishes the BALANCE READOUT'S THREE VALUES for the winning round — balance_before_spin, balance_while_spinning (the stake is taken at spin START, so the readout sits here for the whole spin) and balance_after_win. A prompt about either half of the money has to name the two endpoints of the step it is judging, not just the destination; naming only `res.balance` earned a correct NO on Mah_008, because that is a value the readout passes THROUGH. The names are `base-cluster-win`'s and the authoring doc's, deliberately: one concept must not have two names across two scenarios, or a prompt moved between them silently binds to null. See docs/scenario-assert-authoring.md §2. PORTABLE, and verified against the captured payloads of all three games. The one thing to know is WHY `win_stake` is always > 0 here: a paying round with stake 0 exists on every game with a bonus -- Zeus's terminal Hold & Spin round reports payout 261 at stake 0 and is NOT a trigger, so it reads exactly like a base win. It never reaches this loop because `base_spin()` only returns rounds the framework CLICKED; bonus rounds arrive through `awaitFreespinRound` inside `play_out_freespins`. That is an invariant of the drive, not an accident -- a scenario that collects rounds some other way must re-check it.",
+  "params": {
+   "max_spins": 60,
+   "skip_big_win": true
+  }
+ },
+ "base-cluster-win": {
+  "class": "BaseClusterWin",
+  "keys": [
+   "balance_after_next_bet",
+   "balance_after_win",
+   "balance_before_spin",
+   "balance_while_spinning",
+   "cascade_events",
+   "cascades",
+   "configured_ladder",
+   "first_multiplier",
+   "multiplier_climbed",
+   "multiplier_reset",
+   "multipliers",
+   "next_multiplier",
+   "reset",
+   "top_multiplier",
+   "win",
+   "win_payout",
+   "win_stake"
+  ],
+  "description": "Base game: spin until a cluster win with >= 2 cascades (which climbs the multiplier), then play ONE MORE fresh base spin so the multiplier RESET on the next round is also on screen. A cluster win is expensive to hit, so this single play covers BOTH the win (balance credit + multiplier-per-cascade) and the reset. Exposes res = the winning spin, rounds = [win, next]; marks: win = the cascade win, reset = the following spin (bind win checks to `at: win`, the reset check to `at: reset`).",
+  "params": {
+   "max_spins": 200
+  }
+ },
+ "fs-complete": {
+  "class": "FreeSpinComplete",
+  "keys": [
+   "capped",
+   "counter_matches_rounds",
+   "counter_offsets",
+   "counter_readings",
+   "free_spins_played",
+   "fs_rounds",
+   "response",
+   "seq",
+   "shown",
+   "total_rounds",
+   "trigger_bonus_reels",
+   "trigger_max_bonus_per_reel",
+   "triggers_skipped"
+  ],
+  "description": "Spin base until free spins trigger, then observe the whole bonus to its terminal round. Exposes rounds = [trigger, ...free spins..., terminal]; trigger = rounds[0], terminal = rounds[-1].",
+  "params": {
+   "max_base": 400,
+   "arrive_when": null,
+   "max_spins": null
+  }
+ },
+ "freespin-cascade": {
+  "class": "FreeSpinCascade",
+  "keys": [
+   "fs_cascade",
+   "fs_reset"
+  ],
+  "description": "Trigger free spins and find a FREE SPIN with a cluster/cascade win (>= 2 cascades) that is FOLLOWED by at least one more free spin — so both the multiplier CLIMB (that cascade round) and the RESET on the next free spin are captured in one bonus. Retries with fresh triggers if a bonus doesn't yield one. Exposes res = the cascade free spin; marks: fs_cascade = that round, fs_reset = the following free spin.",
+  "params": {
+   "max_base": 400,
+   "max_triggers": 5
+  }
+ },
+ "change-bet": {
+  "class": "ChangeBet",
+  "keys": [
+   "bet_changed",
+   "denom_count",
+   "landed_bet",
+   "landed_index",
+   "max_bet",
+   "min_bet",
+   "picked_bet",
+   "picked_index",
+   "prev_index"
+  ],
+  "description": "Change the bet to a specific denomination. Takes whichever path the build offers: open the denomination list and tap a row, or — when there is no list (profile.HAS_BET_POPUP is False) — step the stake control until it lands. Places NO bet, so there is no stream data; exposes facts.picked_bet / picked_index and what it ACTUALLY landed on (landed_bet / landed_index / bet_changed), plus the video window for an AI check that the on-screen amount matches.",
+  "params": {
+   "target_index": null
+  }
+ },
+ "browse-denominations": {
+  "class": "BrowseDenominations",
+  "keys": [
+   "close_button_worked",
+   "closed",
+   "currency",
+   "denom_count",
+   "end_index",
+   "has_bet_popup",
+   "list_shown",
+   "max_bet",
+   "min_bet",
+   "needed_dismiss",
+   "popups_after",
+   "start_index"
+  ],
+  "description": "Open the bet-amount list and scroll to the HIGHEST option then the LOWEST, so a SCROLLABLE list reveals both ends on screen (not every option is visible at once). Places no bet. Exposes facts.denom_count / min_bet / max_bet / currency for an AI check that the list matches the configured denominations.",
+  "params": {}
+ },
+ "boot-base": {
+  "class": "BootBase",
+  "keys": [
+   "balance",
+   "bet_amount",
+   "bet_index",
+   "currency",
+   "default_bet_amount",
+   "default_bet_known",
+   "default_bet_level",
+   "denom_count",
+   "expected_open_bet",
+   "first_session",
+   "last_bet_stake",
+   "max_bet",
+   "min_bet",
+   "opens_at_default",
+   "opens_at_expected_bet"
+  ],
+  "description": "Sit in a clean base game (no spins) and record it. Exposes gameInfo facts — bet_amount, bet_index, balance, currency, denom_count, min_bet, max_bet — for the UI and denomination checks.",
+  "params": {
+   "dwell_s": 2
+  }
+ },
+ "base-spin": {
+  "class": "BaseSpin",
+  "keys": [
+   "spin"
+  ],
+  "description": "One base spin of ANY outcome (win or lose). Exposes res = that spin, for balance-debit / spin-mechanic checks.",
+  "params": {}
+ },
+ "auto-play": {
+  "class": "AutoPlay",
+  "keys": [
+   "auto_count",
+   "auto_spins_at_start",
+   "auto_stopped",
+   "bonus_count",
+   "buttons_enabled_during_auto",
+   "buttons_polled_during_auto",
+   "completed",
+   "count_is_panel_default",
+   "rounds_played",
+   "stake_constant",
+   "stakes_seen",
+   "total_rounds",
+   "via_count"
+  ],
+  "description": "Start auto-play for N spins (auto -> auto:count -> auto:confirm); the CLIENT then auto-spins and we collect all N base results in order, then it stops. If an auto spin TRIGGERS free spins, the client auto-plays the whole bonus — we drain those rounds (they don't count toward N) and then resume collecting base spins. Exposes rounds + facts.auto_count / rounds_played / bonus_count for the auto checks.\nfacts.stakes_seen / stake_constant answer 'the bet did not change during the sequence' EXACTLY — an AI read of the bet label cannot tell 'never changed' from 'changed and changed back between two sampled frames'. After the count is reached it WATCHES for another bet for stop_probe_ms and holds the stopped screen for stop_dwell_ms, so 'auto stopped' is evidence (facts.auto_stopped / extra_round_after_stop / auto_flag_after) and the clip actually contains the stopped game instead of ending on the last payout.",
+  "params": {
+   "count": 10,
+   "stop_probe_ms": 6000,
+   "stop_dwell_ms": 3000,
+   "setup_dwell_ms": 2000
+  }
+ },
+ "spin-then-history": {
+  "class": "SpinThenHistory",
+  "keys": [
+   "all_outcomes",
+   "bonuses_drained",
+   "is_base_round",
+   "missing",
+   "outcome_count",
+   "outcomes_found",
+   "spins"
+  ],
+  "description": "Inspect a PLAIN BASE round in History for each outcome shape the MECHANISM can produce: a LOSING spin, a NORMAL win (one paying step) and — on a cascade game only — a CASCADE win (two or more). A single-grid game (line, hold-and-spin) reports one paying step for any win, so `cascade_win` is dropped automatically and the hunt is just lose/win; narrow it further with `params: {outcomes: [...]}`. It keeps spinning and, the moment a spin matches an outcome still outstanding, stops and inspects THAT round: open History, open the newest row's bet detail, scroll it by ONE PAGE PER PAYING STEP (0 for a loss, 1 for a normal win, N for a cascade) — `detail_scroll_steps` overrides that for a build whose detail does not page, then close up and carry on hunting the rest. One spin sequence therefore covers them all, instead of a run each hunting separately. Each inspection is MARKED as `no_win` / `normal_win` / `cascade_win`, so a `video:` assert targets one with `at:`; each round's clip spans its own spin through its own History walk. A spin that TRIGGERS the bonus is drained and skipped — a bonus ticket is a different shape (one sub-ticket per free spin) and belongs to `freespin-then-history`. Exposes facts.<outcome>_found / _cluster_wins / _scrolls / _detail_opened / _round_id / _stake / _payout, plus outcomes_found / all_outcomes / spins / bonuses_drained. Unreached only if NO outcome was inspected at all.",
+  "params": {
+   "settle_before_history_s": 2.0,
+   "detail_scroll_steps": null,
+   "dwell_ms": 2000,
+   "list_timeout_ms": 10000,
+   "max_spins": 80,
+   "outcomes": null
+  }
+ },
+ "freespin-then-history": {
+  "class": "FreespinThenHistory",
+  "keys": [
+   "back_at_first",
+   "base_spins",
+   "bet_count",
+   "bet_count_matches_rounds",
+   "bonus_total",
+   "detail_scrolls",
+   "expected_pages",
+   "fs_rounds",
+   "history_rows",
+   "paged_back",
+   "pages_visited",
+   "reached_last_page",
+   "round_id",
+   "trigger"
+  ],
+  "description": "Play a WHOLE free-spin round, then inspect it in History: open the panel, open the newest row's bet detail, and page through EVERY sub-ticket with the detail's own next/prev nav — in a free-spin round each free spin is its own bet, so paging walks the free-spin chain. Each sub-ticket is scrolled by ONE PAGE PER CLUSTER WIN, derived from that spin's response, so a losing free spin is not scrolled at all. Paging is driven by `getHistoryDetailState().hasNext`, NOT by page arithmetic: the popup's nav accounts for the synthetic max-win page, so counting would be off by one exactly on max-win rounds. After reaching the end it pages BACK to the first ticket, so prev is exercised too. Exposes facts.fs_rounds / bet_count / pages_visited / paged_back / bet_count_matches_rounds / detail_scrolls. Unreached if no bonus is hit, History shows no row, or the detail never opens.",
+  "params": {
+   "cap": 60,
+   "settle_before_history_s": 2.0,
+   "dwell_ms": 2000,
+   "list_timeout_ms": 10000,
+   "page_back": true
+  }
+ },
+ "insufficient-balance": {
+  "class": "InsufficientBalance",
+  "keys": [
+   "chosen_bet",
+   "min_bet",
+   "mode",
+   "orig_balance",
+   "spin_balance"
+  ],
+  "description": "Force a balance-below-stake state, then attempt a spin — the client should block it with an out-of-money popup. Tries the WALLET first (a whole-unit Playsite withdrawal down below the min bet); if the balance can't be shrunk that far, RAISES the stake above the balance instead. Restores the wallet/bet at the end. Needs PLAYSITE_* config for the wallet path.",
+  "params": {}
+ },
+ "auto-stop-at-win": {
+  "class": "AutoStopAtWin",
+  "keys": [
+   "auto_stopped",
+   "discarded_stops",
+   "feature_rounds",
+   "lead_in",
+   "lead_in_from_auto_start",
+   "lead_in_rounds",
+   "min_spins_before_win",
+   "spins_before_win",
+   "spins_to_win",
+   "stop_on",
+   "t",
+   "trigger_payout",
+   "win",
+   "win_end",
+   "won_by_feature",
+   "won_payout",
+   "won_via"
+  ],
+  "description": "Enable 'stop at any win', run auto with an unlimited count so ONLY a win stops it, and observe base spins until the first win. A win comes in TWO SHAPES and they look nothing alike on screen, so `stop_on` picks which one this run is about:\n  base_win -- the spin itself paid; the clip is one spin and a win presentation.\n  freespin -- the spin awarded a FREE-SPIN FEATURE, which is then drained; the triggering spin shows an award, not a line win, and the money arrives across the bonus.\n  any (default) -- whichever lands first. Fine for a smoke check, but a case written for it cannot phrase a prompt: it does not know what will be on screen.\nA stop of the wrong shape is DISCARDED — auto is restarted and the hunt resumes — so a run is deterministic in what it captures (facts.discarded_stops counts them). Pair `stop_on: freespin` with an easy-trigger paytable and a max-win cap, or the hunt is long and the bonus is unbounded.\nfacts.won_payout is the WHOLE event: the spin's payout for a base win, the sum across the drained bonus for a feature (the trigger round pays 0, so reporting its payout published 0.0 as 'the win'). facts.won_via says which shape it was.\nMarks `win` (the round that ended auto) and `win_end` (that event's last round, whose window runs through the stop and the idle tail) — span them with `at: [win, win_end]` to film trigger -> feature -> back to base. `tail_dwell_ms` adds padding after the stop so the idle base screen is unmistakably in frame. Uses auto:stopAtWin / auto:count:4 (Infinity).\nMark `lead_in` is a MOMENT, not a round: up to `lead_in_rounds` (3) auto spins before the win, or the auto:confirm click when fewer were played — span `at: [lead_in, win_end]` to show auto running BEFORE it stopped. `min_spins_before_win` restarts auto when the win comes sooner than that many non-winning auto spins, so the clip has spins to show (facts.spins_before_win / lead_in_rounds / lead_in_from_auto_start).",
+  "params": {
+   "max_spins": 200,
+   "watch_ms": 6000,
+   "dwell_ms": 3000,
+   "stop_on": "any",
+   "max_attempts": 6,
+   "tail_dwell_ms": 0,
+   "lead_in_rounds": 3,
+   "min_spins_before_win": 0
+  }
+ },
+ "auto-user-stop": {
+  "class": "AutoUserStop",
+  "keys": [
+   "auto_stopped",
+   "spins_before_stop"
+  ],
+  "description": "Start auto with an unlimited count, let a few spins play, then the USER stops it (auto:stop). Exposes facts.spins_before_stop / auto_stopped for the check that auto halts immediately on demand.",
+  "params": {
+   "spins_before_stop": 3,
+   "watch_ms": 6000,
+   "dwell_ms": 3000
+  }
+ },
+ "auto-reload-cancels": {
+  "class": "AutoReloadCancels",
+  "keys": [
+   "auto_cancelled",
+   "spins_before_reload"
+  ],
+  "description": "Start auto, let a spin or two play, then RELOAD the game; auto should be cancelled on re-entry. Exposes facts.spins_before_reload / auto_cancelled for the check that auto does not resume after a reload.",
+  "params": {
+   "spins_before_reload": 2,
+   "watch_ms": 6000,
+   "dwell_ms": 3000
+  }
+ },
+ "auto-change-bet-first": {
+  "class": "AutoChangeBetFirst",
+  "keys": [
+   "auto_count",
+   "picked_bet",
+   "picked_index"
+  ],
+  "description": "Change the bet to a specific denomination FIRST, then start auto for N spins; every auto spin must use the chosen stake. Exposes res = the first auto spin + facts.picked_bet for the response check {res.stake} == picked_bet.",
+  "params": {
+   "count": 10,
+   "target_index": null
+  }
+ },
+ "auto-until-empty": {
+  "class": "AutoUntilEmpty",
+  "keys": [
+   "balance_below_bet",
+   "bet",
+   "final_balance",
+   "fund_spins",
+   "funded_balance",
+   "spins_played",
+   "stopped_on_empty",
+   "winning_rounds"
+  ],
+  "description": "FUND the wallet for ~fund_spins spins at the current stake, then run auto with an unlimited count until the balance runs out; the client should auto-STOP and show the out-of-money popup. Sets the wallet to EXACTLY fund_spins x stake (the Playsite API takes fractional amounts) to keep the run short -- but the END CONDITION is the server balance falling below one bet, checked after every round, NOT a spin count: an auto spin can win, and a free-spin trigger pays across a bonus, so the wallet is not necessarily empty after fund_spins spins. Then confirms no further round is wagered and holds on the stopped screen for the video. Exposes facts.funded_balance / bet / spins_played / final_balance / balance_below_bet / winning_rounds / stopped_on_empty; reached only if it really ran out. Needs PLAYSITE_* config.",
+  "params": {
+   "fund_spins": 2,
+   "cap": 200,
+   "watch_ms": 6000,
+   "dwell_ms": 3000
+  }
+ },
+ "open-tutorial": {
+  "class": "OpenTutorial",
+  "keys": [
+   "dwell_s",
+   "has_tutorial_webview",
+   "is_webview",
+   "reached_bottom",
+   "scroll_steps",
+   "scrolled_back",
+   "shot_count",
+   "tutorial_open"
+  ],
+  "description": "Open the in-game Info / Tutorial popup and BROWSE THE WHOLE GUIDE: dwell on the top of the page, then wheel DOWN to the bottom one viewport at a time (90% steps, so no band of the document falls between two shots), pausing at each screenful, and rest at the end. The tutorial spans several screens, so a clip of only the first screen cannot support 'the content/images are all correct' — this exposes every screenful in one clip instead. The page is a CROSS-ORIGIN WebView: only a real mouse wheel can scroll it (the bridge is blocked by the browser) and its scroll position cannot be read back, so the step count is fixed and over-wheeling harmlessly clamps at the end. Marks TUTORIAL TOP / BOTTOM for the ACTION TIMELINE. Exposes facts.tutorial_open (the WebView was really there, not an empty popup), reached_bottom (the full planned scroll was issued — that the pixels MOVED is a video claim, not a bridge one) and scroll_steps. Set scroll_back=True to also page back UP (Mah_058 next/previous). Unreached if the info button never becomes clickable.",
+  "params": {
+   "dwell_s": 2,
+   "scroll_steps": 10,
+   "scroll_dwell_ms": 2000,
+   "scroll_back": false,
+   "shots": true
+  }
+ },
+ "spin-inputs": {
+  "class": "SpinInputs",
+  "keys": [
+   "btn",
+   "click_rounds",
+   "dblclick_done",
+   "extra_spin_after_dblclick",
+   "hold_done",
+   "hold_ms",
+   "hold_rounds",
+   "key_rounds",
+   "rounds_total",
+   "space",
+   "spins_after_release",
+   "stop_control",
+   "sudden_hold_done"
+  ],
+  "description": "All spin INPUT variants in one recording: spin via the Spin button (035); spin via Space (036); hold-Spin -> continuous auto-spin, release stops it (037/039); hold-Spin during a spin -> sudden stop (038); double-click -> sudden stop (040). One shared video graded per case (expected_by_case).\nExposes facts.click_rounds / key_rounds / hold_done / dblclick_done / rounds_total — the EXACT half of 'one input started exactly one spin', which no amount of watching the reels settles reliably: a double-fire looks like one spin on video but is two responses in the stream.\nHOLD: the paid spins that start while the button is held are COUNTED (facts.hold_rounds) and so are any after release (spins_after_release) -- 'holding starts auto-spin, releasing stops it' as numbers, not an impression.\nSUDDEN STOP: both gestures land on the build's STOP control (`stop`, falling back to `spin`) WHILE the reels turn. Aiming them at `spin` waited for the spin button to be clickable, which on a build with a separate stop control (Grandma) is only once the reels have STOPPED -- so the 'sudden stop' landed on a finished spin. facts.sudden_hold_done / dblclick_done say the gesture really landed mid-spin; extra_spin_after_dblclick catches a double-click that fired a spin.",
+  "params": {
+   "hold_ms": 1800
+  }
+ },
+ "turbo-modes": {
+  "class": "TurboModes",
+  "keys": [
+   "baseline_not_turbo",
+   "baseline_speed",
+   "has_speed_getter",
+   "key_hold_done",
+   "mouse_hold_done",
+   "speed_before",
+   "speed_off",
+   "speed_on",
+   "speed_toggled",
+   "turbo_control_present"
+  ],
+  "description": "Turbo in one recording: toggle the Turbo button on and spin -> reels resolve faster (021); press-and-hold the mouse on Spin -> turbo only while held (022); press-and-hold Space -> turbo only while held (023). One shared video graded per case.\nReads getSpeedMode() around each step, so 'turbo really engaged' is an EXACT check (facts.speed_before / speed_on / speed_off / speed_toggled) rather than an AI impression that the reels looked faster — which is unreliable precisely on the builds where turbo is subtly broken. facts.mouse_hold_done / key_hold_done record that the hold gestures actually fired.\nStarts with ONE normal-speed spin (baseline_spin, default on): it is the only normal-speed spin in the clip — the spins after Turbo is switched off are the HOLDS, which run in turbo on every game that has hold-for-turbo — so it is the reference 'turbo is faster' is judged against. facts.baseline_speed, and baseline_not_turbo (baseline_speed != speed_on, so independent of how a build spells its modes).",
+  "params": {
+   "baseline_spin": true
+  }
+ },
+ "reconnect-brief": {
+  "class": "ReconnectBrief",
+  "keys": [
+   "offline_s",
+   "played_after_reconnect",
+   "recovered"
+  ],
+  "description": "Briefly drop the network (below the reconnect threshold) and restore it: the game should show a reconnecting state and auto-resume where it was, balance/UI in sync. After reconnect it PLAYS ONE MORE ROUND to prove the game is stable/playable again. Covers a short disconnect (027), a network switch (029) and a short tab-away/return (033). facts.recovered / played_after_reconnect.",
+  "params": {
+   "off_s": 6.0
+  }
+ },
+ "reconnect-long": {
+  "class": "ReconnectLong",
+  "keys": [
+   "offline_s"
+  ],
+  "description": "Drop the network LONGER than the reconnect threshold (>20s), then restore it: the game should NOT silently resume -- it shows a popup and returns to Landing/Home per design. Video-graded.",
+  "params": {
+   "off_s": 25.0
+  }
+ },
+ "reconnect-during-auto": {
+  "class": "ReconnectDuringAuto",
+  "keys": [
+   "auto_resumed",
+   "offline_s",
+   "recovered",
+   "rounds_after_reconnect"
+  ],
+  "description": "Start auto-play, briefly drop the network mid-auto, then restore it: the game should reconnect and handle auto per design (resume or stop) with NO data desync. facts.recovered = playing again, by EITHER allowed path: an auto bet arrives after the reconnect (auto_resumed) or the spin control becomes usable (auto stopped). The rounds after the reconnect (up to rounds_after) are recorded, so conservation covers them — a spin replayed on reconnect debits twice. Auto is then stopped so the next run starts idle. facts.rounds_after_reconnect.",
+  "params": {
+   "count": 10,
+   "off_s": 6.0,
+   "resume_wait_s": 30.0,
+   "rounds_after": 2
+  }
+ },
+ "multi-tab-session": {
+  "class": "MultiTabSession",
+  "keys": [
+   "second_opened",
+   "spin",
+   "wait_s"
+  ],
+  "description": "Open the SAME account in a second session (a fresh browser context on the same URL) while this one is playing: the original session should be invalidated per design — a popup and/or a return to Landing/Home. The recorded video is THIS (first) tab, so it captures the invalidation. Needs the runner to pass browser + url into the context.",
+  "params": {}
+ },
+ "freespin-zero-balance": {
+  "class": "FreespinZeroBalance",
+  "keys": [
+   "attempts_discarded",
+   "attempts_no_trigger",
+   "balance_after_trigger",
+   "balance_at_reload",
+   "broke_at_trigger",
+   "first_fs_capped",
+   "fs_rounds_played",
+   "fs_rounds_resumed",
+   "funded_attempts",
+   "observed_before_reload",
+   "played_after_zero",
+   "reloaded_mid_bonus",
+   "stake",
+   "terminal",
+   "trigger",
+   "triggers_capped",
+   "triggers_paid_out"
+  ],
+  "description": "Spend the player's LAST STAKE into a free-spin trigger, then reload and prove the owed free spins still play out with nothing left in the wallet -- a free-spin round does not check the balance, because it costs nothing. Each attempt funds the wallet with EXACTLY one bet, reloads so the client re-reads it, and spins: the stake is debited, so a spin that triggers leaves the player broke with a bonus owed. One free spin is then played and HELD on (observe_ms) so the award and its result are watchable, and the game is reloaded with the bonus still pending. An attempt is DISCARDED and re-hunted when it does not trigger, or when the trigger or the first free spin hits the max-win cap (the server truncates back to base, leaving nothing for the reload to resume). Streams: stake_zero_in_freespins + conservation over the resumed rounds. Exposes facts.broke_at_trigger / balance_after_trigger / observed_before_reload / fs_rounds_resumed / attempts_discarded. Needs PLAYSITE_*; restore the wallet with `teardown: restore-balance`.",
+  "params": {
+   "max_attempts": 25,
+   "observe_ms": 4000,
+   "reload_mid_bonus": true
+  }
+ },
+ "reels-glow": {
+  "class": "ReelsGlow",
+  "keys": [
+   "bonus_reels",
+   "bonus_reels_hit",
+   "p1_on_reel2",
+   "p1_on_reel3",
+   "p1_reels",
+   "p1_reels_hit",
+   "spin"
+  ],
+  "description": "Reels Glow: spin and observe whether the Reels-Glow anticipation fires per the rule (glows when the FreeSpin! symbol lands across the qualifying reels; NOT when the last bonus is on the final reel). The forced BO paytable (run-level `paytable:`) makes the FreeSpin! symbol land in the chosen reels; that usually TRIGGERS free spins, so this captures the base spin (the glow) then drains any bonus so settle can't hang. Video-graded per case (at: spin).",
+  "params": {
+   "spins": 1
+  }
+ },
+ "toggle-turbo": {
+  "class": "ToggleTurbo",
+  "keys": [
+   "has_speed_getter",
+   "popup_events",
+   "speed_after_off",
+   "speed_after_on",
+   "speed_before",
+   "speed_changed_on",
+   "speed_restored_off",
+   "toggled_off"
+  ],
+  "description": "Toggle Turbo ON and then back OFF from the main screen, dwelling after each click so the 'Turbo Enabled' / 'Turbo Disabled' notification sits in frame long enough to be read. Places no bet. Exposes facts.speed_after_on / speed_after_off — the bridge's MODEL-truth speed mode, so the toggle itself is an exact check — plus the popup labels the bridge saw. Unreached when the Turbo button never becomes clickable.",
+  "params": {
+   "dwell_ms": 2000
+  }
+ },
+ "toggle-auto": {
+  "class": "ToggleAuto",
+  "keys": [
+   "auto_started",
+   "auto_stopped",
+   "popup_events",
+   "returned_to_idle",
+   "spins_played",
+   "stop_clicked"
+  ],
+  "description": "Start Auto Play (auto -> auto:count -> auto:confirm), let ONE auto spin play so it is genuinely running, then STOP it from the main screen — dwelling after the start and the stop so the 'Auto Play Enabled' / 'Auto Play Disabled' notification is recorded. Exposes facts.auto_started / auto_stopped / spins_played (from the bridge's isAutoPlay plus the collected responses), so the state change is an exact check and only the notification is left to the AI. Unreached when auto never starts.",
+  "params": {
+   "count_index": 0,
+   "spins_before_stop": 1,
+   "dwell_ms": 2000
+  }
+ },
+ "stacked-popups": {
+  "class": "StackedPopups",
+  "keys": [
+   "cycles",
+   "features_used",
+   "max_concurrent_popups",
+   "notifications_visible_to_bridge",
+   "popup_events",
+   "popup_order",
+   "popup_samples",
+   "popups_cleared_after_idle",
+   "popups_left",
+   "toggles_landed"
+  ],
+  "description": "Fire the main-screen feature toggles BACK-TO-BACK with no pause — each present feature ON then OFF, repeated `cycles` times — so several notifications are requested within a second or two of each other. Places NO bet and never starts Auto Play: the case is about the notifications, and a spin would only add animation between them. Which toggles are used is PROBED from the build (see _CANDIDATES): a feature this build does not have is skipped instantly, because waiting on an absent button would insert multi-second gaps into the very burst being tested. Every tap is MARKED, so the ACTION TIMELINE — not a hard-coded prompt — tells the AI what was toggled and in what order. A background poll samples the visible-popup list throughout; afterwards the game is left IDLE so the notifications can auto-close. Every feature gets an EVEN number of taps, so the burst restores itself; the screen is cleared at the end. Exposes facts.features_used / toggles_landed / popup_order / max_concurrent_popups / popup_samples / popups_cleared_after_idle; overlap and ORDER are themselves visual claims, graded from the clip. Unreached when fewer than 3 toggles land (nothing stacked, so there is nothing to judge).",
+  "params": {
+   "idle_s": 6.0,
+   "click_timeout_ms": 4000,
+   "min_toggles": 3,
+   "cycles": 2
+  }
+ },
+ "language-tour": {
+  "class": "LanguageTour",
+  "keys": [
+   "failed",
+   "language",
+   "language_count",
+   "language_name",
+   "languages",
+   "requested",
+   "selection",
+   "shot_count",
+   "stress_language",
+   "supported_count",
+   "surface_count",
+   "surfaces",
+   "switches"
+  ],
+  "description": "Walk every text-bearing surface of the game in whatever language the run LOADED in (set `language:` on the run): the base screen, the bet list, Settings, the Info / Tutorial guide, the Auto Play panel and History, pausing on each. Places no bet. One clip therefore holds every screen a language check has to look at — the translation (052), the auto text scaling (054) and clipped/missing glyphs (055) — with each surface MARKED so the ACTION TIMELINE names what is on screen when. Exposes facts.language / language_name / surfaces / surface_count. Unreached if no surface beyond the base screen opens.",
+  "params": {
+   "dwell_ms": 2000,
+   "languages": null,
+   "seed": null,
+   "include": null,
+   "surfaces": null
+  }
+ },
+ "language-switch": {
+  "class": "LanguageSwitch",
+  "keys": [
+   "from_language",
+   "from_name",
+   "surfaces_after",
+   "surfaces_before",
+   "switched",
+   "to_language",
+   "to_name"
+  ],
+  "description": "Change the language while the game is open and re-enter it: tour the UI in the FROM language, then re-launch in the TO language and tour the SAME surfaces again. BOTH ends are QA-settable per run — `params: {from: <code>, to: <code>}` — because which pair leaks a stale string is exactly what a tester wants to vary; `from` defaults to the run's `language:` (or whatever is loaded), `to` to Burmese. Shots are labelled 'BEFORE <surface>' / 'AFTER <surface>' so an image assert can grade either pass. The failure this case is really about is a leftover untranslated string, visible only by comparing the passes. Exposes facts.from_language / to_language / from_name / to_name / surfaces_before / surfaces_after / switched. Unreached if a re-launch fails.",
+  "params": {
+   "to": "<expr>",
+   "dwell_ms": 2000,
+   "**kw": "<kwargs>"
+  }
+ },
+ "language-sweep": {
+  "class": "LanguageSweep",
+  "keys": [
+   "failed",
+   "language_count",
+   "languages",
+   "requested"
+  ],
+  "description": "Re-launch the game in EVERY supported language in turn and pause on the base screen in each, so one clip carries the whole set for a translation sweep. Each language is MARKED with its code and name, so the ACTION TIMELINE tells the AI exactly which language each stretch of the clip is supposed to be — without that it would have to guess, and a wrong-language screen is precisely what this case looks for. This is the longest scenario in the suite (one Playsite re-launch per language). Exposes facts.languages / language_count / failed. Unreached if fewer than half re-launch.",
+  "params": {
+   "languages": null,
+   "dwell_ms": 2000
+  }
+ },
+ "last-bet-before-rounds": {
+  "class": "LastBetBeforeRounds",
+  "keys": [
+   "base_spins",
+   "bonus_total",
+   "fs_rounds",
+   "fs_stake_zero",
+   "last_round_payout",
+   "trigger",
+   "trigger_stake"
+  ],
+  "description": "Trigger free spins and record the WHOLE bonus, because Last Bet shows ITSELF here: per the spec it flashes for ~0.5s before each free-spin round, carrying the bet type / stake / bet amount / win of the round that just finished. That auto-display needs no button, which is why this case is automatable while the rest of the Last Bet module is not (the bridge exposes no `lastBet` control to OPEN the panel). Every free-spin round is MARKED so the ACTION TIMELINE lines each 0.5s window up with the response that preceded it; grade with high_fps, since 0.5s is two frames at the default sampling. Exposes facts.fs_rounds / fs_stake_zero / trigger_stake / last_round_payout. Unreached if no bonus is reached within the spin budget.",
+  "params": {
+   "cap": 60
+  }
+ },
+ "last-bet-restore": {
+  "class": "LastBetRestore",
+  "keys": [
+   "bet_moved_after_round",
+   "bet_opens_at_changed_value",
+   "bet_opens_at_last_stake",
+   "bet_opens_at_new_default",
+   "bonus_payout_restored",
+   "changed_bet_to",
+   "client_ladder",
+   "client_on_new_ladder",
+   "game_info_source",
+   "info_captured",
+   "ladder_loads",
+   "last_bet_present",
+   "new_default_bet",
+   "new_ladder",
+   "payout_restored",
+   "played",
+   "played_base_stake",
+   "played_bet_in_new_ladder",
+   "played_bonus_payout",
+   "played_payout",
+   "played_stake",
+   "restored",
+   "restored_base_stake",
+   "restored_bet_amount",
+   "restored_payout",
+   "restored_stake",
+   "resumed_rounds",
+   "spins_played",
+   "stake_restored",
+   "swap_applied",
+   "t",
+   "terminal_base_stake",
+   "trigger_base_stake",
+   "trigger_stake"
+  ],
+  "description": "LAST BET IS A RESUME BEHAVIOUR, NOT A PANEL. Play one base round, RELOAD the game as a player closing and reopening it, and check that the session comes back showing the round they last played: the same stake, the same win, and the bet control sitting at that stake rather than at the configured default.\nDrives `reload_and_start()`, then reads `getGameInfo().lastBet` through the profile's parser and compares it to the round actually played.\n`result_hold_s` (3s) holds the SETTLED ROUND in frame before the reload: `settle()` only waits for the game to be spinnable, so without it the clip cuts from the win straight to the reload and the montage may never sample the result the reopened screen is compared against.\nGRADE IT WITH `video: at: [played, restored]`, not with a still. The clip then runs from the last round's response -- so its WIN ANIMATION is in frame, which a screenshot cannot hold -- through the reload and on to the restored screen sitting ready. That turns the AI's job into a COMPARISON of two phases of one clip (`is the bet / win / winning line the same after the reload as before it`) rather than reading absolute values off a still, which is the reading the bridge already owns exactly. `restored` is a MOMENT mark, so the span reaches the end of the scenario; a bare `at: played` stops at the next response and cuts the reload off. A `restored` screenshot is still taken for cases that want a full-resolution look at the re-entry alone.\n⚠ TWO TRAPS, both load-bearing, both from the bridge docs:\n  * `getGameInfo()` must be the PRE-START CAPTURE. Right after the Start click     `GameController.applyLastBet()` sets `gameInfo.lastBet = null`, so a LIVE     read reports no last bet on a session that restored perfectly.     `isGameInfoCaptured()` is the gate, published as facts.info_captured --     without it every comparison below is None == None and greens on nothing.\n  * `lastBet` does NOT spell its fields like a BET response on every game     (contract §5), which is why it is read through `Bet.parse` / `GAME.*` and     never by raw key.\n`outcome` picks which round to leave on record: 'win' | 'lose' | 'freespin_trigger' | 'any'. On 'win'/'lose'/'any' a bonus met while hunting is DRAINED, so the round left on record is a plain base round; on 'freespin_trigger' the scenario deliberately leaves the terminal round of a FINISHED bonus there instead. Either way the bonus is played out before the reload, so `pending` is empty and the client RESTORES rather than resumes -- if it ever resumes, this case is grading a screen it did not ask for, and facts.resumed_rounds says so.\n⚠ 'freespin_trigger' MEANS TRIGGERED FROM THE BASE GAME, NOT BOUGHT. The name is explicit because a game with Buy Bonus has two ways into the same feature and they do NOT cost the same: a trigger charges the base stake, a purchase charges a price that is a multiple of it. A restore case that conflated them would assert the wrong figure. The bought route is a separate outcome ('buy_bonus', not implemented -- it needs the panel flow `buy-bonus` already drives).\n⚠ ON 'freespin_trigger' THE STAKE IS READ OFF THE TRIGGER, not the terminal round. Bonus rounds cost nothing, so their `stake` is 0 and `base_stake()` falls back to it when `baseStake` is absent -- reading the terminal round would publish 0 on a healthy game and fail every stake assert for the wrong reason. The trigger is the round the player actually paid. `terminal_base_stake` publishes the other figure so a captured BET response can settle which one `lastBet` echoes.\n`change_bet_after` is CR_095: after the round, pick a DIFFERENT bet amount in the bet list (client-side, no spin), then reopen. A bet change sends nothing to the server, so the record is still the round PLAYED and the game must come back on that stake, not the one merely selected (facts.changed_bet_to vs restored_bet_amount; bet_moved_after_round is the gate).\n`swap_denomination` (Grandma TC-085): after the round, CLOSE the game, switch the agent's bet levels in BO to the automation ladder (11/22/33, which does not contain the bet just played), reopen once the game server serves it, and check the game opens on the NEW list's DEFAULT bet (facts.new_default_bet / bet_opens_at_new_default; played_bet_in_new_ladder must be False for the case to mean anything). Unreached when BO is not configured or the new list never arrives. Needs `teardown: reset-denomination`. A swap while a bonus is still OWED makes the reload a RESUME -- that is `bonus-resume-denomination-swap`.\nExposes played_stake / played_base_stake / played_payout, restored_* for each, stake_restored / payout_restored / bet_opens_at_last_stake, and the gates info_captured / last_bet_present / resumed_rounds. On 'freespin_trigger' it adds trigger_stake / trigger_base_stake / terminal_base_stake -- the trigger names are `hold-spin-complete`'s and `last-bet-before-rounds`', deliberately: one concept must not have two names across two scenarios.",
+  "params": {
+   "outcome": "any",
+   "max_spins": 60,
+   "dwell_s": 3,
+   "change_bet_after": false,
+   "result_hold_s": 2.0,
+   "swap_denomination": false,
+   "settle_s": 5.0,
+   "propagation_timeout_s": 30.0,
+   "poll_s": 3.0
+  }
+ },
+ "bonus-resume-denomination-swap": {
+  "class": "BonusResumeDenominationSwap",
+  "keys": [
+   "base_spins",
+   "bet_after_bonus",
+   "bet_after_bonus_is_new_default",
+   "bet_after_bonus_on_new_ladder",
+   "bet_during_bonus_is_old",
+   "bet_during_bonus_is_pending",
+   "bet_during_bonus_on_new_ladder",
+   "client_ladder",
+   "client_on_new_ladder",
+   "info_captured",
+   "is_pending_freespin",
+   "ladder_loads",
+   "new_default_bet",
+   "new_default_level",
+   "new_ladder",
+   "old_bet_on_new_ladder",
+   "pending_free_spins",
+   "pending_stake",
+   "pending_stake_is_trigger",
+   "previous_denomination_id",
+   "restored",
+   "resume_bets",
+   "resume_capped",
+   "resume_first",
+   "resume_last",
+   "resumed_rounds",
+   "swap_applied",
+   "swap_created_ladder",
+   "swap_denomination_id",
+   "swap_denomination_name",
+   "t",
+   "trigger",
+   "trigger_base_stake",
+   "trigger_stake"
+  ],
+  "description": "A bonus is TRIGGERED, the game is CLOSED while that bonus is still owed, the agent's bet ladder is changed on BO, and the game is REOPENED. Two claims, one run: (1) the RESUMED bonus keeps the stake it was triggered at -- the server froze it in `gameInfo.pending` -- and (2) once it ends, the base game opens on the NEW ladder's default bet, because the old stake does not exist there.\nThis is a RESUME, not a restore (`last-bet-restore`): the reload happens with a bonus owed, so `pending` drives it. The swap goes to the automation ladder (11, 22, 33), which shares no value with any real ladder -- that is what makes 'the old stake is not on the new ladder' true by construction, and facts.old_bet_on_new_ladder is the gate that proves it.\nSequence, each step visible in `run`: base spins until a trigger -> `stop_client()` -> `set_automation_denomination()` (BO write + a Rule 20 settle wait) -> `open_game()` (load + Start, no play-out) -> read `pending` -> play the resumed bonus with `play_out_holdspin` / `play_out_freespins`, reading the bet readout on every round through `on_round` (facts.resume_bets) -> settle -> mark `restored` -> hold -> shoot `after_bonus`.\nMarks: `trigger` (round), `resume_first` / `resume_last` (rounds), `restored` (moment). Grade both claims on ONE clip with `at: [trigger, restored]` and a phase-scoped prompt.\nForce the trigger with a paytable fixture; unreached if none arrives in `max_spins`, or when BO is not configured. REQUIRES `teardown: reset-denomination`.\nExposes trigger_stake / trigger_base_stake, the swap (swap_applied, new_ladder, new_default_bet, client_ladder, client_on_new_ladder, old_bet_on_new_ladder), the resume (info_captured, is_pending_freespin, pending_stake, pending_stake_is_trigger, resumed_rounds, resume_bets, bet_during_bonus_is_old, bet_during_bonus_on_new_ladder) and the base game after it (bet_after_bonus, bet_after_bonus_is_new_default, bet_after_bonus_on_new_ladder).",
+  "params": {
+   "max_spins": 20,
+   "dwell_s": 3,
+   "resume_cap": 60,
+   "settle_s": 5.0,
+   "propagation_timeout_s": 30.0,
+   "poll_s": 3.0
+  }
+ },
+ "hold-spin-complete": {
+  "class": "HoldSpinComplete",
+  "keys": [
+   "base_spins",
+   "bonus_total",
+   "capped",
+   "coin_total",
+   "coins_added",
+   "control_samples",
+   "feature",
+   "feature_bet",
+   "feature_multiplier_configured",
+   "feature_on_after_bonus",
+   "feature_on_trigger",
+   "feature_restored",
+   "feature_spin_cost",
+   "feature_switched_on",
+   "final_coins",
+   "grid_filled",
+   "instant_finish",
+   "off_available_in_feature",
+   "respin_premium_ids",
+   "respin_stakes",
+   "respins_left",
+   "respins_played",
+   "terminal",
+   "trigger",
+   "trigger_base_stake",
+   "trigger_coins",
+   "trigger_multiplier",
+   "trigger_stake",
+   "trigger_stake_matches"
+  ],
+  "description": "Spin until Hold & Spin triggers, then play the WHOLE feature out and expose every round. The client drives the respins, so this collects them passively. Exposes trigger + rounds for the holdspin_* invariants (coins held, counter reset on a new coin, count-down without one, correct end) and facts.trigger_coins / final_coins / respins_played / coins_added / grid_filled / bonus_total / capped. Unreached if no trigger inside the spin budget -- force one with a `paytable:` fixture rather than raising the budget, since a natural trigger is rare.\nThe feature is drained by `play_out_holdspin`, so the end is read from the game (Rule 2) and a max-win truncation is REPORTED as facts.capped rather than passing as a clean finish (Rule 9) -- a capped feature satisfies holdspin_ends_correctly for the wrong reason, so a case that needs the whole feature asserts `capped == False` and the respin LENGTH it needs.\n`feature` (\"ante\" | \"premium:<reelId>\") plays the Hold & Spin as a bet WITH a paid spin feature: switched on before the hunt through `switch_feature`, and back off once the feature has ended. Every hunting spin must carry it -- the run is unreached the moment one does not, rather than hunting at the plain odds. Adds facts.feature_on_trigger / trigger_stake / trigger_base_stake / trigger_multiplier / trigger_stake_matches / feature_multiplier_configured / respin_stakes / respin_premium_ids / off_available_in_feature (the off control sampled through the whole feature, never waited on) / feature_on_after_bonus / feature_restored. Force the trigger in the feature's OWN reel section (Dragon VIP: `ante-trigger3-countdown`, `premium-trigger3-countdown`), so the trigger itself proves the server spun the feature's reels.",
+  "params": {
+   "cap": 200,
+   "respin_cap": 60,
+   "settle": true,
+   "feature": null
+  }
+ },
+ "hold-spin-full-grid": {
+  "class": "HoldSpinFullGrid",
+  "keys": [
+   "base_spins",
+   "bonus_total",
+   "capped",
+   "coin_total",
+   "filled_on_trigger",
+   "final_coins",
+   "grid_filled",
+   "respins_played",
+   "terminal",
+   "trigger"
+  ],
+  "description": "The full-grid path: land every slot and the feature must pay out immediately instead of spinning. Plays until the grid fills -- on the trigger itself (no respin is fired at all) or during the respins -- and exposes facts.filled_on_trigger / respins_played / final_coins / capped. Needs a forced outcome to be practical: run it with the `fs-trigger9` paytable fixture. Unreached if the grid never fills, which is the honest verdict for an unforced run -- and a MAX-WIN truncation is one of the ways it can fail to fill, so the reason names it.",
+  "params": {
+   "cap": 200,
+   "respin_cap": 60
+  }
+ },
+ "buy-bonus": {
+  "class": "BuyBonus",
+  "keys": [
+   "awarded",
+   "bet",
+   "bonus_ended",
+   "bonus_rounds",
+   "bonus_total",
+   "bought_premium_id",
+   "buy_clicked",
+   "capped",
+   "coins_added",
+   "confirmed",
+   "final_coins",
+   "fs_rounds",
+   "grid_filled",
+   "package_picked",
+   "package_spins",
+   "packages",
+   "paid_stake",
+   "popup_loaded",
+   "price",
+   "price_ratio",
+   "respin_premium_ids",
+   "respins_left",
+   "respins_played",
+   "reveal_bonus_reels",
+   "reveal_distinct_grids",
+   "reveal_grid",
+   "reveal_max_bonus_per_reel",
+   "reveal_sampled",
+   "reveal_stable",
+   "reveal_wilds",
+   "reveal_winning_run",
+   "terminal",
+   "trigger",
+   "trigger_coins"
+  ],
+  "description": "Buy the bonus and play it out: open the Buy Bonus popup, read each package's price against the current bet, confirm one, then collect the whole feature. The bought round enters Hold & Spin directly, so every holdspin_* invariant applies to it unchanged -- which IS the case that buying behaves like a natural trigger. Drives the WHOLE round: open, select, confirm, then every respin, then back to a spinnable base game -- the last step proven by `settle_to_base`, not assumed. Exposes facts.packages / price / bet / price_ratio / package_picked / confirmed / trigger_coins / respins_played / bonus_rounds / bonus_ended / bonus_total / capped / returned_to_base. Marks `trigger` and `terminal`, so a video spans the whole thing with `at: [trigger, terminal]`. Unreached if the build has no Buy Bonus, the popup never opens, no package selects, or the purchase never fires.\nThe bought feature is drained by `play_out_holdspin`, exactly as a natural one is -- which is the point of ZZ-42/43: if buying took a different code path, the same drain and the same invariants would show it.",
+  "params": {
+   "package": 0,
+   "respin_cap": 60,
+   "sample_reveal": false
+  }
+ },
+ "sound-toggles": {
+  "class": "SoundToggles",
+  "keys": [
+   "music_after_off",
+   "music_before",
+   "music_button",
+   "music_restored",
+   "sound_after_off",
+   "sound_before",
+   "sound_button",
+   "sound_restored",
+   "toggled"
+  ],
+  "description": "Toggle sound and music off and back on, reading the bridge's own getters (isSoundEnabled / isMusicEnabled) around each click -- so 'the volume really went to zero' is an EXACT check rather than something an AI has to hear. Opens Settings if the toggles live there. Exposes facts.sound_before/after_off/restored and the same for music. Unreached when the build exposes no sound getters (the case cannot be answered without them).",
+  "params": {
+   "via_settings": true
+  }
+ },
+ "premium-reel-spin": {
+  "class": "PremiumReelSpin",
+  "keys": [
+   "after",
+   "after_premium_id",
+   "after_stake",
+   "all_bases_unchanged",
+   "all_engaged",
+   "all_ids_echoed",
+   "all_multipliers_echoed",
+   "all_spin_costs_match",
+   "all_stakes_match",
+   "all_switched_off",
+   "ante_allowed_while_on",
+   "ante_block_reason",
+   "ante_block_reasons",
+   "ante_blocked_while_on",
+   "base",
+   "bet",
+   "bonus_rounds",
+   "configured_multipliers",
+   "configured_reel_ids",
+   "distinct_ids_played",
+   "echoed_id",
+   "echoed_multiplier",
+   "engaged",
+   "multiplier",
+   "multipliers_tested",
+   "off_spin_plain",
+   "packages_configured",
+   "packages_tested",
+   "panel_blocked_while_on",
+   "panel_open_while_on",
+   "plain",
+   "plain_base",
+   "plain_stake",
+   "reel_id",
+   "reel_ids_tested",
+   "spin_cost",
+   "stake",
+   "stakes",
+   "switched_off"
+  ],
+  "description": "Premium Reel in the base game: a plain baseline spin, then for EACH package the session offers (`getPremiumReelOptions()`, narrowed by `reel_ids`) -- switch it on through `switch_feature`, probe what it excludes, spin, switch it off -- then a final plain spin at the same bet level. One play puts plain and premium rounds side by side, which is what `premium_reel_stake` needs to prove the payout base never moved.\nExposes facts.packages_configured / configured_reel_ids / configured_multipliers; packages_tested / reel_ids_tested / multipliers_tested / stakes; the per-package verdicts rolled up as all_engaged / all_stakes_match / all_ids_echoed / all_multipliers_echoed / all_bases_unchanged / all_spin_costs_match / all_switched_off (each False on an empty list, never vacuously True); what a package excludes, probed while it was ON, as panel_blocked_while_on / ante_blocked_while_on / ante_block_reasons; distinct_ids_played; and the plain spins as plain_stake / plain_base / after_stake / after_premium_id / off_spin_plain. Marks `plain` and `after`. Unreached when the profile has no Premium Reel or the session offers no package.",
+  "params": {
+   "reel_ids": null
+  }
+ },
+ "ante-toggle": {
+  "class": "AnteToggle",
+  "keys": [
+   "after_off",
+   "ante_engaged",
+   "ante_multiplier",
+   "ante_multiplier_setting",
+   "ante_off_spin_plain",
+   "ante_switched_off",
+   "ante_switched_on",
+   "ante_toast_on_disable",
+   "ante_toast_on_enable",
+   "base_after_off",
+   "base_off",
+   "base_on",
+   "base_unchanged",
+   "bet_amount_off",
+   "bet_amount_on",
+   "bet_amount_restored",
+   "bonus_rounds",
+   "expected_ante_stake",
+   "feature_panel_blocked_while_on",
+   "hovered",
+   "off",
+   "on",
+   "popups_on_disable",
+   "popups_on_enable",
+   "premium_block_reason",
+   "premium_blocked_while_on",
+   "premium_offered",
+   "spin_cost_on",
+   "stake_after_off",
+   "stake_off",
+   "stake_on",
+   "stake_ratio"
+  ],
+  "description": "Ante Bet in the base game: one spin with ante OFF, hover the control to raise its info panel, switch ante ON, spin again at the SAME bet level, then switch it back OFF.\nThe point of the case is the DIVERGENCE ante creates, and one play captures both sides of it: `stake` (what the player pays) is multiplied, `baseStake` (what payouts derive from) is not. facts.stake_off / stake_on / base_off / base_on / ante_multiplier / ante_multiplier_setting (from gameInfo.result.settings) / expected_ante_stake / stake_ratio / base_unchanged carry it exactly, and `rounds` holds both spins so `ante_stake_multiplier` gets the ante/non-ante pairing it needs to prove the base did not move.\nMarks off/on; shots ante-off / ante-info-panel / ante-on. Unreached when this build has no ante control.\nAnte is switched through `switch_feature`, so a build that puts it behind the Buy Bonus panel (Dragon VIP) runs the same play. There, while ante is ON, facts.feature_panel_blocked_while_on / premium_blocked_while_on / premium_block_reason probe what it excludes, and ante_toast_on_enable / ante_toast_on_disable read the ante toast. `spin_after_off` spins once more after ante goes back off: facts.stake_after_off / base_after_off / ante_off_spin_plain, mark `after_off`.",
+  "params": {
+   "hover_ms": 1500,
+   "spin_after_off": false
+  }
+ },
+ "ante-freespins": {
+  "class": "AnteFreeSpins",
+  "keys": [
+   "ante_at_trigger",
+   "ante_clickable_in_fs",
+   "ante_engaged_at_trigger",
+   "ante_frozen",
+   "ante_multipliers",
+   "ante_on_at_start",
+   "ante_reported_in_fs",
+   "ante_verifiable_in_fs",
+   "awarded",
+   "base_spins",
+   "bonus_total",
+   "expected_award",
+   "free_spins_played",
+   "fs_stakes",
+   "paid_spins",
+   "terminal",
+   "terminal_ok",
+   "trigger",
+   "trigger_reels",
+   "trigger_scatters",
+   "trigger_stake"
+  ],
+  "description": "Turn Ante Bet ON, spin until it triggers free spins, then play the whole bonus out. Answers the two questions the ante cases ask about a RUNNING bonus:\n  * is the ante control LOCKED while the feature plays (facts.ante_clickable_in_fs — probed instantly with getButtonRect, never waited on, because waiting on a deliberately disabled control burns the whole timeout inside the bonus);\n  * is the ante multiplier FROZEN at its trigger value (facts.ante_frozen).\n⚠ A free spin costs nothing, so the server may report `anteMultiplier: 0` on every one — in which case the frozen rule is NOT answerable from the response and facts.ante_verifiable_in_fs is False. A case must gate on that before asserting ante_frozen, or 'no data' reads as 'frozen'. The ante-info panel is shot mid-bonus (ante-info-in-fs) as the fallback evidence CR_055 actually asks for.\nThe ante toggle is SWITCHED, not blind-clicked: `isAnteBet` is read first, so a game that already loaded with ante ON is left alone instead of being toggled OFF into a bonus nobody paid ante for, and the end-of-run restore only undoes a click this run actually made. facts.ante_on_at_start records the state found at load and facts.ante_engaged_at_trigger says whether the TRIGGER round really carried the ante bet — gate every ante claim on that one.\nExposes rounds = [trigger, ...free spins..., terminal] for the shared free-spin invariants. The BO half of CR_055/056 — changing config mid-bonus and reloading — is NOT driven here.",
+  "params": {
+   "max_base": 300
+  }
+ },
+ "p1-ways-win": {
+  "class": "P1WaysWin",
+  "keys": [
+   "actual_payout",
+   "allowed_reels",
+   "base_stake",
+   "capped",
+   "expected_credited",
+   "expected_gross",
+   "formula_ok",
+   "illegal_reels",
+   "line_pay",
+   "max_win",
+   "p1_pay",
+   "p1_reels",
+   "p1_reels_seen",
+   "p1_ways",
+   "p1_wins_seen",
+   "paid_spins",
+   "phase",
+   "raw_payout",
+   "reels",
+   "rounds_audited",
+   "scatter_multiplier",
+   "scatter_only",
+   "seq",
+   "symbol_multiplier",
+   "win"
+  ],
+  "description": "Symbol P1 (\"Fuel\", id 5): spin until a round pays a P1 WAYS WIN whose whole payout is that win — P1 on reels 1, 3 and 5, and no payline win alongside it. Needs the forced `chaos-p1-ways` paytable (~28% of spins qualify); on the real strips this is ~1 in 1800 spins and the run would report inconclusive.\nWhy SCATTER-ONLY: the game shows one number, so on a round that also paid a line the screen shows the SUM and an AI read of it proves nothing about either half. When the P1 pay is the whole win the display is exactly ways x 10 x baseStake, which is what makes the documented formula checkable from the video.\nEvery round spun on the way is audited for P1 on a reel it must never occupy (reels 2 and 4), free-spin rounds included.\nExposes facts.p1_ways / p1_reels / rounds_audited / paid_spins / illegal_reels; the documented formula as symbol_multiplier / base_stake / p1_pay / line_pay / formula_ok; and — because `payout` is CAPPED — both expected_gross vs raw_payout AND expected_credited vs actual_payout. A case must not compare the ways formula against the credited figure.",
+  "params": {
+   "max_spins": 40
+  }
+ },
+ "raining-wild": {
+  "class": "RainingWild",
+  "keys": [
+   "control_wilds",
+   "expected_raining",
+   "has_control",
+   "min_wilds",
+   "payout_at_rain",
+   "rain",
+   "scatters_at_rain",
+   "wild_reels",
+   "wilds"
+  ],
+  "description": "Raining Wild: spin until a result carries 2+ Wilds (id 9) — the documented 100% trigger — and capture that spin's animation window. Also records a CONTRASTING spin with fewer than 2 Wilds (0%, the animation must NOT play), so the rule can be judged both ways instead of only confirming the positive. Without the negative, an implementation that played the animation on EVERY spin would pass.\nThe animation is VISUAL ONLY (game-knowledge.md §4): it must never change the outcome, so facts.payout_at_rain is exposed for a conservation check rather than any claim that the effect paid something.\nExposes facts.wilds / wild_reels / expected_raining / control_wilds; marks rain and norain.",
+  "params": {
+   "max_spins": 200
+  }
+ },
+ "random-multiplier": {
+  "class": "RandomMultiplier",
+  "keys": [
+   "all_in_ladder",
+   "base_multipliers",
+   "base_spins",
+   "base_spins_after_bonus",
+   "configured_ladder",
+   "distinct_multipliers",
+   "fs_multiplier_count",
+   "fs_multipliers",
+   "fs_spins",
+   "ladder",
+   "multipliers_seen",
+   "reached_freespins",
+   "reported_any",
+   "trigger",
+   "varied"
+  ],
+  "description": "The random multiplier ladder (x1/x2/x5/x10) across BOTH modes: sample the base game, then reach a bonus and sample every free spin in it. The BO export gives the weights — x10 is weight 5 in the base game but 40 in free spins — so an all-x1 bonus is unusual rather than normal.\nAlso reads the configured ladder straight from the bridge (getMultiplierLevels) as facts.configured_ladder, so 'the values shown are the values configured' is an EXACT check rather than an AI read of the on-screen bar. Exposes facts.base_multipliers / fs_multipliers / all_in_ladder / reached_freespins.\n`base_spins` is the MINIMUM number of base rounds sampled: the run cannot choose which spin triggers, so when the bonus arrives first it goes back to the base game afterwards until the count is met. facts.base_spins counts every base round, base_spins_after_bonus the ones played after it; fs_spins counts every free spin played and fs_multiplier_count the ones that reported a multiplier.",
+  "params": {
+   "base_spins": 3,
+   "max_base": 40
+  }
+ },
+ "paytable-bet-scaling": {
+  "class": "PaytableBetScaling",
+  "keys": [
+   "bet_a",
+   "bet_a_asked",
+   "bet_b",
+   "bet_b_asked",
+   "bet_ratio",
+   "denom_count",
+   "divisor",
+   "index_a",
+   "index_b",
+   "line_bet_a",
+   "line_bet_b"
+  ],
+  "description": "The paytable popup and its bet scaling: open the info/paytable surface and shoot it at bet level A, close, change the bet to level B, reopen and shoot it again. Two full-resolution stills of the SAME table at two bets is what an `image:` assert needs to check that the printed payouts moved with the bet (CR_015) — a video assert grades a downsampled montage, where paytable digits are not in the pixels.\nPlaces NO bet, so Rule 1 does not apply: no response is read and no trigger is possible. Exposes facts.bet_a / bet_b (the bet the GAME showed after each pick, read back -- unreached when it is not the bet asked for) / bet_ratio (bet_b / bet_a, for an image assert's `compare_shots`) / line_bet_a / line_bet_b / divisor and the shots paytable-bet-a / paytable-bet-b.\nPer-line bet is `baseStake / betLines` (20). The design doc's `/5` worked examples are wrong — see game-knowledge.md §5 item 4.",
+  "params": {
+   "index_a": 0,
+   "index_b": 3
+  }
+ },
+ "buy-bonus-lucky-spin": {
+  "class": "BuyBonusLuckySpin",
+  "keys": [
+   "awarded",
+   "balance_before",
+   "bet",
+   "bonus_total",
+   "bought",
+   "capped",
+   "expanded_reels",
+   "expanded_rounds",
+   "fs_rounds",
+   "lucky_multiplier",
+   "multiplier_constant",
+   "package_name",
+   "package_spins",
+   "paid_stake",
+   "price",
+   "price_ratio",
+   "terminal",
+   "wheel_choice",
+   "wheel_shown"
+  ],
+  "description": "Buy the bonus, answer the LUCKY SPIN WHEEL, and play the bought free spins out. The game-specific half of Buy Bonus on Joker: the purchase awards the spins AND raises a wheel offering x1 / x3 / x12, and the bridge never makes that choice (bridge-api.md 12.5). `dismissPopups()` deliberately never closes `luckySpin`, so a scenario that buys and walks away leaves the game waiting forever -- which is why `buy-bonus` cannot be used here and this exists.\n`wheel`: 'keep' takes the multiplier already shown (the default, x3), 'spin' spins for a new one. Either way the choice is CLICKED, never dismissed.\nSequence: buyBonus -> [buy_level] -> buy_purchase -> buy_confirm -> the purchase round (carries `freeSpinPackage`) -> wait for the wheel -> keep/spin -> drain the free spins -> settle to base.\nExposes price / price_ratio / paid_stake / package_spins, the wheel (wheel_shown, wheel_choice, lucky_multiplier), and the bonus (fs_rounds, bonus_total, expanded_rounds, expanded_reels, capped).",
+  "params": {
+   "wheel": "keep",
+   "level": null,
+   "respin_cap": 120,
+   "wheel_timeout_ms": 30000
+  }
+ },
+ "freespin-reload": {
+  "class": "FreeSpinReload",
+  "keys": [
+   "awarded",
+   "buttons_ever_enabled",
+   "buttons_flashed",
+   "buttons_polled",
+   "first_resumed_free_spins",
+   "free_spins",
+   "free_spins_before_reload",
+   "fs_rounds",
+   "game_state",
+   "is_bonus",
+   "pending_free_spins",
+   "pending_game_state",
+   "pending_is_bonus",
+   "price",
+   "price_ratio",
+   "reload",
+   "resume",
+   "resumed_rounds",
+   "rounds_before_reload",
+   "source",
+   "terminal",
+   "trigger"
+  ],
+  "description": "Reload the game in the MIDDLE of a bonus and prove it resumes where it left off: reach a bonus (naturally, or by buying it with `source: buy`), play `after_rounds` free spins, reload, and let the client play out what is still owed. The resume signal is `gameInfo.pending`, read in the gap between the bridge appearing and Start -- the only moment it exists, because the client clears it the instant Start is clicked.\nA 50ms watcher runs IN THE PAGE across the reload over the controls that must stay disabled while spins are owed (bet +/-, autoplay, settings, buy bonus), so a one-frame flash is caught instead of falling between two awaits.\nExposes facts.source / awarded / rounds_before_reload / free_spins_before_reload / pending_free_spins / pending_game_state / pending_is_bonus / resumed_rounds / first_resumed_free_spins / buttons_polled / buttons_flashed / buttons_ever_enabled / fs_rounds. Marks `trigger`, `reload`, `resume`, `terminal`. Unreached if no bonus is reached, or if it ends before `after_rounds` spins have played -- a reload with nothing owed proves nothing.",
+  "params": {
+   "source": "natural",
+   "after_rounds": 2,
+   "max_base": 40,
+   "cap": 500,
+   "package": 0
+  }
+ },
+ "walking-wild": {
+  "class": "WalkingWild",
+  "keys": [
+   "added",
+   "base_before",
+   "base_spins_after",
+   "base_spins_before",
+   "bonuses_played",
+   "cells_match",
+   "cells_mismatch",
+   "col",
+   "exit_animation_rounds",
+   "exited",
+   "fewer_wild_rounds",
+   "fs_rounds",
+   "fs_rounds_with_wilds",
+   "grid_match",
+   "grid_matches_view_rounds",
+   "grid_mismatch_seqs",
+   "leftover_clear_spins",
+   "min_walk_ms",
+   "more_wild_rounds",
+   "moved",
+   "moved_wild_rounds",
+   "multi_wild_rounds",
+   "overlapped",
+   "parked",
+   "read_timed_out",
+   "read_timeout_seqs",
+   "removed",
+   "row",
+   "seq",
+   "server",
+   "speed_mode",
+   "stand_in",
+   "stand_in_rounds",
+   "stop_clicks",
+   "transitions_seen",
+   "trigger",
+   "walk_animation_rounds",
+   "walk_finished_before_next_round",
+   "walk_in_base_after",
+   "walk_in_base_before",
+   "walk_ms",
+   "walk_open_at_end",
+   "walk_overlapped_spin_rounds",
+   "walk_started_in_base",
+   "walked",
+   "wild_cells_match_view_rounds",
+   "wild_change_rounds",
+   "wild_counts",
+   "wild_win_cells_parked",
+   "wild_wins_use_parked_cells",
+   "wilds"
+  ],
+  "description": "Play a bonus and grade the WALKING WILD round by round: where each wild parked, whether that matches the wilds the server sent, and whether the walk really played rather than the wild appearing in place.\nBase spins are taken BEFORE and AFTER the bonus on purpose -- 'a wild walks on only during free spins' needs the base game in the same recording. ⚠ A wild parked in a previous bonus may still STAND on the grid in base game until the next spin walks it off (bridge §8.2), so what is graded is whether a walk STARTS in a paid round, not whether the grid is empty.\nExposes facts.fs_rounds / wild_counts / wild_cells_match_view_rounds / grid_matches_view_rounds / walk_started_in_base / fs_rounds_with_wilds / multi_wild_rounds / more_wild_rounds / fewer_wild_rounds / moved_wild_rounds / wild_change_rounds / walk_animation_rounds / walk_overlapped_spin_rounds / stand_in_rounds / exit_animation_rounds / wild_wins_use_parked_cells / walk_finished_before_next_round / min_walk_ms / speed_mode. Marks `base_before`, `trigger`, `terminal`, `base_after`, and the rounds where wilds were ADDED (`more_wilds`, also `new_wild`), REMOVED (`fewer_wilds`), MOVED (`moved_wild`) and where several walked at once (`multi_wild`). LIST marks for `video: each:`: `wild_enter_rounds` (every free spin a wild was added) and `stand_in_kick_rounds` (every free spin with a stand-in at a wild's destination).",
+  "params": {
+   "source": "buy",
+   "base_spins_before": 2,
+   "base_spins_after": 1,
+   "max_base": 40,
+   "cap": 500,
+   "package": 0,
+   "turbo": false,
+   "sudden_stop": false,
+   "max_bonuses": 1
+  }
+ },
+ "drama": {
+  "class": "CatDogDrama",
+  "keys": [
+   "animated",
+   "autoplay_ran",
+   "candidates",
+   "cat_vs_dog",
+   "dev_switch_on",
+   "drama_animation_rounds",
+   "drama_enabled",
+   "drama_ms",
+   "dramas_played",
+   "fakes",
+   "fakes_all_loser_family",
+   "fakes_loser_family",
+   "fakes_when_not_played",
+   "fakes_within_cap",
+   "fakes_within_column_cap",
+   "fights_cat_vs_dog",
+   "fights_per_round_max",
+   "fights_same_row_adjacent",
+   "fights_vertical",
+   "first_drama",
+   "grid_match",
+   "grid_matches_view_rounds",
+   "last_drama",
+   "loser_is_fake",
+   "max_fakes_per_column",
+   "min_drama_ms",
+   "play_in_turbo_config",
+   "played",
+   "real_losers_survive",
+   "rounds_played",
+   "rounds_with_multiple_candidates",
+   "same_row_adjacent",
+   "seq",
+   "speed_mode",
+   "trigger",
+   "vertical",
+   "winner_family_by_rule",
+   "winner_family_matches_rule",
+   "winner_is_real_cell",
+   "winner_real",
+   "winner_stays",
+   "winner_survives_on_grid"
+  ],
+  "description": "Spin until the Cat vs Dog drama has PLAYED a given number of times, then stop. Counting dramas rather than spins is what makes the clip gradeable: the roll is 70% on a big win and 4% otherwise (bridge §8.5), so a fixed spin count can end with nothing to look at.\nEvery round is read through `getDramaState()` after `waitForSpinClickable` has waited the animation out, and against `getDisplayedGrid()` -- so 'the grid ends on the server's result' is exact on drama and non-drama rounds alike.\n⚠ A build with `devForceTrigger` / `devForceFamily` set is not a production build and the run FAILS rather than grading a forced fight.\nExposes facts.rounds_played / dramas_played / fights_cat_vs_dog / fights_same_row_adjacent / fights_vertical / fights_per_round_max / rounds_with_multiple_candidates / winner_is_real_cell / winner_family_matches_rule / loser_is_fake / fakes_all_loser_family / fakes_within_column_cap / real_losers_survive / grid_matches_view_rounds / drama_animation_rounds / fakes_when_not_played / min_drama_ms / dev_switch_on / play_in_turbo_config / speed_mode / autoplay_ran. Marks `first_drama` and `last_drama`. Unreached when `dramas` are not reached inside `max_spins`.",
+  "params": {
+   "dramas": 4,
+   "max_spins": 40,
+   "turbo": false,
+   "autoplay": 0
+  }
+ }
+}

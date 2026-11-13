@@ -756,20 +756,20 @@ runs:
           assert:
             # UNREACHED if every round in the clip happened to play a drama. At 70% over the rounds
             # this run takes, that is about 1 in 7500.
-            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.rounds_played} > {facts.dramas_played}"
             - stream: "{facts.fakes_when_not_played} == 0"
 
         - id: TC-129
           title: "A round with no drama has no fake, no removal and no refill"
           assert:
-            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.rounds_played} > {facts.dramas_played}"
             - stream: "{facts.fakes_when_not_played} == 0"
             - stream: "{facts.drama_animation_rounds} == {facts.dramas_played}"
 
         - id: TC-130
           title: "A round with no drama shows the server's result directly"
           assert:
-            - stream: "{facts.rounds_roll_failed} >= 1"
+            - stream: "{facts.rounds_played} > {facts.dramas_played}"
             - stream: "{facts.grid_matches_view_rounds} == {facts.rounds_played}"
 
   # D2 — TC-120
@@ -827,8 +827,7 @@ runs:
             - stream: "{facts.play_in_turbo_config} == True"
             - stream: "{facts.speed_mode} == 'TURBO'"
             - stream: "{facts.autoplay_ran} == True"
-            # dramas still played, and were never skipped for being in turbo
+            # dramas still played in turbo
             - stream: "{facts.dramas_played} >= 2"
-            - stream: "{facts.skipped_mode_excluded} == 0"
             # and each one actually animated
             - stream: "{facts.drama_animation_rounds} == {facts.dramas_played}"

@@ -439,13 +439,11 @@ runs:
             - image:
                 at: paytable-bet-
                 prompt: >-
-                  A Chaos Runner paytable screen. Chaos is a 5x3 slot whose per-line payout is
-                  (total bet / 20) x the symbol's multiplier. Two captures exist: one at bet
-                  {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet {facts.bet_b}
-                  (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the bet or total
+                  A Chaos Runner paytable screen (a 5x3 slot with 20 paylines). For THIS image, answer: (1) read the bet or total
                   bet value shown (bet_text). (2) read the payout printed for the highest-paying
                   symbol's 5-of-a-kind row (top_payout_text). (3) are payout values shown as
                   currency amounts rather than bare multipliers (shows_currency)?
+                compare_shots: { field: top_payout_text, ratio: "{facts.bet_ratio}", tol: 0.02 }
                 output_schema:
                   bet_text: { type: string }
                   top_payout_text: { type: string }

@@ -332,7 +332,121 @@ async def assert_idle(page: Page, timeout_ms: int = 60000) -> None:
 
 
 async def wait_spin_clickable(page: Page, timeout_ms: int) -> None:
-    await _await(page, "b.waitForSpinClickable(undefined, t)", timeout_ms, "waitForSpinClickable")
+    """Wait until a spin click would really send a bet. On a game with promo dialogs the wait runs
+    in slices and closes any promo dialog between them (`clear_promo_popups`): one can show at boot
+    or whenever the game returns to base (after free spins), and it blocks the spin button. This is
+    the one place that handles it, so every caller -- boot, settle, the next spin -- is covered."""
+    if not GAME.promo_popups():
+        await _await(page, "b.waitForSpinClickable(undefined, t)", timeout_ms, "waitForSpinClickable")
+        return
+    deadline = time.time() + timeout_ms / 1000
+    while True:
+        await clear_promo_popups(page)
+        slice_ms = max(1, min(_PROMO_SLICE_MS, int((deadline - time.time()) * 1000)))
+        try:
+            await _await(page, "b.waitForSpinClickable(undefined, t)", slice_ms, "waitForSpinClickable")
+            return
+        except Exception:                                    # noqa: BLE001
+            if time.time() >= deadline:
+                raise
+
+
+# ── Promo dialogs ────────────────────────────────────────────────────────────────────
+# The framework NEVER claims or discards a promo. `promo_confirm` is pressed only on a
+# `promo_receive` dialog that shows no `promo_cancel` -- the end-of-promo result, where confirm is
+# the only way out (Grandma bridge-api.md §7).
+
+_PROMO_SLICE_MS = 3000
+
+_POPUPS_JS = ("() => { const b = window.__gameTestBridge; const s = b && b.getSnapshot ? b.getSnapshot() : null;"
+              " return (s && s.visiblePopups) || []; }")
+
+_RECT_JS = ("(n) => { const b = window.__gameTestBridge;"
+            " try { return b && b.getButtonRect ? b.getButtonRect(n) : null; } catch (e) { return null; } }")
+
+# Resolves when `visiblePopups` differs from `before`, or after ~3 s.
+_POPUPS_CHANGED_JS = """async (before) => {
+    const b = window.__gameTestBridge;
+    for (let i = 0; i < 60; i++) {
+        const s = b && b.getSnapshot ? b.getSnapshot() : null;
+        const now = JSON.stringify((s && s.visiblePopups) || []);
+        if (now !== before) return true;
+        await new Promise(r => setTimeout(r, 50));
+    }
+    return false;
+}"""
+
+_promo_listeners: dict = {}
+
+
+def on_promo_action(page: Page, fn) -> None:
+    """Where `clear_promo_popups` reports what it closed on `page` (a DriveContext puts it on its
+    timeline). Without one it prints."""
+    _promo_listeners[id(page)] = fn
+
+
+async def clear_promo_popups(page: Page) -> list:
+    """Close every promo dialog on screen without claiming or discarding anything. Closing one new
+    promo can bring up the next, so it loops until none is left. Returns what it did, one line
+    each. A no-op on a game without promo dialogs in its profile."""
+    if not GAME.promo_popups():
+        return []
+    done: list = []
+    for _ in range(10):
+        up = [str(n) for n in (await page.evaluate(_POPUPS_JS) or [])]
+        dialog = next((n for n in up if GAME.is_promo_popup(n)), None)
+        if dialog is None:
+            break
+        if dialog == GAME.popup("promo_receive"):
+            cancel = GAME.button("promo_cancel")
+            # `cancel` resolves only while the dialog SHOWS it. When it does, it is the only button
+            # pressed: `confirm` beside it would claim (or discard) the promo.
+            if cancel and await page.evaluate(_RECT_JS, cancel):
+                control, what = cancel, "closed a promo dialog with cancel (not claimed)"
+            else:
+                control, what = GAME.button("promo_confirm"), "closed the end-of-promo result"
+        elif dialog == GAME.popup("promo_list"):
+            control, what = GAME.button("promo_list_close"), "closed the promo list"
+        else:
+            control, what = GAME.button("promo_message_ok"), "closed a promo message"
+        rect = await page.evaluate(_EXT_CLICKABLE_JS, control) if control else None
+        if rect:
+            await page.mouse.click(rect["centerX"], rect["centerY"])
+        else:
+            # dismissPopups() follows the same rule: cancel, else confirm on an end-of-promo result.
+            await page.evaluate("async () => { const b = window.__gameTestBridge;"
+                                " if (b && b.dismissPopups) await b.dismissPopups(); return true; }")
+            what += " (via dismissPopups)"
+        msg = f"PROMO: {what} [{dialog}]"
+        done.append(msg)
+        listener = _promo_listeners.get(id(page))
+        if listener is not None:
+            listener(msg)
+        else:
+            print(f"  {msg}")
+        await page.evaluate(_POPUPS_CHANGED_JS, json.dumps(up, separators=(",", ":")))
+    return done
+
+
+async def play_out_promo(page: Page, timeout_ms: int, fs_timeout_ms: int, cap: int = 300) -> list:
+    """Play out a promo the session is already IN (`pending.gameState == 4`): click spin until a
+    round leaves the promo state. Promo spins are clicked by the player, so nothing else will end
+    it. A free-spin bonus won inside the promo is drained on the way. Returns the raw responses."""
+    rounds: list = []
+    for _ in range(cap):
+        await wait_spin_clickable(page, timeout_ms)
+        await click_spin(page)
+        raw = await await_bet_response(page, timeout_ms)
+        rounds.append(raw)
+        last = Bet.parse(raw, len(rounds) - 1)
+        if is_freespin_trigger(last):
+            fs = await drain_to_base(page, True, None, fs_timeout_ms, 500, assert_base=False)
+            rounds.extend(fs)
+            if fs:
+                last = Bet.parse(fs[-1], len(rounds) - 1)
+        if last.game_state != GAME.PROMO_STATE:
+            return rounds
+    raise RuntimeError(f"promo play-out gave up after {cap} spins with the session still in the promo state")
 
 
 async def click_spin(page: Page) -> None:
@@ -502,11 +616,13 @@ async def start_game(page: Page, timeout_ms: int = 60000, on_freespin=None,
               "(canBuyExtension) -- declining it before the idle check.")
         await answer_extension_offer(page, expect=True)
     elif resume == "promo":
-        print("  gameInfo.pending: a free-game PROMO is running (gameState=4). Promo spins are "
-              "clicked by the player, so nothing is drained; the idle check below decides.")
+        print("  gameInfo.pending: a free-game PROMO is running (gameState=4) -- clicking its "
+              "spins until it ends, before any scenario runs.")
+        promo = await play_out_promo(page, timeout_ms, fs_timeout_ms)
+        print(f"  played out {len(promo)} promo round(s) at load")
     if GAME.promo_offered(info):
         print("  gameInfo.needToStartPromo: the client will OFFER a promo. The framework never "
-              "accepts one; if its popup blocks the spin button the idle check below says so.")
+              "accepts one; the idle check below closes its dialog with cancel.")
     # 3 + 4: the shared core -- play the bonus out, then assert the base. Identical to what a run
     # start does; only the evidence that a bonus is open differs (pending here, last_bet there).
     resumed = await drain_to_base(page, bonus_open, on_freespin, fs_timeout_ms, cap)
@@ -583,6 +699,11 @@ class DriveContext:
         self.timeline: list = []     # replay step bar
         self.round_starts: list = [] # video-relative start time per recorded round (indexed by seq)
         self.last_bet: Optional[Bet] = None   # last recorded BET response (server truth; read by teardown)
+        # A promo dialog closed on this page goes on the run's timeline, so the report shows it.
+        def _promo_mark(msg: str) -> None:
+            print(f"  {msg}")
+            self.mark(msg)
+        on_promo_action(page, _promo_mark)
 
     def now_s(self) -> float:
         return time.time() - self.video_start_time
@@ -1126,11 +1247,14 @@ class DriveContext:
         except Exception:  # noqa: BLE001
             return default
 
-    async def popups(self) -> list:
-        """Labels of the popups on screen right now (bridge `getSnapshot().visiblePopups`)."""
-        return await self.ui_read(
+    async def popups(self, include_promo: bool = False) -> list:
+        """Labels of the popups on screen right now (bridge `getSnapshot().visiblePopups`). Promo
+        dialogs are left out unless `include_promo`: one can show at any idle moment, no scenario
+        here is about it, and `wait_spin_clickable` closes it."""
+        found = await self.ui_read(
             "() => { const b = window.__gameTestBridge; const s = b && b.getSnapshot ? b.getSnapshot() : null;"
             " return (s && s.visiblePopups) || []; }", []) or []
+        return found if include_promo else [p for p in found if not GAME.is_promo_popup(p)]
 
     async def has_button(self, name: str) -> bool:
         """Does this BUILD have the control at all? An instant `getButtonRect` probe (`null` = the
@@ -1669,7 +1793,8 @@ _EXT_WAIT_JS = """async (opts) => {
         // animating it counts as "at rest", or every such bonus would sit out the whole `max`.
         const popups = ((snap && snap.visiblePopups) || [])
             .filter(n => String(n).indexOf('notify:') !== 0
-                         && String(n).indexOf('FreeSpinResult') < 0);
+                         && String(n).indexOf('FreeSpinResult') < 0
+                         && (opts.ignore || []).indexOf(String(n)) < 0);
         idle = (busy.length || popups.length) ? 0 : idle + 1;
         if (idle >= opts.idle) return {};
         await new Promise(r => setTimeout(r, 50));
@@ -1715,7 +1840,8 @@ _BIG_WIN_POPUP_JS = """async (opts) => {
     if (!b || !b.getSnapshot) return "";
     for (let i = 0; i < opts.ticks; i++) {
         const s = b.getSnapshot() || {};
-        const names = (s.visiblePopups || []).map(n => String(n).toLowerCase());
+        const names = (s.visiblePopups || []).filter(n => (opts.ignore || []).indexOf(String(n)) < 0)
+            .map(n => String(n).toLowerCase());
         if (names.some(n => n.indexOf('bigwin') >= 0)) return "popup";
         const busy = s.busyOps || [];
         if (busy.indexOf('bigWin') >= 0) return "busy";
@@ -1823,7 +1949,8 @@ async def skip_big_win(ctx: DriveContext, bet: "Bet | None", wait_ms: int = 2000
     # banner, or the round finishing its presentation entirely (nothing busy, nothing on screen).
     seen = await ctx.page.evaluate(_BIG_WIN_POPUP_JS,
                                    {"ticks": max(1, int(wait_ms / 50)),
-                                    "grace": max(1, int(grace_ms / 50))})
+                                    "grace": max(1, int(grace_ms / 50)),
+                                    "ignore": GAME.promo_popups()})
     if not seen:
         # The round qualified but nothing came up. Worth saying: either the bands in the launch
         # payload disagree with what the client celebrates, or this build shows no banner at all.
@@ -1959,7 +2086,8 @@ async def answer_extension_offer(page: Page, expect: bool = True) -> bool:
 
     # Up to 60 s for the last round to finish presenting; then 4 s of real idle when an offer is
     # expected (covers the pre-fade gap), 1 s when not.
-    state = await page.evaluate(_EXT_WAIT_JS, {"max": 1200, "idle": 80 if expect else 20}) or {}
+    state = await page.evaluate(_EXT_WAIT_JS, {"max": 1200, "idle": 80 if expect else 20,
+                                              "ignore": GAME.promo_popups()}) or {}
     answered = False
     if state.get("open"):
         for name in (decline, GAME.button("extension_close")):
@@ -6064,8 +6192,28 @@ class HoldSpinComplete(Scenario):    # ZZ-30/32/33/34/35/36/38 · DV-57/58 (ante
         self.respin_cap = respin_cap    # respins to drain before failing loudly (Rule 13)
         self.settle = settle
         self.feature = feature          # None | "ante" | "premium:<reelId>", on for the whole run
+        self._left_on = False           # this run switched the feature on and has not switched it off
 
     async def run(self, ctx: DriveContext) -> ScenarioResult:
+        # The feature this run switched on goes back off whether the run ends or FAILS. A failed
+        # drain (respin cap, timeout, rejected bet) used to skip the switch-off and hand the next
+        # run a game still betting with Ante / Premium on. The failure can land INSIDE the bonus,
+        # where the off control is locked, so the game is taken back to base first.
+        self._left_on = False
+        try:
+            return await self._play(ctx)
+        except Exception:
+            if self._left_on:
+                ctx.mark(f"{self.feature.upper()}: the run failed -- back to base, then switch it OFF")
+                try:
+                    await return_to_base(ctx, assert_base=False)
+                    await switch_feature(ctx, self.feature, False)
+                except Exception as e:  # noqa: BLE001 -- the original failure is the one to report
+                    print(f"  hold-spin-complete: could not switch `{self.feature}` off after the "
+                          f"failure: {type(e).__name__}: {e}")
+            raise
+
+    async def _play(self, ctx: DriveContext) -> ScenarioResult:
         start = ctx.now_s()
         feature = self.feature
         off_role = "ante_off" if feature == "ante" else "premium_off"
@@ -6077,12 +6225,14 @@ class HoldSpinComplete(Scenario):    # ZZ-30/32/33/34/35/36/38 · DV-57/58 (ante
             if turned_on:
                 ctx.mark(f"{feature.upper()}: switch OFF again -- leaving the game as this run found it")
                 off = await switch_feature(ctx, feature, False)
+                self._left_on = False
                 facts.update({"feature_restored": off["switched"]})
 
         if feature:
             sw = await switch_feature(ctx, feature, True)
             st = await _feature_state(ctx)
             turned_on = sw["clicked"]
+            self._left_on = bool(turned_on)
             facts.update({"feature_switched_on": sw["switched"],
                           "feature_multiplier_configured": (st.get("anteMultiplier") if feature == "ante"
                                                             else st.get("premiumMultiplier")),
@@ -6628,7 +6778,10 @@ class PremiumReelSpin(Scenario):    # DV-59 / 60 / 61 / 62 / 63
             options = await ctx.ui_read(
                 "() => { const b = window.__gameTestBridge;"
                 " return b && b.getPremiumReelOptions ? b.getPremiumReelOptions() : []; }", []) or []
-            wanted = [o for o in options if self.reel_ids is None or o.get("reelId") in self.reel_ids]
+            # Compared as TEXT: the bridge sends numbers (2, 23) and a suite may quote them ("2"),
+            # which used to match nothing and report the package as not offered.
+            asked = None if self.reel_ids is None else {str(x) for x in self.reel_ids}
+            wanted = [o for o in options if asked is None or str(o.get("reelId")) in asked]
             facts.update({"packages_configured": len(options),
                           "configured_reel_ids": [o.get("reelId") for o in options],
                           "configured_multipliers": [o.get("multiplier") for o in options]})
@@ -7279,13 +7432,17 @@ class RandomMultiplier(Scenario):    # CR_057 / 058
                    "(getMultiplierLevels) as facts.configured_ladder, so 'the values shown are the "
                    "values configured' is an EXACT check rather than an AI read of the on-screen "
                    "bar. Exposes facts.base_multipliers / fs_multipliers / all_in_ladder / "
-                   "reached_freespins.")
+                   "reached_freespins.\n"
+                   "`base_spins` is the MINIMUM number of base rounds sampled: the run cannot choose "
+                   "which spin triggers, so when the bonus arrives first it goes back to the base "
+                   "game afterwards until the count is met. facts.base_spins counts every base "
+                   "round, base_spins_after_bonus the ones played after it; fs_spins counts every "
+                   "free spin played and fs_multiplier_count the ones that reported a multiplier.")
 
     def __init__(self, base_spins: int = 3, max_base: int = 40):
-        # TARGET base rounds before the bonus, best-effort: we cannot choose which spin triggers,
-        # so an early trigger cuts the sample short (minimum 1). With `chaos-fs-easy` (~37% of
-        # spins trigger) the mean is ~2.7, which is what 3 is chosen against. If no trigger has
-        # arrived by then the loop simply keeps spinning -- extra base rounds are extra evidence.
+        # MINIMUM base rounds in the sample. A trigger cannot be put off, so when it arrives
+        # before this many base rounds the run plays more base spins AFTER the bonus. `max_base`
+        # caps the paid spins either way.
         self.base_spins = base_spins
         self.max_base = max_base
 
@@ -7297,16 +7454,28 @@ class RandomMultiplier(Scenario):    # CR_057 / 058
 
         ctx.mark("BASE GAME multiplier sampling")
         rounds, trigger = [], None
-        # One loop, one budget: sample the base game, and keep going until a bonus turns up.
-        # spin_and_finish returns the whole chain, so a trigger contributes its free spins to the
-        # sample instead of being handled separately.
+        base_before = None              # base rounds played before the bonus
+
+        def base_count() -> int:
+            return sum(1 for x in rounds if x.phase in ("base", "auto"))
+
+        # One loop, one budget: sample the base game until a bonus has turned up AND at least
+        # `base_spins` base rounds are in. spin_and_finish returns the whole chain, so a trigger
+        # contributes its free spins to the sample instead of being handled separately.
         for _ in range(self.max_base):
             b, chain = await spin_and_finish(ctx)
             rounds.extend(chain)
-            if is_freespin_trigger(b):
+            if trigger is None and is_freespin_trigger(b):
                 trigger = b
+                base_before = base_count()
                 ctx.mark("FREE SPINS: multiplier sampling continues inside the bonus")
+                if base_before < self.base_spins:
+                    ctx.mark(f"BASE GAME again: {self.base_spins - base_before} more base spin(s) "
+                             f"to reach {self.base_spins}")
+            if trigger is not None and base_count() >= self.base_spins:
                 break
+        if base_before is None:
+            base_before = base_count()
 
         def mults(bs):
             return [m for m in (GAME.multiplier(x.raw or {}) for x in bs) if m is not None]
@@ -7319,8 +7488,12 @@ class RandomMultiplier(Scenario):    # CR_057 / 058
         facts = {"base_multipliers": base_m, "fs_multipliers": fs_m,
                  "ladder": list(GAME.MULTIPLIER_VALUES),
                  "configured_ladder": (configured or {}).get("values") if configured else None,
-                 "base_spins": len([b for b in rounds if b.phase in ("base", "auto")]),
-                 "fs_spins": len(fs_m),
+                 "base_spins": base_count(),
+                 "base_spins_after_bonus": base_count() - base_before,
+                 # every free spin PLAYED (what the prompt describes), and separately the ones that
+                 # reported a multiplier (what "it appears in free spins" needs)
+                 "fs_spins": len([b for b in rounds if b.phase == "freespin"]),
+                 "fs_multiplier_count": len(fs_m),
                  "reported_any": bool(observed),
                  "all_in_ladder": bool(observed) and all(m in ladder for m in observed),
                  "reached_freespins": trigger is not None,
@@ -7355,8 +7528,10 @@ class PaytableBetScaling(Scenario):    # CR_014 / 015 / 016 / 017 / 070
                    "video assert grades a downsampled montage, where paytable digits are not in the "
                    "pixels.\n"
                    "Places NO bet, so Rule 1 does not apply: no response is read and no trigger is "
-                   "possible. Exposes facts.bet_a / bet_b / line_bet_a / line_bet_b / divisor and "
-                   "the shots paytable-bet-a / paytable-bet-b.\n"
+                   "possible. Exposes facts.bet_a / bet_b (the bet the GAME showed after each "
+                   "pick, read back -- unreached when it is not the bet asked for) / bet_ratio "
+                   "(bet_b / bet_a, for an image assert's `compare_shots`) / line_bet_a / line_bet_b "
+                   "/ divisor and the shots paytable-bet-a / paytable-bet-b.\n"
                    "Per-line bet is `baseStake / betLines` (20). The design doc's `/5` worked "
                    "examples are wrong — see game-knowledge.md §5 item 4.")
 
@@ -7364,19 +7539,24 @@ class PaytableBetScaling(Scenario):    # CR_014 / 015 / 016 / 017 / 070
         self.index_a = index_a
         self.index_b = index_b
 
-    async def _pick_bet(self, ctx: DriveContext, index: int) -> bool:
-        """Select denomination `index`. Returns whether the list actually opened — `open_bet_list`
-        checks `visiblePopups` rather than assuming the click landed, so a build whose list never
-        appears is reported instead of being clicked at blindly."""
+    async def _pick_bet(self, ctx: DriveContext, index: int) -> tuple:
+        """Select denomination `index`. Returns (opened, bet): whether the list actually opened —
+        `open_bet_list` checks `visiblePopups` rather than assuming the click landed — and the bet
+        the game shows AFTERWARDS, read back. The row click is optional, so the read-back is what
+        proves it landed: without it a missed click left both shots at one bet while the facts
+        still named two."""
         if not await open_bet_list(ctx):
-            return False
+            return False, None
         await ctx.scroll_bet_row(index, dwell_ms=0)
         # Templated role: resolve it WITH the index first — click_button takes a finished name.
         await ctx.click_button(GAME.button("bet_row", i=index), optional=True, timeout_ms=15000)
         # Same stall risk as browse-denominations: a close that silently does nothing leaves the
         # popup up, and the next settle then waits its whole timeout. close_bet_list proves it went.
         await close_bet_list(ctx)
-        return True
+        bet = await ctx.eval("() => { const b = window.__gameTestBridge;"
+                             " const s = b.getSnapshot ? b.getSnapshot() : null;"
+                             " return b.getBetAmount ? b.getBetAmount() : (s ? s.betAmount : null); }")
+        return True, bet
 
     async def _shoot_paytable(self, ctx: DriveContext, label: str) -> bool:
         if not await ctx.click_button("info", optional=True, timeout_ms=10000):
@@ -7400,12 +7580,18 @@ class PaytableBetScaling(Scenario):    # CR_014 / 015 / 016 / 017 / 070
             b_i = (a + 1) % len(denoms)
 
         ctx.mark(f"BET LEVEL A = {denoms[a]}")
-        opened_a = await self._pick_bet(ctx, a)
+        opened_a, shown_a = await self._pick_bet(ctx, a)
         shot_a = await self._shoot_paytable(ctx, "paytable-bet-a")
 
         ctx.mark(f"BET LEVEL B = {denoms[b_i]}")
-        opened_b = await self._pick_bet(ctx, b_i)
+        opened_b, shown_b = await self._pick_bet(ctx, b_i)
         shot_b = await self._shoot_paytable(ctx, "paytable-bet-b")
+
+        def _landed(shown, want) -> bool:
+            try:
+                return shown is not None and abs(float(shown) - float(want)) < 1e-9
+            except (TypeError, ValueError):
+                return False
 
         if not (opened_a and opened_b):
             return ScenarioResult(self.name, False, None, [], ctx.timeline, ctx.events,
@@ -7416,9 +7602,18 @@ class PaytableBetScaling(Scenario):    # CR_014 / 015 / 016 / 017 / 070
             return ScenarioResult(self.name, False, None, [], ctx.timeline, ctx.events,
                                   (start, ctx.now_s()), shots=ctx.shots,
                                   reason="the info / paytable surface never opened on this build")
-        facts = {"bet_a": denoms[a], "bet_b": denoms[b_i],
+        if not (_landed(shown_a, denoms[a]) and _landed(shown_b, denoms[b_i])):
+            return ScenarioResult(self.name, False, None, [], ctx.timeline, ctx.events,
+                                  (start, ctx.now_s()), shots=ctx.shots,
+                                  facts={"bet_a": shown_a, "bet_b": shown_b,
+                                         "bet_a_asked": denoms[a], "bet_b_asked": denoms[b_i]},
+                                  reason=f"the bet did not change as asked: picked {denoms[a]} then "
+                                         f"{denoms[b_i]}, the game showed {shown_a} then {shown_b} "
+                                         f"— the two paytable shots are not at the bets they claim")
+        facts = {"bet_a": shown_a, "bet_b": shown_b,
+                 "bet_ratio": round(float(shown_b) / float(shown_a), 6) if float(shown_a) else None,
                  "index_a": a, "index_b": b_i,
-                 "divisor": GAME.PAYLINES or GAME.LINE_DIVISOR,
+                 "divisor": GAME.LINE_DIVISOR or GAME.PAYLINES,   # the order line_bet() divides by
                  "line_bet_a": GAME.line_bet(float(denoms[a])),
                  "line_bet_b": GAME.line_bet(float(denoms[b_i])),
                  "denom_count": len(denoms)}
@@ -8106,6 +8301,15 @@ class WalkingWild(Scenario):
                                   (start, ctx.now_s()), facts=facts, reason=str(e))
 
 
+def _reel_or(cell: dict, missing: int) -> int:
+    """A drama cell's reel index, or `missing` when the key is absent OR null (`int(None)` raised)."""
+    v = cell.get("reel")
+    try:
+        return int(v) if v is not None else missing
+    except (TypeError, ValueError):
+        return missing
+
+
 class CatDogDrama(Scenario):
     name = "drama"
     description = ("Spin until the Cat vs Dog drama has PLAYED a given number of times, then stop. "
@@ -8117,14 +8321,14 @@ class CatDogDrama(Scenario):
                    "on the server's result' is exact on drama and non-drama rounds alike.\n"
                    "⚠ A build with `devForceTrigger` / `devForceFamily` set is not a production "
                    "build and the run FAILS rather than grading a forced fight.\n"
-                   "Exposes facts.rounds_played / dramas_played / rounds_roll_failed / "
+                   "Exposes facts.rounds_played / dramas_played / "
                    "fights_cat_vs_dog / fights_same_row_adjacent / fights_vertical / "
                    "fights_per_round_max / rounds_with_multiple_candidates / winner_is_real_cell / "
                    "winner_family_matches_rule / loser_is_fake / fakes_all_loser_family / "
                    "fakes_within_column_cap / real_losers_survive / grid_matches_view_rounds / "
-                   "drama_animation_rounds / fakes_when_not_played / skipped_mode_excluded / "
-                   "min_drama_ms / dev_switch_on / play_in_turbo_config / speed_mode / autoplay_ran "
-                   "/ skip_reasons. Marks `first_drama` and `last_drama`. Unreached when `dramas` "
+                   "drama_animation_rounds / fakes_when_not_played / "
+                   "min_drama_ms / dev_switch_on / play_in_turbo_config / speed_mode / autoplay_ran. "
+                   "Marks `first_drama` and `last_drama`. Unreached when `dramas` "
                    "are not reached inside `max_spins`.")
 
     def __init__(self, dramas: int = 4, max_spins: int = 40, turbo: bool = False,
@@ -8199,7 +8403,7 @@ class CatDogDrama(Scenario):
                 wf, lf = state.get("winnerFamily"), state.get("loserFamily")
                 rows.append({
                     "seq": bet.seq, "played": played,
-                    "skip": state.get("skipReason"), "trigger": state.get("trigger"),
+                    "trigger": state.get("trigger"),
                     "grid_match": _grid_matches_view(shown, raw),
                     "drama_ms": _busy_ms(trace, "drama"),
                     "animated": bool(_busy_spans(trace, "drama")),
@@ -8207,9 +8411,10 @@ class CatDogDrama(Scenario):
                     # every rule below is vacuously true on a round with no fight, and is only
                     # counted against the rounds that HAD one
                     "cat_vs_dog": (played and {wf, lf} == {"CAT", "DOG"}),
+                    # A cell the client reports with `reel: null` is "no reel", not a crash: it
+                    # takes the same never-adjacent stand-in (-9 / 9) as a missing key.
                     "same_row_adjacent": (played and winner.get("row") == loser.get("row")
-                                          and abs(int(winner.get("reel", -9))
-                                                  - int(loser.get("reel", 9))) == 1),
+                                          and abs(_reel_or(winner, -9) - _reel_or(loser, 9)) == 1),
                     "vertical": (played and winner.get("reel") == loser.get("reel")),
                     "winner_real": (played and GAME.family_of(
                         (real[winner["reel"]][winner["row"]]
@@ -8240,14 +8445,19 @@ class CatDogDrama(Scenario):
                     last_drama = bet.seq
                     ctx.mark(f"ROUND {bet.seq}: drama — {wf} beats {lf}")
                 else:
-                    ctx.mark(f"ROUND {bet.seq}: no drama ({state.get('skipReason')})")
+                    ctx.mark(f"ROUND {bet.seq}: no drama")
 
             if self.autoplay:
                 # Open the panel, pick the count, confirm -- in that order. There is no helper for
                 # this, and no shortcut: confirming without the panel open clicks an inert control.
                 counts = list(GAME.AUTO_COUNTS or ())
-                idx = counts.index(self.autoplay) if self.autoplay in counts else 0
-                ctx.mark(f"AUTOPLAY: {counts[idx] if counts else self.autoplay} spins")
+                # Only a count the panel OFFERS: picking another row would start a run of a
+                # different length while the loop below waited for this one.
+                if self.autoplay not in counts:
+                    raise Unreached(f"autoplay={self.autoplay} is not a count this game offers "
+                                    f"(AUTO_COUNTS={counts})")
+                idx = counts.index(self.autoplay)
+                ctx.mark(f"AUTOPLAY: {counts[idx]} spins")
                 await ctx.click_button(GAME.button("auto"))
                 await ctx.click_button(GAME.button("auto_count", i=idx))
                 await ctx.click_button(GAME.button("auto_confirm"), dwell_ms=0)
@@ -8259,6 +8469,10 @@ class CatDogDrama(Scenario):
                         continue
                     await _grade(bet)
                     if sum(1 for r in rows if r["played"]) >= self.dramas:
+                        # Enough dramas before the run ran out: STOP it, or the client keeps
+                        # betting while confirm_stopped below watches for it to stop on its own.
+                        ctx.mark(f"AUTOPLAY: {self.dramas} drama(s) seen -- stopping auto")
+                        await stop_autoplay(ctx)
                         break
                 await confirm_stopped(ctx, label="AUTO STOPPED")
             else:
@@ -8280,7 +8494,7 @@ class CatDogDrama(Scenario):
             if len(played_rows) < self.dramas:
                 raise Unreached(
                     f"only {len(played_rows)} drama(s) in {len(rows)} spins, wanted {self.dramas}. "
-                    f"Skip reasons: {sorted({r['skip'] for r in rows if r['skip']})}. The roll is "
+                    f"The roll is "
                     f"70% on a big win and 4% otherwise -- force big wins with the paytable, do "
                     f"not spin longer")
 
@@ -8288,9 +8502,6 @@ class CatDogDrama(Scenario):
             facts.update({
                 "rounds_played": len(rows),
                 "dramas_played": len(played_rows),
-                "rounds_roll_failed": sum(1 for r in rows if r["skip"] == "roll-failed"),
-                "skip_reasons": sorted({r["skip"] for r in rows if r["skip"]}),
-                "skipped_mode_excluded": sum(1 for r in rows if r["skip"] == "mode-excluded"),
                 "fights_cat_vs_dog": sum(1 for r in played_rows if r["cat_vs_dog"]),
                 "fights_same_row_adjacent": sum(1 for r in played_rows if r["same_row_adjacent"]),
                 "fights_vertical": sum(1 for r in played_rows if r["vertical"]),

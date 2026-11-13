@@ -406,15 +406,13 @@ runs:
             - image:
                 at: paytable-bet-
                 prompt: >-
-                  A Treasures of the Dragon paytable screen. The game is a 3x3 slot with 5 paylines
-                  whose per-line payout is (total bet / 5) x the symbol's multiplier. Two captures
-                  exist: one at bet {facts.bet_a} (per-line {facts.line_bet_a}) and one at bet
-                  {facts.bet_b} (per-line {facts.line_bet_b}). For THIS image, answer: (1) read the
+                  A Treasures of the Dragon paytable screen (a 3x3 slot with 5 paylines). For THIS image, answer: (1) read the
                   bet or total bet value shown on it (bet_text). (2) read the payout printed for the
                   highest-paying symbol's 3-of-a-kind row (top_payout_text). (3) are the payout
                   values shown as currency amounts rather than bare multipliers (shows_currency)?
                   (4) is the table fully rendered — every symbol row present, no blank or
                   placeholder values (table_renders)?
+                compare_shots: { field: top_payout_text, ratio: "{facts.bet_ratio}", tol: 0.02 }
                 output_schema:
                   bet_text: { type: string }
                   top_payout_text: { type: string }

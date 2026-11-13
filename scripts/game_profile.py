@@ -199,6 +199,12 @@ class SlotGame:
         "buy_package": None,
         "buy_confirm": None,
         "buy_cancel": None,
+        # The promo dialogs (Grandma bridge-api.md §7). ⚠ `promo_confirm` CLAIMS or DISCARDS a promo
+        # whenever `promo_cancel` is also showing — only `clear_promo_popups` may press it, and only then.
+        "promo_cancel": None,
+        "promo_confirm": None,
+        "promo_list_close": None,
+        "promo_message_ok": None,
     }
     AUTO_COUNTS: tuple = (10, 20, 30, 50, None)
 
@@ -215,6 +221,11 @@ class SlotGame:
         "buy_bonus": None,
         "freespin_result": "freeSpinResult",
         "promo": "promo",
+        # The promo DIALOGS, when the bridge reports them one by one (Grandma). None = the game has
+        # none the framework knows how to close, and promo handling is a no-op.
+        "promo_receive": None,           # new promo / discard / end-of-promo result — one dialog
+        "promo_list": None,
+        "promo_message": None,
         "disconnect": "disconnect",
         "ante_notify": None,             # the toast raised when Ante Bet is switched on / off
     }
@@ -281,6 +292,15 @@ class SlotGame:
 
     def popup(self, role: str) -> str | None:
         return self.POPUPS.get(role)
+
+    def promo_popups(self) -> list:
+        """The `visiblePopups` names of this game's promo dialogs; [] when it has none."""
+        return [n for n in (self.popup(r) for r in ("promo_receive", "promo_list", "promo_message")) if n]
+
+    def is_promo_popup(self, label) -> bool:
+        """Is `label` one of the promo dialogs? They can show at any idle moment and are not what
+        any scenario is about, so popup readers leave them out and `clear_promo_popups` closes them."""
+        return str(label) in self.promo_popups()
 
     def via(self, name: str) -> str | None:
         """The ROLE of the panel opener a control lives behind (`BUTTON_VIA`), or None when the
@@ -2170,6 +2190,12 @@ class Grandma(WaysGame):
         # the game team says it is; `skip_big_win()` reports `unknown_control` loudly rather than
         # silently doing nothing if this build does not have it.
         "big_win_skip": "bigWin:skip",
+        # The promo dialogs (bridge §7). `cancel` closes with no side effect; `confirm` is the claim
+        # (or an irreversible discard) whenever `cancel` is showing too.
+        "promo_cancel": "promo:receive:cancel",
+        "promo_confirm": "promo:receive:confirm",
+        "promo_list_close": "promo:list:close",
+        "promo_message_ok": "promo:message:ok",
     })
 
     # History and the guide are reached through Settings (see `history` / `info` above).
@@ -2193,7 +2219,11 @@ class Grandma(WaysGame):
         "buy_bonus": "MultipleBuyBonusPopup",
         "freespin_result": "FreeSpinResultPopup",
         "disconnect": "DisconnectPopup",
+        # `Promo` itself is never reported (it is the HUD container); only its inner dialogs are.
         "promo": None,
+        "promo_receive": "Promo:receive",
+        "promo_list": "Promo:list",
+        "promo_message": "Promo:message",
         # Grandma's own surfaces.
         "get_free_spin": "GetFreeSpinPopup",
         "extra_free_spin": "ExtraFreeSpinPopup",

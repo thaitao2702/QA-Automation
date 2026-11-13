@@ -158,8 +158,14 @@ Where the named control is right now. Answers immediately and never throws.
 | rect, `interactable:false` | The control is on screen but disabled |
 
 `interactable` reflects the control's own state only. Coverage by another layer is checked by
-`waitForButtonClickable`. Tap-outside controls (`auto:close`, `bet:backdrop`, `gameLimit:close`,
-`freeSpinResult:skip`) return a small rect on an uncovered edge point, not the backdrop's centre.
+`waitForButtonClickable`.
+
+**Full-screen tap layers** — the tap-outside backdrops (`auto:close`, `bet:backdrop`,
+`gameLimit:close`) and the presentation popups' skip overlays (`bigWin:skip`, `freeSpinAward:skip`,
+`freeSpinResult:skip`) — are sized to the full design resolution, which overflows the canvas on most
+viewports. Their `x/y/width/height` is the part of the layer that is **on the canvas**, and
+`centerX/centerY` is a point inside that part which is not covered by the panel drawn over it
+(edges first, centre last). Click the centre as usual.
 
 ### `waitForButtonClickable(name, stableMs = 300, timeoutMs = 15000)` → `Promise<ButtonRect>`
 
@@ -252,7 +258,7 @@ never a readiness signal.
 | `getMultiplierLevels()` | `{baseGame: number[], freeGame: number[]}` | See [Wild Multiplier](#81-wild-multiplier) |
 | `getTutorialRect()` | `ButtonRect \| null` | The Information WebView's own rect; `null` when closed. Scroll it with `page.mouse.wheel`. The bridge cannot scroll it (cross-origin). |
 | `scrollBetRowIntoView(i)` | `void` | Scrolls the open denomination list so row `i` is centred. Silently does nothing when the list is closed. |
-| `getHistoryRows()` | `HistoryRow[]` | Only the rows currently rendered, sorted by `index`. `data` holds `roundId`, `betTime`, `betAmount`, `totalWinAmount`, `totalFreeSpins`, `anteMulti`, `isBuyBonus`, `promoType`. |
+| `getHistoryRows()` | `HistoryRow[]` | Only the rows currently rendered (the list is virtualized), sorted by `index` — the list's own row id, so it is stable while scrolling. `data` is what that row renders: `roundId`, `betTime`, `betAmount`, `totalWinAmount`, `totalFreeSpins`, `anteMulti`, `isBuyBonus`, `promoType`. `rect` is the control that opens the round's detail (the row's `>` chevron, or the row itself when it has none), so clicking `rect.centerX/centerY` opens `HistoryDetail`. `clickable` is mask-aware: a row scrolled out of the viewport reports `false`. |
 | `getHistoryDetailState()` | `HistoryDetailState` | `hasNext` / `hasPrev` follow the real navigation buttons (a declined-extension ticket hides Next). Loop on them; never do arithmetic on `betCount`. |
 | `startEventCapture(label)` | `void` | Opens a capture window |
 | `endEventCapture(label)` | `BridgeEvent[]` | Everything since `startEventCapture(label)`; `[]` for an unknown label |
@@ -295,7 +301,8 @@ A popup's buttons resolve only while that popup is open; otherwise `getButtonRec
 | `stakeIncrease` / `stakeDecrease` | Stake arrows | Open the denomination list |
 | `anteBet` | Ante Bet | `null` when ante is disabled for this operator |
 | `buyBonus` | Buy Bonus | Disabled in free spins, autoplay, promo and with ante ON |
-| `history` · `info` · `settings` | System buttons | |
+| `settings` | System button | Always on the main screen |
+| `history` · `info` | System buttons | **Only on builds that show them on the main screen.** This build reaches them through Settings instead, so they resolve to `null` here — use `settings` → `settings:history` / `settings:info`. Probe with `getButtonRect`, don't assume. |
 | `sound` (`soundOn` / `soundOff`) | Mute toggle | `sound` resolves whichever variant is showing |
 | `trophy` | Monumental wins | |
 
@@ -312,17 +319,43 @@ A popup's buttons resolve only while that popup is open; otherwise `getButtonRec
 | `InformationPopup` | `info:close`. The guide is a WebView: use `getTutorialRect()`. |
 | `MonumentalWinsPopup` / `PopupGameLimit` | `trophy:close` / `gameLimit:close` |
 | `MultipleBuyBonusPopup` | `buyBonus:package:{i}`, `buyBonus:plus`, `buyBonus:minus`, `buyBonus:close`, `buyBonus:confirm`, `buyBonus:cancel` |
+| `BigWinPopup` | `bigWin:skip` — tap the celebration to skip. **Two clicks close it**: the 1st ends the Big→Mega→Ultra escalation, the 2nd exits. It refuses skips for its first second, then for 2 s after the 1st click (`waitForButtonClickable` holds through both), and reports `interactable:false` all round when the round forbids skipping. |
+| `GetFreeSpinPopup` | `freeSpinAward:skip` |
+| `ExtraFreeSpinPopup` | none — the popup has no buttons; it plays out and closes itself |
 | `FreeSpinResultPopup` | `freeSpinResult:skip`, `extension:confirm`, `extension:decline`, `extension:close` |
+| `GetFreeSpinPopup` / `BigWinPopup` | `freeSpinAward:skip` / `bigWin:skip` (tap-outside overlays; `interactable:false` when the round forbids skipping) |
 | `LuckySpinPopup` | `luckySpin:spin`, `luckySpin:keep` |
+| `Promo:list` | `promo:list:close` (the list's X — its neighbour is *Discard all*, which is not exposed) |
+| `Promo:receive` | `promo:receive:confirm`, `promo:receive:cancel`, `promo:receive:other` — see below; each resolves only when the dialog shows that button |
+| `Promo:message` | `promo:message:ok` |
+
+**`Promo:receive` is one dialog with three uses, and `confirm` means something different in each.**
+To **close without side effects, click `promo:receive:cancel`**; if it is `null`, the dialog is an
+end-of-promo result and `confirm` is its only (and safe) way out.
+
+| Dialog | `confirm` | `cancel` | `other` |
+|---|---|---|---|
+| New promo received | **Claim — starts the promo** (promo spins follow) | Close (the next new promo may show) | Close all (only with 2+ new promos) |
+| Discard a promo | **Discards it — irreversible** | Back | — |
+| End-of-promo result | Back to game, or *More promo* (opens the list) | Back to game (when present) | — |
+
+The end-of-promo result is **awaited by the round**: it must be closed by its button, never by
+hiding the node. `dismissPopups()` follows the same rule — it presses `cancel`, else `confirm` on
+an end-of-promo result, so it never claims or discards a promo.
 
 ### Other `visiblePopups` names
 
 | Kind | Names | `dismissPopups()` |
 |---|---|---|
-| Presentation popups | `BigWinPopup`, `GetFreeSpinPopup`, `ExtraFreeSpinPopup`, `FreeSpinResultPopup` | Never force-closed; they end through their own skip / timeout |
-| Sub-surfaces | `BuyExtraFreeSpinPanel` (extension offer), `MultipleBuyBonusPopup:confirm`, `HistoryPopup:customDate`, `SymbolInfo` | Closed. `BuyExtraFreeSpinPanel` = a decline. |
+| Presentation popups | `BigWinPopup`, `GetFreeSpinPopup`, `ExtraFreeSpinPopup`, `FreeSpinResultPopup` | Never force-closed; they end through their own skip / timeout (see their skip controls in the table above) |
+| Sub-surfaces | `BuyExtraFreeSpinPanel` (extension offer), `MultipleBuyBonusPopup:confirm`, `HistoryPopup:customDate`, `SymbolInfo`, `Promo:list`, `Promo:receive`, `Promo:message` | Closed. `BuyExtraFreeSpinPanel` = a decline. |
 | Toasts | `notify:turbo`, `notify:autoplay`, `notify:anteBet`, `notify:anteBetInfo` | Closed; never block spin |
 | Not closable by the bridge | `DisconnectPopup`, `LuckySpinPopup` | Skipped |
+
+**`Promo` is never reported.** The promo prefab is instantiated at load and stays active all session:
+it is the container for the promo icon and HUD, not a popup. Only its inner popups appear in
+`visiblePopups`, as `Promo:list` (the promo list), `Promo:receive` (the claim dialog) and
+`Promo:message`. The promo icon and side notifications are HUD, so they are not reported at all.
 
 ---
 
@@ -495,8 +528,15 @@ round holds a cat (P1, P3, P4 = ids 5, 7, 8) or a dog (P2, P5 = ids 6, 18), the 
 2. play the fight between that winner and the fake beside it;
 3. remove every fake and drop the real symbols back, so the grid ends on the server's `view`.
 
-The winning family is the one with more symbols on the bottom row (then the row above). Real
-symbols of the losing family stay; only the fakes disappear.
+The winning family is the one with more symbols on the bottom row (then the row above). Each fake
+is a random member of the losing family (e.g. any of P1 / P3 / P4 when cats lose).
+
+**Every losing-family symbol on the fight screen is a fake.** Inserting a fake does not cover a
+cell: it pushes the rows above it up by one, and the reel's top symbol goes off-screen. A mandatory
+planning rule puts enough fakes on each reel to push **every real** losing-family symbol off the
+top; a fight that cannot do so is not chosen. So when the fakes vanish, the whole losing family
+leaves the screen, and the winner's family stays. Then the pushed-out real symbols fall back in
+(`evictedByReel`), so losing-family symbols from the real result reappear as part of it.
 
 **Play rate:** the first matching condition owns the only roll.
 
@@ -525,6 +565,7 @@ spins or in the buy-bonus round.
 | `loser` | Same shape: always a fake, same row, neighbouring reel |
 | `fakeCells` | Every fake inserted, the loser included: `{reel, row, symbolId, symbolName}` |
 | `fakeCountByReel` | Fakes per reel |
+| `evictedByReel` | Per reel, the real symbols the fakes pushed off the top (top-most first); they fall back in once the fakes go |
 | `landingView` | `matrix[reel][row]` the reels landed on (with fakes) |
 | `realView` | `matrix[reel][row]` of the server result |
 | `stopTaps`, `spedUp` | Player taps during the drama: the 1st skips the fight, the 2nd speeds the rest up ×3 |
@@ -563,10 +604,14 @@ Invariants to assert on a played drama:
 3. `loser` is on the winner's row, on reel `winner.reel ± 1` (per `side`), and its family is
    `loserFamily`, the opposite of `winnerFamily`.
 4. Every `fakeCells[*].symbolId` belongs to `loserFamily`, and the loser is one of them.
-5. No reel carries more than `maxFakesPerColumn` fakes.
-6. `realView` holds at least one cat or dog. A drama never plays without one.
-7. Never together with a walking wild: `skipReason == "walking-wild"` rounds have `played == false`.
-8. `angry.played` is never true when `played` is true, nor in free spins or the buy-bonus round.
+5. **Every `loserFamily` cell of `landingView` is in `fakeCells`**: no real losing-family symbol
+   is visible during the fight.
+6. Every real `loserFamily` symbol of `realView` appears in `evictedByReel` of its reel, and none
+   sits below the winner on the winner's own reel.
+7. No reel carries more than `maxFakesPerColumn` fakes; `evictedByReel[reel].length == fakeCountByReel[reel]`.
+8. `realView` holds at least one cat or dog. A drama never plays without one.
+9. Never together with a walking wild: `skipReason == "walking-wild"` rounds have `played == false`.
+10. `angry.played` is never true when `played` is true, nor in free spins or the buy-bonus round.
 
 Rate checks over a run (`getDramaHistory()`): the roll happens only after the cat/dog check, so the
 rolled rounds are those with `played == true` or `skipReason` in `roll-failed`, `no-valid-candidate`,
@@ -602,7 +647,7 @@ interface DramaRoundState {
   roundId: string | null; betId: string | null; evaluated: boolean; played: boolean; skipReason: string | null;
   trigger: "bigWin" | "freeSpinTrigger" | "normal" | null; playRate: number | null; phase: "none" | "fighting" | "done";
   winnerFamily: "CAT" | "DOG" | null; loserFamily: "CAT" | "DOG" | null; side: "left" | "right" | null;
-  winner: DramaFighter | null; loser: DramaFighter | null; fakeCells: DramaCell[]; fakeCountByReel: number[];
+  winner: DramaFighter | null; loser: DramaFighter | null; fakeCells: DramaCell[]; fakeCountByReel: number[]; evictedByReel: number[][];
   landingView: number[][] | null; realView: number[][] | null; stopTaps: number; spedUp: boolean; angry: AngryState;
 }
 interface DramaConfigState {
